@@ -3,6 +3,7 @@ module github.com/Thatooine/loyalty-points-app
 go 1.25.0
 
 require (
+	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/rpc v1.2.1
 	github.com/rs/zerolog v1.35.1

@@ -11,6 +11,7 @@ import (
 	gorillaJSON "github.com/gorilla/rpc/v2/json2"
 	"github.com/rs/zerolog/log"
 
+	"github.com/Thatooine/loyalty-points-app/pkg/authentication"
 	"github.com/Thatooine/loyalty-points-app/pkg/jsonrpc"
 )
 
@@ -25,8 +26,7 @@ func setupRPCServer(providers ServiceProviders) {
 
 	// json rpc services exposed on the /api path
 	services := []jsonrpc.Service{
-		// register services here, e.g.:
-		// loyalty.NewPointsServiceJSONRPCAdaptor(providers.PointsService),
+		authentication.NewEmailAndPasswordAuthJSONRPCAdaptor(providers.EmailAndPasswordAuthService),
 	}
 
 	// register each service with the json rpc server
