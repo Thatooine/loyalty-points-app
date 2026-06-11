@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Thatooine/loyalty-points-app/logger"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/rpc/v2"
 	gorillaJSON "github.com/gorilla/rpc/v2/json2"
@@ -38,9 +39,7 @@ func setupRPCServer(providers ServiceProviders) {
 
 	// create a sub-router at /api and mount the json rpc server on it
 	apiRouter := router.PathPrefix("/api").Subrouter()
-	apiRouter.Use(
-	// add middleware here, e.g. CORS, authentication, logging
-	)
+	apiRouter.Use(logger.Middleware)
 	apiRouter.Handle("", jsonRPCServer)
 
 	// start the http server
