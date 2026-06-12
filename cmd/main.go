@@ -39,4 +39,8 @@ func main() {
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 	<-signals
 	log.Info().Msg("shutting down app")
+
+	if err := serviceProviders.Close(); err != nil {
+		log.Error().Err(err).Msg("failed to close service providers")
+	}
 }

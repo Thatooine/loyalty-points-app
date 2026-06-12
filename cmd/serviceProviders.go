@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
+	"database/sql"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -12,18 +13,31 @@ import (
 
 	internalAuth "github.com/Thatooine/loyalty-points-app/internal/pkg/authentication"
 	pkgAuth "github.com/Thatooine/loyalty-points-app/pkg/authentication"
+	"github.com/Thatooine/loyalty-points-app/sqlite"
 )
 
 // ServiceProviders holds the wired-up service implementations used by the
 // server adaptors and middleware.
 type ServiceProviders struct {
+	DB                          *sql.DB
 	EmailAndPasswordAuthService pkgAuth.EmailAndPasswordAuthService
 	AccessTokenService          pkgAuth.AccessTokenService
+}
+
+// Close releases resources held by the service providers.
+func (s *ServiceProviders) Close() error {
+	return s.DB.Close()
 }
 
 // NewServiceProviders constructs all service implementations from the given
 // configuration.
 func NewServiceProviders(ctx context.Context, config *Config, secureConfig *SecureConfig) (*ServiceProviders, error) {
+	// open the SQLite database used for persistence
+	db, err := sqlite.NewClient(ctx, config.SQLiteDSN)
+	if err != nil {
+		return nil, fmt.Errorf("could not create sqlite client: %w", err)
+	}
+
 	// parse the RSA private key used to sign and verify access tokens
 	jwtPrivateKey, err := parseRSAPrivateKey(secureConfig.JWTPrivateKeyPEM)
 	if err != nil {
@@ -45,6 +59,7 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 	)
 
 	return &ServiceProviders{
+		DB:                          db,
 		EmailAndPasswordAuthService: emailAndPasswordAuthService,
 		AccessTokenService:          accessTokenService,
 	}, nil

@@ -7,10 +7,12 @@ import (
 
 func init() {
 	viper.MustBindEnv("JWTPrivateKeyPEM", "JWT_PRIVATE_KEY_PEM")
+	viper.MustBindEnv("SQLiteDSN", "SQLITE_DSN")
 }
 
 // Config holds all non-secret app configuration
 type Config struct {
+	SQLiteDSN string
 }
 
 // SecureConfig holds all secret application configuration
@@ -20,6 +22,7 @@ type SecureConfig struct {
 
 func GetConfig(configFileName string) (*Config, *SecureConfig) {
 	// set default configuration
+	viper.SetDefault("SQLiteDSN", "file:loyalty-points.db?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)")
 	viper.SetDefault("JWTPrivateKeyPEM", `-----BEGIN PRIVATE KEY-----
 MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQCsTXWAE1NG6IVw
 8Q/QkUbSGsNaHAgmtAXHvR79BTXziNMWU7iKBDdpXNZN6zmKsWxcoAu4y5DVKk5p

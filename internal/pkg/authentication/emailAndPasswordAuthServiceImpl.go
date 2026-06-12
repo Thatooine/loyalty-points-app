@@ -18,6 +18,7 @@ func NewEmailAndPasswordAuthServiceImpl(
 	}
 }
 
+// TODO A basic email and hashed password authentication to be used
 func (s *EmailAndPasswordAuthServiceImpl) Authenticate(ctx context.Context, request pkgAuth.EmailAndPasswordAuthRequest) (*pkgAuth.EmailAndPasswordAuthResponse, error) {
 
 	return &pkgAuth.EmailAndPasswordAuthResponse{}, nil
