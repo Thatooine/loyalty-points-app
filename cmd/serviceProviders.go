@@ -11,8 +11,14 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 
+	internalAccounts "github.com/Thatooine/loyalty-points-app/internal/pkg/accounts"
+	internalAudit "github.com/Thatooine/loyalty-points-app/internal/pkg/audit"
 	internalAuth "github.com/Thatooine/loyalty-points-app/internal/pkg/authentication"
+	internalWallet "github.com/Thatooine/loyalty-points-app/internal/pkg/wallet"
+	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
+	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audit"
 	pkgAuth "github.com/Thatooine/loyalty-points-app/pkg/authentication"
+	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallet"
 	"github.com/Thatooine/loyalty-points-app/sqlite"
 )
 
@@ -20,6 +26,10 @@ import (
 // server adaptors and middleware.
 type ServiceProviders struct {
 	DB                          *sql.DB
+	TransactionManager          sqlite.TransactionManager
+	AccountRepository           pkgAccounts.AccountRepository
+	TransactionRepository       pkgWallet.TransactionRepository
+	AuditEntryRepository        pkgAudit.AuditEntryRepository
 	EmailAndPasswordAuthService pkgAuth.EmailAndPasswordAuthService
 	AccessTokenService          pkgAuth.AccessTokenService
 }
@@ -36,6 +46,11 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 	db, err := sqlite.NewClient(ctx, config.SQLiteDSN)
 	if err != nil {
 		return nil, fmt.Errorf("could not create sqlite client: %w", err)
+	}
+
+	// apply any pending schema migrations
+	if err := sqlite.Migrate(ctx, db); err != nil {
+		return nil, fmt.Errorf("could not migrate database: %w", err)
 	}
 
 	// parse the RSA private key used to sign and verify access tokens
@@ -60,6 +75,10 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 
 	return &ServiceProviders{
 		DB:                          db,
+		TransactionManager:          sqlite.NewTxManager(db),
+		AccountRepository:           internalAccounts.NewAccountRepositoryImpl(db),
+		TransactionRepository:       internalWallet.NewTransactionRepositoryImpl(db),
+		AuditEntryRepository:        internalAudit.NewAuditEntryRepositoryImpl(db),
 		EmailAndPasswordAuthService: emailAndPasswordAuthService,
 		AccessTokenService:          accessTokenService,
 	}, nil
