@@ -26,7 +26,7 @@ func setupRPCServer(providers ServiceProviders) {
 
 	// json rpc services exposed on the /api path
 	services := []jsonrpc.Service{
-		authentication.NewEmailAndPasswordAuthJSONRPCAdaptor(providers.EmailAndPasswordAuthService),
+		authentication.NewEmailPasswordAuthenticatorJSONRPCAdaptor(providers.EmailPasswordAuthenticator),
 	}
 
 	// register each service with the json rpc server

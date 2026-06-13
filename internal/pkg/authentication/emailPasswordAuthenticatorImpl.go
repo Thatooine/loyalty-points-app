@@ -17,24 +17,27 @@ import (
 // accessTokenTTL is how long an issued access token remains valid.
 const accessTokenTTL = 24 * time.Hour
 
-type EmailAndPasswordAuthServiceImpl struct {
+type EmailPasswordAuthenticatorImpl struct {
 	users              pkgUsers.UserRepository
 	accessTokenService pkgAuth.AccessTokenService
 }
 
-func NewEmailAndPasswordAuthServiceImpl(
+func NewEmailPasswordAuthenticatorImpl(
 	users pkgUsers.UserRepository,
 	accessTokenService pkgAuth.AccessTokenService,
-) *EmailAndPasswordAuthServiceImpl {
-	return &EmailAndPasswordAuthServiceImpl{
+) *EmailPasswordAuthenticatorImpl {
+	return &EmailPasswordAuthenticatorImpl{
 		users:              users,
 		accessTokenService: accessTokenService,
 	}
 }
 
-// A missing user and a wrong password both yield errs.ErrUnauthorized so the
-// caller cannot tell which emails are registered.
-func (s *EmailAndPasswordAuthServiceImpl) Authenticate(ctx context.Context, request pkgAuth.EmailAndPasswordAuthRequest) (*pkgAuth.EmailAndPasswordAuthResponse, error) {
+func (s *EmailPasswordAuthenticatorImpl) Authenticate(ctx context.Context, request pkgAuth.EmailPasswordAuthenticatorRequest) (*pkgAuth.EmailPasswordAuthenticatorResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for Authenticate: %w", err)
+	}
+
 	// 1. retrieve the user entity by email
 	userResp, err := s.users.GetByEmail(ctx, pkgUsers.GetUserByEmailRequest{Email: request.Email})
 	if err != nil {
@@ -69,7 +72,7 @@ func (s *EmailAndPasswordAuthServiceImpl) Authenticate(ctx context.Context, requ
 	}
 
 	// 5. return the token, user id and email
-	return &pkgAuth.EmailAndPasswordAuthResponse{
+	return &pkgAuth.EmailPasswordAuthenticatorResponse{
 		Token:  tokenResp.AccessToken,
 		UserID: user.ID,
 		Email:  user.Email,

@@ -28,16 +28,16 @@ import (
 // ServiceProviders holds the wired-up service implementations used by the
 // server adaptors and middleware.
 type ServiceProviders struct {
-	DB                          *sql.DB
-	TransactionManager          sql2.TxManager
-	UserRepository              pkgUsers.UserRepository
-	AccountRepository           pkgAccounts.AccountRepository
-	TransactionRepository       pkgWallet.TransactionRepository
-	AuditEntryRepository        pkgAudit.AuditEntryRepository
-	WalletService               pkgWallet.WalletService
-	UserRegistrationService     pkgUsers.UserRegistrationService
-	EmailAndPasswordAuthService pkgAuth.EmailAndPasswordAuthService
-	AccessTokenService          pkgAuth.AccessTokenService
+	DB                         *sql.DB
+	TransactionManager         sql2.TxManager
+	UserRepository             pkgUsers.UserRepository
+	AccountRepository          pkgAccounts.AccountRepository
+	TransactionRepository      pkgWallet.TransactionRepository
+	AuditEntryRepository       pkgAudit.AuditEntryRepository
+	WalletService              pkgWallet.WalletService
+	UserRegistrationService    pkgUsers.UserRegistrationService
+	EmailPasswordAuthenticator pkgAuth.EmailPasswordAuthenticator
+	AccessTokenService         pkgAuth.AccessTokenService
 }
 
 // Close releases resources held by the service providers.
@@ -83,7 +83,7 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 	auditEntryRepository := internalAudit.NewAuditEntryRepositoryImpl(db)
 
 	accessTokenService := internalAuth.NewAccessTokenServiceImpl(tokenSigner, &jwtPrivateKey.PublicKey)
-	emailAndPasswordAuthService := internalAuth.NewEmailAndPasswordAuthServiceImpl(
+	emailPasswordAuthenticator := internalAuth.NewEmailPasswordAuthenticatorImpl(
 		userRepository,
 		accessTokenService,
 	)
@@ -103,16 +103,16 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 	)
 
 	return &ServiceProviders{
-		DB:                          db,
-		TransactionManager:          transactionManager,
-		UserRepository:              userRepository,
-		AccountRepository:           accountRepository,
-		TransactionRepository:       transactionRepository,
-		AuditEntryRepository:        auditEntryRepository,
-		WalletService:               walletService,
-		UserRegistrationService:     userRegistrationService,
-		EmailAndPasswordAuthService: emailAndPasswordAuthService,
-		AccessTokenService:          accessTokenService,
+		DB:                         db,
+		TransactionManager:         transactionManager,
+		UserRepository:             userRepository,
+		AccountRepository:          accountRepository,
+		TransactionRepository:      transactionRepository,
+		AuditEntryRepository:       auditEntryRepository,
+		WalletService:              walletService,
+		UserRegistrationService:    userRegistrationService,
+		EmailPasswordAuthenticator: emailPasswordAuthenticator,
+		AccessTokenService:         accessTokenService,
 	}, nil
 }
 

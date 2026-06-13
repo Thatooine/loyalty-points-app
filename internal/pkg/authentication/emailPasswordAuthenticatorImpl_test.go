@@ -17,7 +17,7 @@ import (
 
 // newAuthService wires the real SQLite user repository (on a temp DB) to a
 // token-service mock that echoes the claim's user id as the token.
-func newAuthService(t *testing.T) *EmailAndPasswordAuthServiceImpl {
+func newAuthService(t *testing.T) *EmailPasswordAuthenticatorImpl {
 	t.Helper()
 	ctx := context.Background()
 
@@ -55,14 +55,14 @@ func newAuthService(t *testing.T) *EmailAndPasswordAuthServiceImpl {
 		},
 	}
 
-	return NewEmailAndPasswordAuthServiceImpl(userRepo, tokenMock)
+	return NewEmailPasswordAuthenticatorImpl(userRepo, tokenMock)
 }
 
 func TestAuthenticate_Success(t *testing.T) {
 	ctx := context.Background()
 	service := newAuthService(t)
 
-	resp, err := service.Authenticate(ctx, pkgAuth.EmailAndPasswordAuthRequest{
+	resp, err := service.Authenticate(ctx, pkgAuth.EmailPasswordAuthenticatorRequest{
 		Email:    "member@example.com",
 		Password: "correct-horse",
 	})
@@ -81,7 +81,7 @@ func TestAuthenticate_WrongPassword(t *testing.T) {
 	ctx := context.Background()
 	service := newAuthService(t)
 
-	_, err := service.Authenticate(ctx, pkgAuth.EmailAndPasswordAuthRequest{
+	_, err := service.Authenticate(ctx, pkgAuth.EmailPasswordAuthenticatorRequest{
 		Email:    "member@example.com",
 		Password: "wrong",
 	})
@@ -94,7 +94,7 @@ func TestAuthenticate_UnknownUser(t *testing.T) {
 	ctx := context.Background()
 	service := newAuthService(t)
 
-	_, err := service.Authenticate(ctx, pkgAuth.EmailAndPasswordAuthRequest{
+	_, err := service.Authenticate(ctx, pkgAuth.EmailPasswordAuthenticatorRequest{
 		Email:    "ghost@example.com",
 		Password: "correct-horse",
 	})

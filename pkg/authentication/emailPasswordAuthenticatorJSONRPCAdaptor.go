@@ -7,20 +7,20 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type EmailAndPasswordAuthJSONRPCAdaptor struct {
-	authService EmailAndPasswordAuthService
+type EmailPasswordAuthenticatorJSONRPCAdaptor struct {
+	authService EmailPasswordAuthenticator
 }
 
-func NewEmailAndPasswordAuthJSONRPCAdaptor(
-	authService EmailAndPasswordAuthService,
-) *EmailAndPasswordAuthJSONRPCAdaptor {
-	return &EmailAndPasswordAuthJSONRPCAdaptor{
+func NewEmailPasswordAuthenticatorJSONRPCAdaptor(
+	authService EmailPasswordAuthenticator,
+) *EmailPasswordAuthenticatorJSONRPCAdaptor {
+	return &EmailPasswordAuthenticatorJSONRPCAdaptor{
 		authService: authService,
 	}
 }
 
-func (a *EmailAndPasswordAuthJSONRPCAdaptor) Name() string {
-	return "EmailAndPasswordAuth"
+func (a *EmailPasswordAuthenticatorJSONRPCAdaptor) Name() string {
+	return "EmailPasswordAuthenticator"
 }
 
 type LoginRequest struct {
@@ -34,8 +34,8 @@ type LoginResponse struct {
 	Email  string `json:"email"`
 }
 
-func (a *EmailAndPasswordAuthJSONRPCAdaptor) Login(r *http.Request, request *LoginRequest, response *LoginResponse) error {
-	authResp, err := a.authService.Authenticate(r.Context(), EmailAndPasswordAuthRequest{
+func (a *EmailPasswordAuthenticatorJSONRPCAdaptor) Login(r *http.Request, request *LoginRequest, response *LoginResponse) error {
+	authResp, err := a.authService.Authenticate(r.Context(), EmailPasswordAuthenticatorRequest{
 		Email:    request.Email,
 		Password: request.Password,
 	})
