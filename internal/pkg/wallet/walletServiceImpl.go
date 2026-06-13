@@ -3,7 +3,10 @@ package wallet
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audit"
@@ -39,6 +42,11 @@ func NewWalletServiceImpl(
 }
 
 func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgWallet.ProcessTransactionRequest) (*pkgWallet.ProcessTransactionResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for ProcessTransaction: %w", err)
+	}
+
 	delta := signedDelta(request.Kind, request.Points)
 	now := time.Now().UTC()
 

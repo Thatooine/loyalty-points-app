@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
 	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
@@ -25,6 +27,11 @@ func NewUserRepositoryImpl(db *sql.DB) *UserRepositoryImpl {
 }
 
 func (r *UserRepositoryImpl) Create(ctx context.Context, request pkgUsers.CreateUserRequest) (*pkgUsers.CreateUserResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for Create: %w", err)
+	}
+
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	user := request.User
@@ -48,6 +55,11 @@ func (r *UserRepositoryImpl) Create(ctx context.Context, request pkgUsers.Create
 }
 
 func (r *UserRepositoryImpl) List(ctx context.Context, request pkgUsers.ListUsersRequest) (*pkgUsers.ListUsersResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for List: %w", err)
+	}
+
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	rows, err := exec.QueryContext(ctx,
@@ -76,6 +88,11 @@ func (r *UserRepositoryImpl) List(ctx context.Context, request pkgUsers.ListUser
 }
 
 func (r *UserRepositoryImpl) GetByID(ctx context.Context, request pkgUsers.GetUserByIDRequest) (*pkgUsers.GetUserByIDResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for GetByID: %w", err)
+	}
+
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	row := exec.QueryRowContext(ctx,
@@ -97,6 +114,11 @@ func (r *UserRepositoryImpl) GetByID(ctx context.Context, request pkgUsers.GetUs
 }
 
 func (r *UserRepositoryImpl) GetByEmail(ctx context.Context, request pkgUsers.GetUserByEmailRequest) (*pkgUsers.GetUserByEmailResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for GetByEmail: %w", err)
+	}
+
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	row := exec.QueryRowContext(ctx,

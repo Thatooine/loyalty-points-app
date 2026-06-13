@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
@@ -28,6 +29,11 @@ func NewAccountRepositoryImpl(db *sql.DB) *AccountRepositoryImpl {
 }
 
 func (r *AccountRepositoryImpl) Create(ctx context.Context, request pkgAccounts.CreateAccountRequest) (*pkgAccounts.CreateAccountResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for Create: %w", err)
+	}
+
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	account := request.Account
@@ -54,6 +60,11 @@ func (r *AccountRepositoryImpl) Create(ctx context.Context, request pkgAccounts.
 }
 
 func (r *AccountRepositoryImpl) List(ctx context.Context, request pkgAccounts.ListAccountsRequest) (*pkgAccounts.ListAccountsResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for List: %w", err)
+	}
+
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	rows, err := exec.QueryContext(ctx,
@@ -82,6 +93,11 @@ func (r *AccountRepositoryImpl) List(ctx context.Context, request pkgAccounts.Li
 }
 
 func (r *AccountRepositoryImpl) GetByID(ctx context.Context, request pkgAccounts.GetAccountByIDRequest) (*pkgAccounts.GetAccountByIDResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for GetByID: %w", err)
+	}
+
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	row := exec.QueryRowContext(ctx,
@@ -103,6 +119,11 @@ func (r *AccountRepositoryImpl) GetByID(ctx context.Context, request pkgAccounts
 }
 
 func (r *AccountRepositoryImpl) UpdateAccountBalance(ctx context.Context, request pkgAccounts.UpdateAccountBalanceRequest) (*pkgAccounts.UpdateAccountBalanceResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for UpdateAccountBalance: %w", err)
+	}
+
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	// Single atomic, overdraft-guarded statement: the WHERE clause makes the

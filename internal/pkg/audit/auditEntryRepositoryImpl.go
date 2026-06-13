@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/rs/zerolog/log"
+
 	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audit"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
@@ -25,6 +27,11 @@ func NewAuditEntryRepositoryImpl(db *sql.DB) *AuditEntryRepositoryImpl {
 }
 
 func (r *AuditEntryRepositoryImpl) Create(ctx context.Context, request pkgAudit.CreateAuditEntryRequest) (*pkgAudit.CreateAuditEntryResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for Create: %w", err)
+	}
+
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	entry := request.AuditEntry
@@ -55,6 +62,11 @@ func (r *AuditEntryRepositoryImpl) Create(ctx context.Context, request pkgAudit.
 }
 
 func (r *AuditEntryRepositoryImpl) List(ctx context.Context, request pkgAudit.ListAuditEntriesRequest) (*pkgAudit.ListAuditEntriesResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for List: %w", err)
+	}
+
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	rows, err := exec.QueryContext(ctx,
@@ -83,6 +95,11 @@ func (r *AuditEntryRepositoryImpl) List(ctx context.Context, request pkgAudit.Li
 }
 
 func (r *AuditEntryRepositoryImpl) GetByID(ctx context.Context, request pkgAudit.GetAuditEntryByIDRequest) (*pkgAudit.GetAuditEntryByIDResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for GetByID: %w", err)
+	}
+
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	row := exec.QueryRowContext(ctx,
