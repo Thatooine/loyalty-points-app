@@ -73,11 +73,6 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 		return nil, fmt.Errorf("could not create token signer: %w", err)
 	}
 
-	accessTokenService := internalAuth.NewAccessTokenServiceImpl(tokenSigner, &jwtPrivateKey.PublicKey)
-	emailAndPasswordAuthService := internalAuth.NewEmailAndPasswordAuthServiceImpl(
-		accessTokenService,
-	)
-
 	// repositories first, then the services that compose them (mirrors the
 	// house wiring order)
 	transactionManager := sqlite.NewSQLiteTxManager(db)
@@ -85,6 +80,12 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 	accountRepository := internalAccounts.NewAccountRepositoryImpl(db)
 	transactionRepository := internalWallet.NewTransactionRepositoryImpl(db)
 	auditEntryRepository := internalAudit.NewAuditEntryRepositoryImpl(db)
+
+	accessTokenService := internalAuth.NewAccessTokenServiceImpl(tokenSigner, &jwtPrivateKey.PublicKey)
+	emailAndPasswordAuthService := internalAuth.NewEmailAndPasswordAuthServiceImpl(
+		userRepository,
+		accessTokenService,
+	)
 
 	walletService := internalWallet.NewWalletServiceImpl(
 		transactionManager,

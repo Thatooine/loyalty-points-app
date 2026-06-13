@@ -17,4 +17,10 @@ var (
 	// ErrInsufficientBalance indicates a spend or adjustment would drive an
 	// account balance below zero. The balance is left unchanged.
 	ErrInsufficientBalance = errors.New("insufficient balance")
+
+	// ErrUnauthorized indicates the caller could not be authenticated — bad
+	// credentials, or a missing/invalid/expired token. Returned uniformly for
+	// unknown user and wrong password so callers cannot probe which emails
+	// exist.
+	ErrUnauthorized = errors.New("unauthorized")
 )
