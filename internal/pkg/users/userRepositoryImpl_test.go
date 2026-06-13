@@ -86,6 +86,34 @@ func TestUserRepositoryImpl_CreateDuplicateEmail(t *testing.T) {
 	}
 }
 
+func TestUserRepositoryImpl_GetByEmail(t *testing.T) {
+	ctx := context.Background()
+	repo := newTestRepository(t)
+
+	want := testUser("user-1", "user-1@example.com")
+	if _, err := repo.Create(ctx, pkgUsers.CreateUserRequest{User: want}); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	got, err := repo.GetByEmail(ctx, pkgUsers.GetUserByEmailRequest{Email: "user-1@example.com"})
+	if err != nil {
+		t.Fatalf("GetByEmail() error = %v", err)
+	}
+	if got.User != want {
+		t.Fatalf("GetByEmail() = %+v, want %+v", got.User, want)
+	}
+}
+
+func TestUserRepositoryImpl_GetByEmailNotFound(t *testing.T) {
+	ctx := context.Background()
+	repo := newTestRepository(t)
+
+	_, err := repo.GetByEmail(ctx, pkgUsers.GetUserByEmailRequest{Email: "missing@example.com"})
+	if !errors.Is(err, errs.ErrNotFound) {
+		t.Fatalf("GetByEmail() error = %v, want errs.ErrNotFound", err)
+	}
+}
+
 func TestUserRepositoryImpl_GetByIDNotFound(t *testing.T) {
 	ctx := context.Background()
 	repo := newTestRepository(t)

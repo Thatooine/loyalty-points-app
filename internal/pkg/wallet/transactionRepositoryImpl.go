@@ -44,6 +44,9 @@ func (r *TransactionRepositoryImpl) Create(ctx context.Context, request pkgWalle
 		if sqlite.IsUniqueConstraintViolation(err) {
 			return nil, fmt.Errorf("transaction %s: %w", transaction.Ref, errs.ErrDuplicateRef)
 		}
+		if sqlite.IsForeignKeyConstraintViolation(err) {
+			return nil, fmt.Errorf("account %s: %w", transaction.AccountID, errs.ErrNotFound)
+		}
 		return nil, fmt.Errorf("could not insert transaction: %w", err)
 	}
 

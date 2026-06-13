@@ -15,6 +15,10 @@ type UserRepository interface {
 
 	// GetByID returns the user with the given ID, or errs.ErrNotFound.
 	GetByID(ctx context.Context, request GetUserByIDRequest) (*GetUserByIDResponse, error)
+
+	// GetByEmail returns the user with the given email, or errs.ErrNotFound.
+	// Used by authentication to resolve a login identity to its credentials.
+	GetByEmail(ctx context.Context, request GetUserByEmailRequest) (*GetUserByEmailResponse, error)
 }
 
 // CreateUserRequest is the request for Create.
@@ -43,5 +47,15 @@ type GetUserByIDRequest struct {
 
 // GetUserByIDResponse is the response for GetByID.
 type GetUserByIDResponse struct {
+	User User
+}
+
+// GetUserByEmailRequest is the request for GetByEmail.
+type GetUserByEmailRequest struct {
+	Email string
+}
+
+// GetUserByEmailResponse is the response for GetByEmail.
+type GetUserByEmailResponse struct {
 	User User
 }

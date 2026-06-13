@@ -9,7 +9,8 @@ import "context"
 type TransactionRepository interface {
 	// Create appends a transaction to the ledger. A transaction with the
 	// same Ref results in errs.ErrDuplicateRef — the unique constraint is
-	// the dedupe mechanism, arbitrating races at the database.
+	// the dedupe mechanism, arbitrating races at the database. A reference to
+	// an account that does not exist results in errs.ErrNotFound.
 	Create(ctx context.Context, request CreateTransactionRequest) (*CreateTransactionResponse, error)
 
 	// List returns all transactions, newest first by RecordedAt.

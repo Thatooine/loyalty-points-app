@@ -34,6 +34,7 @@ type ServiceProviders struct {
 	AccountRepository           pkgAccounts.AccountRepository
 	TransactionRepository       pkgWallet.TransactionRepository
 	AuditEntryRepository        pkgAudit.AuditEntryRepository
+	WalletService               pkgWallet.WalletService
 	EmailAndPasswordAuthService pkgAuth.EmailAndPasswordAuthService
 	AccessTokenService          pkgAuth.AccessTokenService
 }
@@ -77,13 +78,29 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 		accessTokenService,
 	)
 
+	// repositories first, then the services that compose them (mirrors the
+	// house wiring order)
+	transactionManager := sqlite.NewSQLiteTxManager(db)
+	userRepository := internalUsers.NewUserRepositoryImpl(db)
+	accountRepository := internalAccounts.NewAccountRepositoryImpl(db)
+	transactionRepository := internalWallet.NewTransactionRepositoryImpl(db)
+	auditEntryRepository := internalAudit.NewAuditEntryRepositoryImpl(db)
+
+	walletService := internalWallet.NewWalletServiceImpl(
+		transactionManager,
+		accountRepository,
+		transactionRepository,
+		auditEntryRepository,
+	)
+
 	return &ServiceProviders{
 		DB:                          db,
-		TransactionManager:          sqlite.NewSQLiteTxManager(db),
-		UserRepository:              internalUsers.NewUserRepositoryImpl(db),
-		AccountRepository:           internalAccounts.NewAccountRepositoryImpl(db),
-		TransactionRepository:       internalWallet.NewTransactionRepositoryImpl(db),
-		AuditEntryRepository:        internalAudit.NewAuditEntryRepositoryImpl(db),
+		TransactionManager:          transactionManager,
+		UserRepository:              userRepository,
+		AccountRepository:           accountRepository,
+		TransactionRepository:       transactionRepository,
+		AuditEntryRepository:        auditEntryRepository,
+		WalletService:               walletService,
 		EmailAndPasswordAuthService: emailAndPasswordAuthService,
 		AccessTokenService:          accessTokenService,
 	}, nil

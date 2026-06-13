@@ -108,6 +108,74 @@ func TestAccountRepositoryImpl_GetByIDNotFound(t *testing.T) {
 	}
 }
 
+func TestAccountRepositoryImpl_UpdateAccountBalance(t *testing.T) {
+	ctx := context.Background()
+	db := newTestDB(t)
+	createTestUser(t, db, "user-1")
+	repo := NewAccountRepositoryImpl(db)
+
+	if _, err := repo.Create(ctx, pkgAccounts.CreateAccountRequest{Account: testAccount("member-123", "user-1")}); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	// credit
+	credit, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: 150})
+	if err != nil {
+		t.Fatalf("UpdateAccountBalance() credit error = %v", err)
+	}
+	if credit.Balance != 150 {
+		t.Fatalf("after credit balance = %d, want 150", credit.Balance)
+	}
+
+	// debit within balance
+	debit, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: -50})
+	if err != nil {
+		t.Fatalf("UpdateAccountBalance() debit error = %v", err)
+	}
+	if debit.Balance != 100 {
+		t.Fatalf("after debit balance = %d, want 100", debit.Balance)
+	}
+}
+
+func TestAccountRepositoryImpl_UpdateAccountBalanceOverdraft(t *testing.T) {
+	ctx := context.Background()
+	db := newTestDB(t)
+	createTestUser(t, db, "user-1")
+	repo := NewAccountRepositoryImpl(db)
+
+	if _, err := repo.Create(ctx, pkgAccounts.CreateAccountRequest{Account: testAccount("member-123", "user-1")}); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: 100}); err != nil {
+		t.Fatalf("seed credit error = %v", err)
+	}
+
+	_, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: -150})
+	if !errors.Is(err, errs.ErrInsufficientBalance) {
+		t.Fatalf("overdraft error = %v, want errs.ErrInsufficientBalance", err)
+	}
+
+	// balance must be unchanged
+	got, err := repo.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: "member-123"})
+	if err != nil {
+		t.Fatalf("GetByID() error = %v", err)
+	}
+	if got.Account.Balance != 100 {
+		t.Fatalf("balance after rejected overdraft = %d, want 100", got.Account.Balance)
+	}
+}
+
+func TestAccountRepositoryImpl_UpdateAccountBalanceUnknownAccount(t *testing.T) {
+	ctx := context.Background()
+	db := newTestDB(t)
+	repo := NewAccountRepositoryImpl(db)
+
+	_, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "missing", Delta: 100})
+	if !errors.Is(err, errs.ErrNotFound) {
+		t.Fatalf("unknown account error = %v, want errs.ErrNotFound", err)
+	}
+}
+
 func TestAccountRepositoryImpl_List(t *testing.T) {
 	ctx := context.Background()
 	db := newTestDB(t)

@@ -96,6 +96,27 @@ func (r *UserRepositoryImpl) GetByID(ctx context.Context, request pkgUsers.GetUs
 	return &pkgUsers.GetUserByIDResponse{User: *user}, nil
 }
 
+func (r *UserRepositoryImpl) GetByEmail(ctx context.Context, request pkgUsers.GetUserByEmailRequest) (*pkgUsers.GetUserByEmailResponse, error) {
+	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
+
+	row := exec.QueryRowContext(ctx,
+		`SELECT id, email, password_hash, role, created_at
+		 FROM users
+		 WHERE email = ?`,
+		request.Email,
+	)
+
+	user, err := scanUser(row.Scan)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("user %s: %w", request.Email, errs.ErrNotFound)
+		}
+		return nil, err
+	}
+
+	return &pkgUsers.GetUserByEmailResponse{User: *user}, nil
+}
+
 func scanUser(scan func(dest ...any) error) (*pkgUsers.User, error) {
 	var user pkgUsers.User
 	var role, createdAt string

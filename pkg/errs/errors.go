@@ -13,4 +13,8 @@ var (
 	// already been recorded. Callers treat this as a duplicate submission, not a
 	// failure.
 	ErrDuplicateRef = errors.New("duplicate ref")
+
+	// ErrInsufficientBalance indicates a spend or adjustment would drive an
+	// account balance below zero. The balance is left unchanged.
+	ErrInsufficientBalance = errors.New("insufficient balance")
 )
