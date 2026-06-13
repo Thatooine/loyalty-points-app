@@ -24,7 +24,7 @@ import (
 // A caller who fails either check receives a JSON-RPC error envelope rather
 // than reaching the handler. On success the verified LoginClaim is placed in
 // the request context for downstream handlers.
-func NewAuthorizationMiddleware(accessTokenService authentication.AccessTokenService, perms *Permissions) func(http.Handler) http.Handler {
+func NewAuthorizationMiddleware(accessTokenService authentication.AccessTokenValidator, perms *Permissions) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()

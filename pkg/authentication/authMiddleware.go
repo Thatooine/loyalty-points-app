@@ -17,7 +17,7 @@ const loginClaimContextKey contextKey = "loginClaim"
 // named "access_token". If a valid token is found, the decoded LoginClaim is
 // stored in the request context and the next handler is called. Otherwise it
 // responds with 401 Unauthorized.
-func NewAuthMiddleware(accessTokenService AccessTokenService) func(http.Handler) http.Handler {
+func NewAuthMiddleware(accessTokenService AccessTokenValidator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token := ExtractToken(r)

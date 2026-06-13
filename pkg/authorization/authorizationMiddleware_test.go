@@ -15,15 +15,11 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/users"
 )
 
-// fakeTokenService is a test double for authentication.AccessTokenService.
+// fakeTokenService is a test double for authentication.AccessTokenValidator.
 // ValidateAccessToken returns the configured claim, or err if set.
 type fakeTokenService struct {
 	claim authentication.LoginClaim
 	err   error
-}
-
-func (f fakeTokenService) IssueAccessToken(context.Context, authentication.IssueAccessTokenRequest) (*authentication.IssueAccessTokenResponse, error) {
-	return nil, errors.New("not implemented")
 }
 
 func (f fakeTokenService) ValidateAccessToken(context.Context, authentication.ValidateAccessTokenRequest) (*authentication.ValidateAccessTokenResponse, error) {
@@ -51,7 +47,7 @@ type errorResponse struct {
 // run drives the middleware with a request body, an access-token service, and
 // an optional bearer token. It returns whether next was reached, the recorded
 // response, and the body the handler observed (to prove the body was restored).
-func run(t *testing.T, accessTokenService authentication.AccessTokenService, perms *Permissions, body, token string) (bool, *httptest.ResponseRecorder, string) {
+func run(t *testing.T, accessTokenService authentication.AccessTokenValidator, perms *Permissions, body, token string) (bool, *httptest.ResponseRecorder, string) {
 	t.Helper()
 
 	nextCalled := false

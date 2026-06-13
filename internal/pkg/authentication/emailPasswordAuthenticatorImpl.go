@@ -19,12 +19,12 @@ const accessTokenTTL = 24 * time.Hour
 
 type EmailPasswordAuthenticatorImpl struct {
 	users              pkgUsers.UserRepository
-	accessTokenService pkgAuth.AccessTokenService
+	accessTokenService pkgAuth.AccessTokenIssuer
 }
 
 func NewEmailPasswordAuthenticatorImpl(
 	users pkgUsers.UserRepository,
-	accessTokenService pkgAuth.AccessTokenService,
+	accessTokenService pkgAuth.AccessTokenIssuer,
 ) *EmailPasswordAuthenticatorImpl {
 	return &EmailPasswordAuthenticatorImpl{
 		users:              users,

@@ -37,7 +37,8 @@ type ServiceProviders struct {
 	WalletService              pkgWallet.WalletService
 	UserRegistrationService    pkgUsers.UserRegistrationService
 	EmailPasswordAuthenticator pkgAuth.EmailPasswordAuthenticator
-	AccessTokenService         pkgAuth.AccessTokenService
+	AccessTokenIssuer          pkgAuth.AccessTokenIssuer
+	AccessTokenValidator       pkgAuth.AccessTokenValidator
 }
 
 // Close releases resources held by the service providers.
@@ -112,7 +113,8 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 		WalletService:              walletService,
 		UserRegistrationService:    userRegistrationService,
 		EmailPasswordAuthenticator: emailPasswordAuthenticator,
-		AccessTokenService:         accessTokenService,
+		AccessTokenIssuer:          accessTokenService,
+		AccessTokenValidator:       accessTokenService,
 	}, nil
 }
 

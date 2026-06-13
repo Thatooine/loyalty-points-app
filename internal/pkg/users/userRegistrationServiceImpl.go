@@ -31,14 +31,14 @@ type UserRegistrationServiceImpl struct {
 	txManager          pkgSQL.TxManager
 	users              pkgUsers.UserRepository
 	accounts           pkgAccounts.AccountRepository
-	accessTokenService pkgAuth.AccessTokenService
+	accessTokenService pkgAuth.AccessTokenIssuer
 }
 
 func NewUserRegistrationServiceImpl(
 	txManager pkgSQL.TxManager,
 	users pkgUsers.UserRepository,
 	accounts pkgAccounts.AccountRepository,
-	accessTokenService pkgAuth.AccessTokenService,
+	accessTokenService pkgAuth.AccessTokenIssuer,
 ) *UserRegistrationServiceImpl {
 	return &UserRegistrationServiceImpl{
 		txManager:          txManager,
