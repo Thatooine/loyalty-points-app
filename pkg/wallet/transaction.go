@@ -15,8 +15,12 @@ const (
 // Transaction is one entry in the append-only points ledger — the source of
 // truth for every account balance.
 type Transaction struct {
-	// Ref is the caller-supplied idempotency key and the ledger's natural
-	// key: the same ref never counts twice.
+	// ID is the ledger entry's unique identifier, a UUID assigned at
+	// persistence.
+	ID string `json:"id"`
+
+	// Ref is the caller-supplied idempotency key: the same ref never counts
+	// twice. Unique across the ledger.
 	Ref string `json:"ref"`
 
 	AccountID string `json:"accountID"`

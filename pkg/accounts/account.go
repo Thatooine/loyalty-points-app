@@ -7,8 +7,8 @@ import "time"
 // materialised cache of the transaction ledger: a SUM over the account's
 // transactions must always equal it.
 type Account struct {
-	// AccountID is the caller-supplied natural key, e.g. "member-123".
-	AccountID string `json:"accountID"`
+	// ID is the account's unique identifier, a UUID assigned at persistence.
+	ID string `json:"id"`
 
 	// UserID is the owning user (users.User.ID).
 	UserID string `json:"userID"`

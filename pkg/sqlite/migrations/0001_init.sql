@@ -8,7 +8,7 @@ CREATE TABLE users (
 );
 
 CREATE TABLE accounts (
-    account_id    TEXT PRIMARY KEY,              -- caller-supplied natural key, e.g. "member-123"
+    id            TEXT PRIMARY KEY,              -- UUID assigned at persistence
     user_id       TEXT NOT NULL REFERENCES users(id),
     name          TEXT NOT NULL,
     balance       INTEGER NOT NULL DEFAULT 0
@@ -18,8 +18,9 @@ CREATE TABLE accounts (
 CREATE INDEX idx_accounts_user ON accounts(user_id);
 
 CREATE TABLE transactions (
-    ref         TEXT PRIMARY KEY,                -- idempotency key: the UNIQUE constraint IS the dedupe mechanism
-    account_id  TEXT NOT NULL REFERENCES accounts(account_id),
+    id          TEXT PRIMARY KEY,                -- UUID assigned at persistence
+    ref         TEXT NOT NULL UNIQUE,            -- idempotency key: the UNIQUE constraint IS the dedupe mechanism
+    account_id  TEXT NOT NULL REFERENCES accounts(id),
     kind        TEXT NOT NULL CHECK (kind IN ('earn', 'spend', 'adjust')),
     points      INTEGER NOT NULL,                -- signed delta as applied: earn=+n, spend=-n, adjust=±n
     occurred_at TEXT NOT NULL,                   -- business timestamp from the caller

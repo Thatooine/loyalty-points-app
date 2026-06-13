@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
 	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
@@ -29,9 +31,13 @@ func (r *TransactionRepositoryImpl) Create(ctx context.Context, request pkgWalle
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	transaction := request.Transaction
+	if transaction.ID == "" {
+		transaction.ID = uuid.NewString()
+	}
 	_, err := exec.ExecContext(ctx,
-		`INSERT INTO transactions (ref, account_id, kind, points, occurred_at, recorded_at, created_by)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO transactions (id, ref, account_id, kind, points, occurred_at, recorded_at, created_by)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		transaction.ID,
 		transaction.Ref,
 		transaction.AccountID,
 		string(transaction.Kind),
@@ -57,7 +63,7 @@ func (r *TransactionRepositoryImpl) List(ctx context.Context, request pkgWallet.
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	rows, err := exec.QueryContext(ctx,
-		`SELECT ref, account_id, kind, points, occurred_at, recorded_at, created_by
+		`SELECT id, ref, account_id, kind, points, occurred_at, recorded_at, created_by
 		 FROM transactions
 		 ORDER BY recorded_at DESC, ref`,
 	)
@@ -85,7 +91,7 @@ func (r *TransactionRepositoryImpl) GetByID(ctx context.Context, request pkgWall
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	row := exec.QueryRowContext(ctx,
-		`SELECT ref, account_id, kind, points, occurred_at, recorded_at, created_by
+		`SELECT id, ref, account_id, kind, points, occurred_at, recorded_at, created_by
 		 FROM transactions
 		 WHERE ref = ?`,
 		request.Ref,
@@ -107,6 +113,7 @@ func scanTransaction(scan func(dest ...any) error) (*pkgWallet.Transaction, erro
 	var kind, occurredAt, recordedAt string
 
 	if err := scan(
+		&transaction.ID,
 		&transaction.Ref,
 		&transaction.AccountID,
 		&kind,

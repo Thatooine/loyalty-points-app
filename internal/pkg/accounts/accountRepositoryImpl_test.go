@@ -52,7 +52,7 @@ func createTestUser(t *testing.T, db *sql.DB, userID string) {
 
 func testAccount(accountID, userID string) pkgAccounts.Account {
 	return pkgAccounts.Account{
-		AccountID: accountID,
+		ID:        accountID,
 		UserID:    userID,
 		Name:      "Test Member",
 		Balance:   0,

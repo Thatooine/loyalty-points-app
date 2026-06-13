@@ -58,7 +58,7 @@ func createTestAccount(t *testing.T, db *sql.DB, accountID string) {
 	accountRepo := internalAccounts.NewAccountRepositoryImpl(db)
 	_, err := accountRepo.Create(context.Background(), pkgAccounts.CreateAccountRequest{
 		Account: pkgAccounts.Account{
-			AccountID: accountID,
+			ID:        accountID,
 			UserID:    "user-" + accountID,
 			Name:      "Test Member",
 			CreatedAt: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
@@ -87,17 +87,21 @@ func TestTransactionRepositoryImpl_CreateAndGetByID(t *testing.T) {
 	createTestAccount(t, db, "member-123")
 	repo := NewTransactionRepositoryImpl(db)
 
-	want := testTransaction("tx-001", "member-123")
-	if _, err := repo.Create(ctx, pkgWallet.CreateTransactionRequest{Transaction: want}); err != nil {
+	created, err := repo.Create(ctx, pkgWallet.CreateTransactionRequest{Transaction: testTransaction("tx-001", "member-123")})
+	if err != nil {
 		t.Fatalf("Create() error = %v", err)
+	}
+	// Create assigns a UUID, so compare the round-trip against what was stored.
+	if created.Transaction.ID == "" {
+		t.Fatalf("Create() did not assign an ID")
 	}
 
 	got, err := repo.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: "tx-001"})
 	if err != nil {
 		t.Fatalf("GetByID() error = %v", err)
 	}
-	if got.Transaction != want {
-		t.Fatalf("GetByID() = %+v, want %+v", got.Transaction, want)
+	if got.Transaction != created.Transaction {
+		t.Fatalf("GetByID() = %+v, want %+v", got.Transaction, created.Transaction)
 	}
 }
 
@@ -144,7 +148,7 @@ func TestRunInTx_AtomicAcrossRepositories(t *testing.T) {
 	err := txManager.RunInTx(ctx, func(ctx context.Context) error {
 		if _, err := accountRepo.Create(ctx, pkgAccounts.CreateAccountRequest{
 			Account: pkgAccounts.Account{
-				AccountID: "member-123",
+				ID:        "member-123",
 				UserID:    "user-1",
 				Name:      "Test Member",
 				CreatedAt: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
@@ -184,7 +188,7 @@ func TestRunInTx_CommitAcrossRepositories(t *testing.T) {
 	err := txManager.RunInTx(ctx, func(ctx context.Context) error {
 		if _, err := accountRepo.Create(ctx, pkgAccounts.CreateAccountRequest{
 			Account: pkgAccounts.Account{
-				AccountID: "member-123",
+				ID:        "member-123",
 				UserID:    "user-1",
 				Name:      "Test Member",
 				CreatedAt: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),

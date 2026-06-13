@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
@@ -29,10 +31,13 @@ func (r *AccountRepositoryImpl) Create(ctx context.Context, request pkgAccounts.
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	account := request.Account
+	if account.ID == "" {
+		account.ID = uuid.NewString()
+	}
 	_, err := exec.ExecContext(ctx,
-		`INSERT INTO accounts (account_id, user_id, name, balance, created_at)
+		`INSERT INTO accounts (id, user_id, name, balance, created_at)
 		 VALUES (?, ?, ?, ?, ?)`,
-		account.AccountID,
+		account.ID,
 		account.UserID,
 		account.Name,
 		account.Balance,
@@ -40,7 +45,7 @@ func (r *AccountRepositoryImpl) Create(ctx context.Context, request pkgAccounts.
 	)
 	if err != nil {
 		if sqlite.IsUniqueConstraintViolation(err) {
-			return nil, fmt.Errorf("account %s: %w", account.AccountID, errs.ErrAlreadyExists)
+			return nil, fmt.Errorf("account %s: %w", account.ID, errs.ErrAlreadyExists)
 		}
 		return nil, fmt.Errorf("could not insert account: %w", err)
 	}
@@ -52,9 +57,9 @@ func (r *AccountRepositoryImpl) List(ctx context.Context, request pkgAccounts.Li
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	rows, err := exec.QueryContext(ctx,
-		`SELECT account_id, user_id, name, balance, created_at
+		`SELECT id, user_id, name, balance, created_at
 		 FROM accounts
-		 ORDER BY created_at, account_id`,
+		 ORDER BY created_at, id`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("could not query accounts: %w", err)
@@ -80,9 +85,9 @@ func (r *AccountRepositoryImpl) GetByID(ctx context.Context, request pkgAccounts
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	row := exec.QueryRowContext(ctx,
-		`SELECT account_id, user_id, name, balance, created_at
+		`SELECT id, user_id, name, balance, created_at
 		 FROM accounts
-		 WHERE account_id = ?`,
+		 WHERE id = ?`,
 		request.AccountID,
 	)
 
@@ -107,7 +112,7 @@ func (r *AccountRepositoryImpl) UpdateAccountBalance(ctx context.Context, reques
 	result, err := exec.ExecContext(ctx,
 		`UPDATE accounts
 		 SET balance = balance + ?
-		 WHERE account_id = ? AND balance + ? >= 0`,
+		 WHERE id = ? AND balance + ? >= 0`,
 		request.Delta,
 		request.AccountID,
 		request.Delta,
@@ -126,7 +131,7 @@ func (r *AccountRepositoryImpl) UpdateAccountBalance(ctx context.Context, reques
 		// the delta. Read the current balance to tell the two apart.
 		var balance int64
 		err := exec.QueryRowContext(ctx,
-			`SELECT balance FROM accounts WHERE account_id = ?`,
+			`SELECT balance FROM accounts WHERE id = ?`,
 			request.AccountID,
 		).Scan(&balance)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -140,7 +145,7 @@ func (r *AccountRepositoryImpl) UpdateAccountBalance(ctx context.Context, reques
 
 	var balance int64
 	if err := exec.QueryRowContext(ctx,
-		`SELECT balance FROM accounts WHERE account_id = ?`,
+		`SELECT balance FROM accounts WHERE id = ?`,
 		request.AccountID,
 	).Scan(&balance); err != nil {
 		return nil, fmt.Errorf("could not read updated account balance: %w", err)
@@ -154,7 +159,7 @@ func scanAccount(scan func(dest ...any) error) (*pkgAccounts.Account, error) {
 	var createdAt string
 
 	if err := scan(
-		&account.AccountID,
+		&account.ID,
 		&account.UserID,
 		&account.Name,
 		&account.Balance,
