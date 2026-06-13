@@ -10,7 +10,7 @@ func TestPermissions_Can(t *testing.T) {
 	perms := NewPermissions(map[users.Role]map[string]bool{
 		users.RoleAdmin:  {wildcard: true},
 		users.RoleMember: {"Wallet.GetByID": true},
-	})
+	}, nil)
 
 	tests := []struct {
 		name   string
@@ -41,5 +41,15 @@ func TestDefaultPermissions_AdminIsPermissive(t *testing.T) {
 	}
 	if perms.Can(users.RoleMember, "Anything.AtAll") {
 		t.Fatalf("member should not be able to call an unlisted method")
+	}
+}
+
+func TestDefaultPermissions_LoginIsPublic(t *testing.T) {
+	perms := DefaultPermissions()
+	if !perms.IsPublic(loginMethod) {
+		t.Fatalf("%q should be public", loginMethod)
+	}
+	if perms.IsPublic("Wallet.GetByID") {
+		t.Fatalf("a protected method should not be public")
 	}
 }
