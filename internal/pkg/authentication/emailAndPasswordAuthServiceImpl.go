@@ -32,13 +32,6 @@ func NewEmailAndPasswordAuthServiceImpl(
 	}
 }
 
-// Authenticate verifies an email/password pair and, on success, issues a
-// signed access token. The flow:
-//  1. look up the user by email
-//  2. compare the supplied password against the stored bcrypt hash
-//  3. on a match, build a LoginClaim and issue a token
-//  4. return the token together with the user's id and email
-//
 // A missing user and a wrong password both yield errs.ErrUnauthorized so the
 // caller cannot tell which emails are registered.
 func (s *EmailAndPasswordAuthServiceImpl) Authenticate(ctx context.Context, request pkgAuth.EmailAndPasswordAuthRequest) (*pkgAuth.EmailAndPasswordAuthResponse, error) {
