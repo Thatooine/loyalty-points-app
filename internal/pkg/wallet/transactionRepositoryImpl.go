@@ -7,8 +7,10 @@ import (
 	"fmt"
 
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
+	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
+	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
+	"github.com/Thatooine/loyalty-points-app/pkg/time"
 	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallet"
-	"github.com/Thatooine/loyalty-points-app/sqlite"
 )
 
 // TransactionRepositoryImpl is the SQLite implementation of
@@ -24,7 +26,7 @@ func NewTransactionRepositoryImpl(db *sql.DB) *TransactionRepositoryImpl {
 }
 
 func (r *TransactionRepositoryImpl) Create(ctx context.Context, request pkgWallet.CreateTransactionRequest) (*pkgWallet.CreateTransactionResponse, error) {
-	exec := sqlite.ExecutorFromContext(ctx, r.db)
+	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	transaction := request.Transaction
 	_, err := exec.ExecContext(ctx,
@@ -34,8 +36,8 @@ func (r *TransactionRepositoryImpl) Create(ctx context.Context, request pkgWalle
 		transaction.AccountID,
 		string(transaction.Kind),
 		transaction.Points,
-		sqlite.FormatTime(transaction.OccurredAt),
-		sqlite.FormatTime(transaction.RecordedAt),
+		time.FormatTime(transaction.OccurredAt),
+		time.FormatTime(transaction.RecordedAt),
 		transaction.CreatedBy,
 	)
 	if err != nil {
@@ -49,7 +51,7 @@ func (r *TransactionRepositoryImpl) Create(ctx context.Context, request pkgWalle
 }
 
 func (r *TransactionRepositoryImpl) List(ctx context.Context, request pkgWallet.ListTransactionsRequest) (*pkgWallet.ListTransactionsResponse, error) {
-	exec := sqlite.ExecutorFromContext(ctx, r.db)
+	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	rows, err := exec.QueryContext(ctx,
 		`SELECT ref, account_id, kind, points, occurred_at, recorded_at, created_by
@@ -77,7 +79,7 @@ func (r *TransactionRepositoryImpl) List(ctx context.Context, request pkgWallet.
 }
 
 func (r *TransactionRepositoryImpl) GetByID(ctx context.Context, request pkgWallet.GetTransactionByIDRequest) (*pkgWallet.GetTransactionByIDResponse, error) {
-	exec := sqlite.ExecutorFromContext(ctx, r.db)
+	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	row := exec.QueryRowContext(ctx,
 		`SELECT ref, account_id, kind, points, occurred_at, recorded_at, created_by
@@ -118,13 +120,13 @@ func scanTransaction(scan func(dest ...any) error) (*pkgWallet.Transaction, erro
 
 	transaction.Kind = pkgWallet.Kind(kind)
 
-	parsedOccurredAt, err := sqlite.ParseTime(occurredAt)
+	parsedOccurredAt, err := time.ParseTime(occurredAt)
 	if err != nil {
 		return nil, err
 	}
 	transaction.OccurredAt = parsedOccurredAt
 
-	parsedRecordedAt, err := sqlite.ParseTime(recordedAt)
+	parsedRecordedAt, err := time.ParseTime(recordedAt)
 	if err != nil {
 		return nil, err
 	}

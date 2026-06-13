@@ -8,7 +8,8 @@ import (
 
 	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audit"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
-	"github.com/Thatooine/loyalty-points-app/sqlite"
+	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
+	"github.com/Thatooine/loyalty-points-app/pkg/time"
 )
 
 // AuditEntryRepositoryImpl is the SQLite implementation of
@@ -24,7 +25,7 @@ func NewAuditEntryRepositoryImpl(db *sql.DB) *AuditEntryRepositoryImpl {
 }
 
 func (r *AuditEntryRepositoryImpl) Create(ctx context.Context, request pkgAudit.CreateAuditEntryRequest) (*pkgAudit.CreateAuditEntryResponse, error) {
-	exec := sqlite.ExecutorFromContext(ctx, r.db)
+	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	entry := request.AuditEntry
 	result, err := exec.ExecContext(ctx,
@@ -38,7 +39,7 @@ func (r *AuditEntryRepositoryImpl) Create(ctx context.Context, request pkgAudit.
 		string(entry.Outcome),
 		entry.Reason,
 		entry.Actor,
-		sqlite.FormatTime(entry.CreatedAt),
+		time.FormatTime(entry.CreatedAt),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("could not insert audit entry: %w", err)
@@ -54,7 +55,7 @@ func (r *AuditEntryRepositoryImpl) Create(ctx context.Context, request pkgAudit.
 }
 
 func (r *AuditEntryRepositoryImpl) List(ctx context.Context, request pkgAudit.ListAuditEntriesRequest) (*pkgAudit.ListAuditEntriesResponse, error) {
-	exec := sqlite.ExecutorFromContext(ctx, r.db)
+	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	rows, err := exec.QueryContext(ctx,
 		`SELECT id, ref, account_id, kind, points, source, outcome, reason, actor, created_at
@@ -82,7 +83,7 @@ func (r *AuditEntryRepositoryImpl) List(ctx context.Context, request pkgAudit.Li
 }
 
 func (r *AuditEntryRepositoryImpl) GetByID(ctx context.Context, request pkgAudit.GetAuditEntryByIDRequest) (*pkgAudit.GetAuditEntryByIDResponse, error) {
-	exec := sqlite.ExecutorFromContext(ctx, r.db)
+	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	row := exec.QueryRowContext(ctx,
 		`SELECT id, ref, account_id, kind, points, source, outcome, reason, actor, created_at
@@ -126,7 +127,7 @@ func scanAuditEntry(scan func(dest ...any) error) (*pkgAudit.AuditEntry, error) 
 
 	entry.Outcome = pkgAudit.Outcome(outcome)
 
-	parsedCreatedAt, err := sqlite.ParseTime(createdAt)
+	parsedCreatedAt, err := time.ParseTime(createdAt)
 	if err != nil {
 		return nil, err
 	}

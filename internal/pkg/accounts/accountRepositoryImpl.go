@@ -8,7 +8,9 @@ import (
 
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
-	"github.com/Thatooine/loyalty-points-app/sqlite"
+	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
+	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
+	"github.com/Thatooine/loyalty-points-app/pkg/time"
 )
 
 // AccountRepositoryImpl is the SQLite implementation of
@@ -24,7 +26,7 @@ func NewAccountRepositoryImpl(db *sql.DB) *AccountRepositoryImpl {
 }
 
 func (r *AccountRepositoryImpl) Create(ctx context.Context, request pkgAccounts.CreateAccountRequest) (*pkgAccounts.CreateAccountResponse, error) {
-	exec := sqlite.ExecutorFromContext(ctx, r.db)
+	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	account := request.Account
 	_, err := exec.ExecContext(ctx,
@@ -34,7 +36,7 @@ func (r *AccountRepositoryImpl) Create(ctx context.Context, request pkgAccounts.
 		account.UserID,
 		account.Name,
 		account.Balance,
-		sqlite.FormatTime(account.CreatedAt),
+		time.FormatTime(account.CreatedAt),
 	)
 	if err != nil {
 		if sqlite.IsUniqueConstraintViolation(err) {
@@ -47,7 +49,7 @@ func (r *AccountRepositoryImpl) Create(ctx context.Context, request pkgAccounts.
 }
 
 func (r *AccountRepositoryImpl) List(ctx context.Context, request pkgAccounts.ListAccountsRequest) (*pkgAccounts.ListAccountsResponse, error) {
-	exec := sqlite.ExecutorFromContext(ctx, r.db)
+	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	rows, err := exec.QueryContext(ctx,
 		`SELECT account_id, user_id, name, balance, created_at
@@ -75,7 +77,7 @@ func (r *AccountRepositoryImpl) List(ctx context.Context, request pkgAccounts.Li
 }
 
 func (r *AccountRepositoryImpl) GetByID(ctx context.Context, request pkgAccounts.GetAccountByIDRequest) (*pkgAccounts.GetAccountByIDResponse, error) {
-	exec := sqlite.ExecutorFromContext(ctx, r.db)
+	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	row := exec.QueryRowContext(ctx,
 		`SELECT account_id, user_id, name, balance, created_at
@@ -112,7 +114,7 @@ func scanAccount(scan func(dest ...any) error) (*pkgAccounts.Account, error) {
 		return nil, fmt.Errorf("could not scan account: %w", err)
 	}
 
-	parsedCreatedAt, err := sqlite.ParseTime(createdAt)
+	parsedCreatedAt, err := time.ParseTime(createdAt)
 	if err != nil {
 		return nil, err
 	}

@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
+	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
-	"github.com/Thatooine/loyalty-points-app/sqlite"
 )
 
 func newTestRepository(t *testing.T) *UserRepositoryImpl {

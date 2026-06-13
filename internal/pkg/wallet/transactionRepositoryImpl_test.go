@@ -12,9 +12,9 @@ import (
 	internalUsers "github.com/Thatooine/loyalty-points-app/internal/pkg/users"
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
+	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallet"
-	"github.com/Thatooine/loyalty-points-app/sqlite"
 )
 
 func newTestDB(t *testing.T) *sql.DB {
@@ -135,7 +135,7 @@ func TestTransactionRepositoryImpl_GetByIDNotFound(t *testing.T) {
 func TestRunInTx_AtomicAcrossRepositories(t *testing.T) {
 	ctx := context.Background()
 	db := newTestDB(t)
-	txManager := sqlite.NewTxManager(db)
+	txManager := sqlite.NewSQLiteTxManager(db)
 	accountRepo := internalAccounts.NewAccountRepositoryImpl(db)
 	transactionRepo := NewTransactionRepositoryImpl(db)
 	createTestUser(t, db, "user-1")
@@ -176,7 +176,7 @@ func TestRunInTx_AtomicAcrossRepositories(t *testing.T) {
 func TestRunInTx_CommitAcrossRepositories(t *testing.T) {
 	ctx := context.Background()
 	db := newTestDB(t)
-	txManager := sqlite.NewTxManager(db)
+	txManager := sqlite.NewSQLiteTxManager(db)
 	accountRepo := internalAccounts.NewAccountRepositoryImpl(db)
 	transactionRepo := NewTransactionRepositoryImpl(db)
 	createTestUser(t, db, "user-1")

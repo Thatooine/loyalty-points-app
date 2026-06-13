@@ -7,8 +7,10 @@ import (
 	"fmt"
 
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
+	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
+	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
+	"github.com/Thatooine/loyalty-points-app/pkg/time"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
-	"github.com/Thatooine/loyalty-points-app/sqlite"
 )
 
 // UserRepositoryImpl is the SQLite implementation of users.UserRepository.
@@ -23,7 +25,7 @@ func NewUserRepositoryImpl(db *sql.DB) *UserRepositoryImpl {
 }
 
 func (r *UserRepositoryImpl) Create(ctx context.Context, request pkgUsers.CreateUserRequest) (*pkgUsers.CreateUserResponse, error) {
-	exec := sqlite.ExecutorFromContext(ctx, r.db)
+	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	user := request.User
 	_, err := exec.ExecContext(ctx,
@@ -33,7 +35,7 @@ func (r *UserRepositoryImpl) Create(ctx context.Context, request pkgUsers.Create
 		user.Email,
 		user.PasswordHash,
 		string(user.Role),
-		sqlite.FormatTime(user.CreatedAt),
+		time.FormatTime(user.CreatedAt),
 	)
 	if err != nil {
 		if sqlite.IsUniqueConstraintViolation(err) {
@@ -46,7 +48,7 @@ func (r *UserRepositoryImpl) Create(ctx context.Context, request pkgUsers.Create
 }
 
 func (r *UserRepositoryImpl) List(ctx context.Context, request pkgUsers.ListUsersRequest) (*pkgUsers.ListUsersResponse, error) {
-	exec := sqlite.ExecutorFromContext(ctx, r.db)
+	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	rows, err := exec.QueryContext(ctx,
 		`SELECT id, email, password_hash, role, created_at
@@ -74,7 +76,7 @@ func (r *UserRepositoryImpl) List(ctx context.Context, request pkgUsers.ListUser
 }
 
 func (r *UserRepositoryImpl) GetByID(ctx context.Context, request pkgUsers.GetUserByIDRequest) (*pkgUsers.GetUserByIDResponse, error) {
-	exec := sqlite.ExecutorFromContext(ctx, r.db)
+	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	row := exec.QueryRowContext(ctx,
 		`SELECT id, email, password_hash, role, created_at
@@ -113,7 +115,7 @@ func scanUser(scan func(dest ...any) error) (*pkgUsers.User, error) {
 
 	user.Role = pkgUsers.Role(role)
 
-	parsedCreatedAt, err := sqlite.ParseTime(createdAt)
+	parsedCreatedAt, err := time.ParseTime(createdAt)
 	if err != nil {
 		return nil, err
 	}

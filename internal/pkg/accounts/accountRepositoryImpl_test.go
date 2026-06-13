@@ -11,8 +11,8 @@ import (
 	internalUsers "github.com/Thatooine/loyalty-points-app/internal/pkg/users"
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
+	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
-	"github.com/Thatooine/loyalty-points-app/sqlite"
 )
 
 func newTestDB(t *testing.T) *sql.DB {

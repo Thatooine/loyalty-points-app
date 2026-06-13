@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Thatooine/loyalty-points-app/logger"
+	"github.com/Thatooine/loyalty-points-app/pkg/logger"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/rpc/v2"
 	gorillaJSON "github.com/gorilla/rpc/v2/json2"

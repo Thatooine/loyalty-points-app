@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 
+	sql2 "github.com/Thatooine/loyalty-points-app/pkg/sql"
+	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
 	"github.com/go-jose/go-jose/v4"
 
 	internalAccounts "github.com/Thatooine/loyalty-points-app/internal/pkg/accounts"
@@ -21,14 +23,13 @@ import (
 	pkgAuth "github.com/Thatooine/loyalty-points-app/pkg/authentication"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallet"
-	"github.com/Thatooine/loyalty-points-app/sqlite"
 )
 
 // ServiceProviders holds the wired-up service implementations used by the
 // server adaptors and middleware.
 type ServiceProviders struct {
 	DB                          *sql.DB
-	TransactionManager          sqlite.TransactionManager
+	TransactionManager          sql2.TxManager
 	UserRepository              pkgUsers.UserRepository
 	AccountRepository           pkgAccounts.AccountRepository
 	TransactionRepository       pkgWallet.TransactionRepository
@@ -78,7 +79,7 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 
 	return &ServiceProviders{
 		DB:                          db,
-		TransactionManager:          sqlite.NewTxManager(db),
+		TransactionManager:          sqlite.NewSQLiteTxManager(db),
 		UserRepository:              internalUsers.NewUserRepositoryImpl(db),
 		AccountRepository:           internalAccounts.NewAccountRepositoryImpl(db),
 		TransactionRepository:       internalWallet.NewTransactionRepositoryImpl(db),
