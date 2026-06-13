@@ -14,10 +14,12 @@ import (
 	internalAccounts "github.com/Thatooine/loyalty-points-app/internal/pkg/accounts"
 	internalAudit "github.com/Thatooine/loyalty-points-app/internal/pkg/audit"
 	internalAuth "github.com/Thatooine/loyalty-points-app/internal/pkg/authentication"
+	internalUsers "github.com/Thatooine/loyalty-points-app/internal/pkg/users"
 	internalWallet "github.com/Thatooine/loyalty-points-app/internal/pkg/wallet"
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audit"
 	pkgAuth "github.com/Thatooine/loyalty-points-app/pkg/authentication"
+	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallet"
 	"github.com/Thatooine/loyalty-points-app/sqlite"
 )
@@ -27,6 +29,7 @@ import (
 type ServiceProviders struct {
 	DB                          *sql.DB
 	TransactionManager          sqlite.TransactionManager
+	UserRepository              pkgUsers.UserRepository
 	AccountRepository           pkgAccounts.AccountRepository
 	TransactionRepository       pkgWallet.TransactionRepository
 	AuditEntryRepository        pkgAudit.AuditEntryRepository
@@ -76,6 +79,7 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 	return &ServiceProviders{
 		DB:                          db,
 		TransactionManager:          sqlite.NewTxManager(db),
+		UserRepository:              internalUsers.NewUserRepositoryImpl(db),
 		AccountRepository:           internalAccounts.NewAccountRepositoryImpl(db),
 		TransactionRepository:       internalWallet.NewTransactionRepositoryImpl(db),
 		AuditEntryRepository:        internalAudit.NewAuditEntryRepositoryImpl(db),

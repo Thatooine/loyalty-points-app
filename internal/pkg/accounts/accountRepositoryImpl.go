@@ -28,12 +28,11 @@ func (r *AccountRepositoryImpl) Create(ctx context.Context, request pkgAccounts.
 
 	account := request.Account
 	_, err := exec.ExecContext(ctx,
-		`INSERT INTO accounts (account_id, name, role, password_hash, balance, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO accounts (account_id, user_id, name, balance, created_at)
+		 VALUES (?, ?, ?, ?, ?)`,
 		account.AccountID,
+		account.UserID,
 		account.Name,
-		string(account.Role),
-		account.PasswordHash,
 		account.Balance,
 		sqlite.FormatTime(account.CreatedAt),
 	)
@@ -51,7 +50,7 @@ func (r *AccountRepositoryImpl) List(ctx context.Context, request pkgAccounts.Li
 	exec := sqlite.ExecutorFromContext(ctx, r.db)
 
 	rows, err := exec.QueryContext(ctx,
-		`SELECT account_id, name, role, password_hash, balance, created_at
+		`SELECT account_id, user_id, name, balance, created_at
 		 FROM accounts
 		 ORDER BY created_at, account_id`,
 	)
@@ -79,7 +78,7 @@ func (r *AccountRepositoryImpl) GetByID(ctx context.Context, request pkgAccounts
 	exec := sqlite.ExecutorFromContext(ctx, r.db)
 
 	row := exec.QueryRowContext(ctx,
-		`SELECT account_id, name, role, password_hash, balance, created_at
+		`SELECT account_id, user_id, name, balance, created_at
 		 FROM accounts
 		 WHERE account_id = ?`,
 		request.AccountID,
@@ -98,13 +97,12 @@ func (r *AccountRepositoryImpl) GetByID(ctx context.Context, request pkgAccounts
 
 func scanAccount(scan func(dest ...any) error) (*pkgAccounts.Account, error) {
 	var account pkgAccounts.Account
-	var role, createdAt string
+	var createdAt string
 
 	if err := scan(
 		&account.AccountID,
+		&account.UserID,
 		&account.Name,
-		&role,
-		&account.PasswordHash,
 		&account.Balance,
 		&createdAt,
 	); err != nil {
@@ -113,8 +111,6 @@ func scanAccount(scan func(dest ...any) error) (*pkgAccounts.Account, error) {
 		}
 		return nil, fmt.Errorf("could not scan account: %w", err)
 	}
-
-	account.Role = pkgAccounts.Role(role)
 
 	parsedCreatedAt, err := sqlite.ParseTime(createdAt)
 	if err != nil {

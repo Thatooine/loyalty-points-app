@@ -9,8 +9,10 @@ import (
 	"time"
 
 	internalAccounts "github.com/Thatooine/loyalty-points-app/internal/pkg/accounts"
+	internalUsers "github.com/Thatooine/loyalty-points-app/internal/pkg/users"
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
+	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallet"
 	"github.com/Thatooine/loyalty-points-app/sqlite"
 )
@@ -33,16 +35,33 @@ func newTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
+func createTestUser(t *testing.T, db *sql.DB, userID string) {
+	t.Helper()
+	userRepo := internalUsers.NewUserRepositoryImpl(db)
+	_, err := userRepo.Create(context.Background(), pkgUsers.CreateUserRequest{
+		User: pkgUsers.User{
+			ID:           userID,
+			Email:        userID + "@example.com",
+			PasswordHash: "bcrypt-hash",
+			Role:         pkgUsers.RoleMember,
+			CreatedAt:    time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC),
+		},
+	})
+	if err != nil {
+		t.Fatalf("Create user error = %v", err)
+	}
+}
+
 func createTestAccount(t *testing.T, db *sql.DB, accountID string) {
 	t.Helper()
+	createTestUser(t, db, "user-"+accountID)
 	accountRepo := internalAccounts.NewAccountRepositoryImpl(db)
 	_, err := accountRepo.Create(context.Background(), pkgAccounts.CreateAccountRequest{
 		Account: pkgAccounts.Account{
-			AccountID:    accountID,
-			Name:         "Test Member",
-			Role:         pkgAccounts.RoleMember,
-			PasswordHash: "bcrypt-hash",
-			CreatedAt:    time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
+			AccountID: accountID,
+			UserID:    "user-" + accountID,
+			Name:      "Test Member",
+			CreatedAt: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
 		},
 	})
 	if err != nil {
@@ -119,16 +138,16 @@ func TestRunInTx_AtomicAcrossRepositories(t *testing.T) {
 	txManager := sqlite.NewTxManager(db)
 	accountRepo := internalAccounts.NewAccountRepositoryImpl(db)
 	transactionRepo := NewTransactionRepositoryImpl(db)
+	createTestUser(t, db, "user-1")
 
 	failure := errors.New("forced failure")
 	err := txManager.RunInTx(ctx, func(ctx context.Context) error {
 		if _, err := accountRepo.Create(ctx, pkgAccounts.CreateAccountRequest{
 			Account: pkgAccounts.Account{
-				AccountID:    "member-123",
-				Name:         "Test Member",
-				Role:         pkgAccounts.RoleMember,
-				PasswordHash: "bcrypt-hash",
-				CreatedAt:    time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
+				AccountID: "member-123",
+				UserID:    "user-1",
+				Name:      "Test Member",
+				CreatedAt: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
 			},
 		}); err != nil {
 			return err
@@ -160,15 +179,15 @@ func TestRunInTx_CommitAcrossRepositories(t *testing.T) {
 	txManager := sqlite.NewTxManager(db)
 	accountRepo := internalAccounts.NewAccountRepositoryImpl(db)
 	transactionRepo := NewTransactionRepositoryImpl(db)
+	createTestUser(t, db, "user-1")
 
 	err := txManager.RunInTx(ctx, func(ctx context.Context) error {
 		if _, err := accountRepo.Create(ctx, pkgAccounts.CreateAccountRequest{
 			Account: pkgAccounts.Account{
-				AccountID:    "member-123",
-				Name:         "Test Member",
-				Role:         pkgAccounts.RoleMember,
-				PasswordHash: "bcrypt-hash",
-				CreatedAt:    time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
+				AccountID: "member-123",
+				UserID:    "user-1",
+				Name:      "Test Member",
+				CreatedAt: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
 			},
 		}); err != nil {
 			return err
