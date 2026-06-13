@@ -62,13 +62,15 @@ func (s *EmailAndPasswordAuthServiceImpl) Authenticate(ctx context.Context, requ
 	}
 
 	// 4. password is correct — issue a token from a claim identifying the user.
-	tokenResp, err := s.accessTokenService.IssueAccessToken(ctx, pkgAuth.IssueAccessTokenRequest{
-		LoginClaim: pkgAuth.LoginClaim{
-			UserID:         user.ID,
-			Email:          user.Email,
-			ExpirationTime: time.Now().Add(accessTokenTTL).Unix(),
-		},
-	})
+	tokenResp, err := s.accessTokenService.IssueAccessToken(
+		ctx,
+		pkgAuth.IssueAccessTokenRequest{
+			LoginClaim: pkgAuth.LoginClaim{
+				UserID:         user.ID,
+				Email:          user.Email,
+				ExpirationTime: time.Now().Add(accessTokenTTL).Unix(),
+			},
+		})
 	if err != nil {
 		return nil, fmt.Errorf("could not issue access token: %w", err)
 	}
