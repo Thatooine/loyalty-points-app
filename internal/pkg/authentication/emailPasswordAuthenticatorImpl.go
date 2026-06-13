@@ -64,6 +64,7 @@ func (s *EmailPasswordAuthenticatorImpl) Authenticate(ctx context.Context, reque
 			LoginClaim: pkgAuth.LoginClaim{
 				UserID:         user.ID,
 				Email:          user.Email,
+				Role:           user.Role,
 				ExpirationTime: time.Now().Add(accessTokenTTL).Unix(),
 			},
 		})

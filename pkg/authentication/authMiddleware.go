@@ -20,7 +20,7 @@ const loginClaimContextKey contextKey = "loginClaim"
 func NewAuthMiddleware(accessTokenService AccessTokenService) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token := extractToken(r)
+			token := ExtractToken(r)
 			if token == "" {
 				log.Ctx(r.Context()).Warn().Msg("no access token found in request")
 				http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
@@ -36,10 +36,16 @@ func NewAuthMiddleware(accessTokenService AccessTokenService) func(http.Handler)
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), loginClaimContextKey, resp.LoginClaim)
+			ctx := ContextWithLoginClaim(r.Context(), resp.LoginClaim)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// ContextWithLoginClaim returns a copy of ctx carrying the given LoginClaim,
+// keyed so that LoginClaimFromContext can retrieve it.
+func ContextWithLoginClaim(ctx context.Context, claim LoginClaim) context.Context {
+	return context.WithValue(ctx, loginClaimContextKey, claim)
 }
 
 // LoginClaimFromContext retrieves the LoginClaim stored by the auth middleware.
@@ -49,9 +55,9 @@ func LoginClaimFromContext(ctx context.Context) (LoginClaim, bool) {
 	return claim, ok
 }
 
-// extractToken looks for an access token first in the Authorization header
+// ExtractToken looks for an access token first in the Authorization header
 // (expecting "Bearer <token>"), then in a cookie named "access_token".
-func extractToken(r *http.Request) string {
+func ExtractToken(r *http.Request) string {
 	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
 		if token, found := strings.CutPrefix(authHeader, "Bearer "); found {
 			return token

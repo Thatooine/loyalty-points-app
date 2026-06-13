@@ -110,6 +110,7 @@ func (s *UserRegistrationServiceImpl) Register(ctx context.Context, request pkgU
 		LoginClaim: pkgAuth.LoginClaim{
 			UserID:         user.ID,
 			Email:          user.Email,
+			Role:           user.Role,
 			ExpirationTime: time.Now().Add(registrationTokenTTL).Unix(),
 		},
 	})
