@@ -56,7 +56,7 @@ func setup(t *testing.T) *apiClient {
 
 	c := &apiClient{baseURL: baseURL}
 
-	if dsn := os.Getenv("LOYALTY_DB_DSN"); dsn != "" {
+	if dsn := "postgres://loyalty:loyalty@localhost:5432/loyalty_points?sslmode=disable"; dsn != "" {
 		db, err := postgres.NewClient(context.Background(), dsn)
 		if err != nil {
 			t.Fatalf("open db: %v", err)

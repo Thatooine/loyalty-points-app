@@ -211,7 +211,15 @@ func (s *WalletServiceImpl) ProcessTransactionBatch(ctx context.Context, request
 // trail survives the rolled-back unit of work, or a pre-flight rejection that
 // never opened one) and returns the originating error.
 func (s *WalletServiceImpl) rejectTransaction(ctx context.Context, request pkgWallet.ProcessTransactionRequest, delta int64, now time.Time, err error) (*pkgWallet.ProcessTransactionResponse, error) {
-	if _, auditErr := s.auditEntryRepository.Create(ctx, buildAuditEntry(request, delta, pkgAudit.OutcomeRejected, reasonFor(err), now)); auditErr != nil {
+	if _, auditErr := s.auditEntryRepository.Create(
+		ctx,
+		buildAuditEntry(
+			request,
+			delta,
+			pkgAudit.OutcomeRejected,
+			reasonFor(err),
+			now),
+	); auditErr != nil {
 		return nil, auditErr
 	}
 	return nil, err
