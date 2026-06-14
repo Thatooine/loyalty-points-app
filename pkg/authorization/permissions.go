@@ -9,6 +9,10 @@ const wildcard = "*"
 // a token; it must be callable without one, so it is public.
 const loginMethod = "EmailPasswordAuthenticator.Login"
 
+// registerMethod onboards a new user and issues their first token; a caller has
+// no token before signing up, so it is public.
+const registerMethod = "UserRegistrationService.Register"
+
 // Permissions answers "may this caller invoke this JSON-RPC method?". Methods
 // are identified by the exact "<ServiceName>.<Method>" string the JSON-RPC
 // client sends, where ServiceName is the value returned by the adaptor's
@@ -41,7 +45,8 @@ func DefaultPermissions() *Permissions {
 			users.RoleMember: {},
 		},
 		map[string]bool{
-			loginMethod: true,
+			loginMethod:    true,
+			registerMethod: true,
 		},
 	)
 }
