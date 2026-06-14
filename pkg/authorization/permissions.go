@@ -22,6 +22,11 @@ const (
 	getAccountBalanceMethod  = "Account.GetAccountBalance"
 )
 
+// processTransactionBatchMethod is the batch ingestion path. It is intentionally
+// admin-only: it is absent from the member set below and reachable only via the
+// admin wildcard. The adaptor re-checks the claim role as defence in depth.
+const processTransactionBatchMethod = "Wallet.ProcessTransactionBatch"
+
 // Permissions answers "may this caller invoke this JSON-RPC method?". Methods
 // are identified by the exact "<ServiceName>.<Method>" string the JSON-RPC
 // client sends, where ServiceName is the value returned by the adaptor's

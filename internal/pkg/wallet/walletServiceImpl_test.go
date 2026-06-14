@@ -9,6 +9,7 @@ import (
 
 	internalAccounts "github.com/Thatooine/loyalty-points-app/internal/pkg/accounts"
 	internalAudit "github.com/Thatooine/loyalty-points-app/internal/pkg/audit"
+	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audit"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
@@ -61,6 +62,17 @@ func ledgerSum(t *testing.T, db *sql.DB, accountID string) int64 {
 		t.Fatalf("ledger sum query error = %v", err)
 	}
 	return sum.Int64
+}
+
+// accountBalance returns the materialised account balance — which includes any
+// seeded credit, unlike ledgerSum (which only sums recorded transaction rows).
+func accountBalance(t *testing.T, db *sql.DB, accountID string) int64 {
+	t.Helper()
+	var balance int64
+	if err := db.QueryRow(`SELECT balance FROM accounts WHERE id = ?`, accountID).Scan(&balance); err != nil {
+		t.Fatalf("account balance query error = %v", err)
+	}
+	return balance
 }
 
 func TestProcessTransaction_Earn(t *testing.T) {
@@ -247,6 +259,109 @@ func TestProcessTransaction_AdminBypassesOwnership(t *testing.T) {
 	}
 	if resp.Balance != 100 {
 		t.Fatalf("Balance = %d, want 100", resp.Balance)
+	}
+}
+
+func TestProcessTransactionBatch_OrderedApplication(t *testing.T) {
+	ctx := context.Background()
+	db := newTestDB(t)
+	createTestAccount(t, db, "member-123")
+	// seed a starting balance of 10
+	repo := internalAccounts.NewAccountRepositoryImpl(db)
+	if _, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: 10}); err != nil {
+		t.Fatalf("seed credit error = %v", err)
+	}
+	service, _ := newWalletService(db)
+
+	// earn 10 then spend 20: applied in this order the spend is funded (10+10-20=0)
+	batch := pkgWallet.ProcessTransactionBatchRequest{
+		Transactions: []pkgWallet.ProcessTransactionRequest{
+			processRequest("tx-earn", "member-123", pkgWallet.KindEarn, 10),
+			processRequest("tx-spend", "member-123", pkgWallet.KindSpend, 20),
+		},
+	}
+
+	resp, err := service.ProcessTransactionBatch(ctx, batch)
+	if err != nil {
+		t.Fatalf("ProcessTransactionBatch() error = %v", err)
+	}
+	if resp.Accepted != 2 || resp.Rejected != 0 {
+		t.Fatalf("tallies: accepted=%d rejected=%d, want 2/0", resp.Accepted, resp.Rejected)
+	}
+	if resp.Results[0].Outcome != pkgWallet.BatchOutcomeAccepted || resp.Results[1].Outcome != pkgWallet.BatchOutcomeAccepted {
+		t.Fatalf("outcomes = %q/%q, want accepted/accepted", resp.Results[0].Outcome, resp.Results[1].Outcome)
+	}
+	// running balances: 10 +10 = 20, then -20 = 0
+	if resp.Results[0].Balance != 20 || resp.Results[1].Balance != 0 {
+		t.Fatalf("balances = %d/%d, want 20/0", resp.Results[0].Balance, resp.Results[1].Balance)
+	}
+	if got := accountBalance(t, db, "member-123"); got != 0 {
+		t.Fatalf("final balance = %d, want 0", got)
+	}
+}
+
+func TestProcessTransactionBatch_WrongOrderRejectsSpend(t *testing.T) {
+	ctx := context.Background()
+	db := newTestDB(t)
+	createTestAccount(t, db, "member-123")
+	repo := internalAccounts.NewAccountRepositoryImpl(db)
+	if _, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: 10}); err != nil {
+		t.Fatalf("seed credit error = %v", err)
+	}
+	service, _ := newWalletService(db)
+
+	// spend 20 BEFORE the earn that funds it: the floor rejects the spend, but
+	// the batch continues and the earn still applies. This is the order-
+	// dependence the CLI's OccurredAt sort exists to avoid.
+	batch := pkgWallet.ProcessTransactionBatchRequest{
+		Transactions: []pkgWallet.ProcessTransactionRequest{
+			processRequest("tx-spend", "member-123", pkgWallet.KindSpend, 20),
+			processRequest("tx-earn", "member-123", pkgWallet.KindEarn, 10),
+		},
+	}
+
+	resp, err := service.ProcessTransactionBatch(ctx, batch)
+	if err != nil {
+		t.Fatalf("ProcessTransactionBatch() error = %v", err)
+	}
+	if resp.Accepted != 1 || resp.Rejected != 1 {
+		t.Fatalf("tallies: accepted=%d rejected=%d, want 1/1", resp.Accepted, resp.Rejected)
+	}
+	if resp.Results[0].Outcome != pkgWallet.BatchOutcomeRejected {
+		t.Fatalf("first outcome = %q, want rejected", resp.Results[0].Outcome)
+	}
+	if resp.Results[0].Reason != "insufficient balance" {
+		t.Fatalf("rejection reason = %q, want \"insufficient balance\"", resp.Results[0].Reason)
+	}
+	// only the earn applied: 10 + 10 = 20
+	if got := accountBalance(t, db, "member-123"); got != 20 {
+		t.Fatalf("final balance = %d, want 20", got)
+	}
+}
+
+func TestProcessTransactionBatch_DuplicateWithinBatch(t *testing.T) {
+	ctx := context.Background()
+	db := newTestDB(t)
+	createTestAccount(t, db, "member-123")
+	service, _ := newWalletService(db)
+
+	batch := pkgWallet.ProcessTransactionBatchRequest{
+		Transactions: []pkgWallet.ProcessTransactionRequest{
+			processRequest("tx-1", "member-123", pkgWallet.KindEarn, 100),
+			processRequest("tx-1", "member-123", pkgWallet.KindEarn, 100), // same ref
+		},
+	}
+
+	resp, err := service.ProcessTransactionBatch(ctx, batch)
+	if err != nil {
+		t.Fatalf("ProcessTransactionBatch() error = %v", err)
+	}
+	if resp.Accepted != 1 || resp.Duplicate != 1 {
+		t.Fatalf("tallies: accepted=%d duplicate=%d, want 1/1", resp.Accepted, resp.Duplicate)
+	}
+	// the duplicate never double-counted
+	if got := ledgerSum(t, db, "member-123"); got != 100 {
+		t.Fatalf("final balance = %d, want 100", got)
 	}
 }
 

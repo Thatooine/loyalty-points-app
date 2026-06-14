@@ -30,20 +30,21 @@ func (a *WalletServiceJSONRPCAdaptor) Name() string {
 	return "Wallet"
 }
 
-// ProcessTransactionParams is the wire request. Field names match the CSV batch
+// ProcessTransactionJSONRPCRequest is the wire request. Field names match the CSV batch
 // shape the CLI sends (account_id, occurred_at) so a batch of these can be
 // posted directly. Actor/Source are intentionally absent: they come from the
 // verified claim, not the client.
-type ProcessTransactionParams struct {
-	Ref        string    `json:"ref"`
-	AccountID  string    `json:"account_id"`
-	Kind       string    `json:"kind"`
-	Points     int64     `json:"points"`
-	OccurredAt time.Time `json:"occurred_at"`
+type ProcessTransactionJSONRPCRequest struct {
+	Ref       string `json:"ref"`
+	AccountID string `json:"account_id"`
+	Kind      string `json:"kind"`
+	Points    int64  `json:"points"`
+	// OccurredAt is optional; when omitted the server stamps it at processing time.
+	OccurredAt time.Time `json:"occurred_at,omitempty"`
 }
 
-// ProcessTransactionResult is the wire response.
-type ProcessTransactionResult struct {
+// ProcessTransactionJSONRPCResponse is the wire response.
+type ProcessTransactionJSONRPCResponse struct {
 	Ref        string    `json:"ref"`
 	AccountID  string    `json:"account_id"`
 	Kind       string    `json:"kind"`
@@ -54,7 +55,7 @@ type ProcessTransactionResult struct {
 	Duplicate  bool      `json:"duplicate"`
 }
 
-func (a *WalletServiceJSONRPCAdaptor) ProcessTransaction(r *http.Request, params *ProcessTransactionParams, result *ProcessTransactionResult) error {
+func (a *WalletServiceJSONRPCAdaptor) ProcessTransaction(r *http.Request, params *ProcessTransactionJSONRPCRequest, result *ProcessTransactionJSONRPCResponse) error {
 	ctx := r.Context()
 
 	claim, ok := authentication.LoginClaimFromContext(ctx)
@@ -95,5 +96,92 @@ func (a *WalletServiceJSONRPCAdaptor) ProcessTransaction(r *http.Request, params
 	result.RecordedAt = resp.Transaction.RecordedAt
 	result.Balance = resp.Balance
 	result.Duplicate = resp.Duplicate
+	return nil
+}
+
+// ProcessTransactionBatchParams is the wire request for the batch ingestion
+// path. Transactions are applied in array order — the caller (the CLI) sorts
+// them by OccurredAt, then line, before sending. As with the single method,
+// Actor/Source are taken from the verified claim, never from the client.
+type ProcessTransactionBatchParams struct {
+	Transactions []ProcessTransactionJSONRPCRequest `json:"transactions"`
+}
+
+// BatchTransactionResult is the wire outcome of one element of a batch.
+type BatchTransactionResult struct {
+	Ref     string `json:"ref"`
+	Status  string `json:"status"`
+	Reason  string `json:"reason,omitempty"`
+	Balance int64  `json:"balance,omitempty"`
+}
+
+// BatchSummary tallies a batch run.
+type BatchSummary struct {
+	Accepted  int `json:"accepted"`
+	Duplicate int `json:"duplicate"`
+	Rejected  int `json:"rejected"`
+}
+
+// ProcessTransactionBatchResult is the wire response: per-element results in
+// input order plus summary tallies.
+type ProcessTransactionBatchResult struct {
+	Results []BatchTransactionResult `json:"results"`
+	Summary BatchSummary             `json:"summary"`
+}
+
+// ProcessTransactionBatch applies an ordered batch in a single request. It is
+// admin-only: batch ingestion is an operator action, so a member token is
+// rejected. The permission map already gates this to admins (members lack the
+// method, admins hold the wildcard); the explicit claim check here is defence
+// in depth so the policy cannot drift if the map changes.
+func (a *WalletServiceJSONRPCAdaptor) ProcessTransactionBatch(r *http.Request, params *ProcessTransactionBatchParams, result *ProcessTransactionBatchResult) error {
+	ctx := r.Context()
+
+	claim, ok := authentication.LoginClaimFromContext(ctx)
+	if !ok {
+		log.Ctx(ctx).Error().Msg("wallet: no login claim in context for protected method")
+		return errors.New("unauthorized")
+	}
+	if claim.Role != users.RoleAdmin {
+		log.Ctx(ctx).Warn().Str("userID", claim.UserID).Msg("wallet: non-admin attempted batch ingestion")
+		return errors.New("forbidden: batch ingestion is admin-only")
+	}
+
+	batch := ProcessTransactionBatchRequest{
+		Transactions: make([]ProcessTransactionRequest, 0, len(params.Transactions)),
+	}
+	for _, p := range params.Transactions {
+		batch.Transactions = append(batch.Transactions, ProcessTransactionRequest{
+			Ref:          p.Ref,
+			AccountID:    p.AccountID,
+			Kind:         Kind(p.Kind),
+			Points:       p.Points,
+			OccurredAt:   p.OccurredAt,
+			Actor:        claim.UserID,
+			ActorIsAdmin: true,
+			Source:       "batch",
+		})
+	}
+
+	resp, err := a.walletService.ProcessTransactionBatch(ctx, batch)
+	if err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("wallet: process transaction batch failed")
+		return errors.New("could not process transaction batch")
+	}
+
+	result.Results = make([]BatchTransactionResult, 0, len(resp.Results))
+	for _, e := range resp.Results {
+		result.Results = append(result.Results, BatchTransactionResult{
+			Ref:     e.Ref,
+			Status:  string(e.Outcome),
+			Reason:  e.Reason,
+			Balance: e.Balance,
+		})
+	}
+	result.Summary = BatchSummary{
+		Accepted:  resp.Accepted,
+		Duplicate: resp.Duplicate,
+		Rejected:  resp.Rejected,
+	}
 	return nil
 }

@@ -9,8 +9,7 @@ import (
 	"net/http"
 )
 
-// Response is one element of a JSON-RPC 2.0 batch response. Exactly one of
-// Result / Error is set per the spec.
+// Response is a JSON-RPC 2.0 response. Exactly one of Result / Error is set.
 type Response struct {
 	ID     int             `json:"id"`
 	Result json.RawMessage `json:"result"`
@@ -23,17 +22,17 @@ type RPCError struct {
 	Message string `json:"message"`
 }
 
-// Send POSTs the batch to the JSON-RPC endpoint with an optional bearer token
-// and decodes the per-element responses.
-func Send(ctx context.Context, client *http.Client, url, token string, batch []Request) ([]Response, error) {
-	body, err := json.Marshal(batch)
+// Send POSTs the batch request to the JSON-RPC endpoint with an optional bearer
+// token and decodes the single response.
+func Send(ctx context.Context, client *http.Client, url, token string, request Request) (Response, error) {
+	body, err := json.Marshal(request)
 	if err != nil {
-		return nil, fmt.Errorf("could not marshal batch: %w", err)
+		return Response{}, fmt.Errorf("could not marshal request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, fmt.Errorf("could not build request: %w", err)
+		return Response{}, fmt.Errorf("could not build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if token != "" {
@@ -42,21 +41,19 @@ func Send(ctx context.Context, client *http.Client, url, token string, batch []R
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("could not reach %s: %w", url, err)
+		return Response{}, fmt.Errorf("could not reach %s: %w", url, err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("could not read response: %w", err)
+		return Response{}, fmt.Errorf("could not read response: %w", err)
 	}
 
-	var responses []Response
-	if err := json.Unmarshal(respBody, &responses); err != nil {
-		// Not a batch array — surface the raw body (e.g. a single error
-		// envelope from a transport-level rejection).
-		return nil, fmt.Errorf("unexpected response (HTTP %d): %s", resp.StatusCode, string(respBody))
+	var response Response
+	if err := json.Unmarshal(respBody, &response); err != nil {
+		return Response{}, fmt.Errorf("unexpected response (HTTP %d): %s", resp.StatusCode, string(respBody))
 	}
 
-	return responses, nil
+	return response, nil
 }

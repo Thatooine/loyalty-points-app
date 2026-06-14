@@ -50,6 +50,14 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 	delta := signedDelta(request.Kind, request.Points)
 	now := time.Now().UTC()
 
+	// OccurredAt is optional on the request: when the caller does not supply it,
+	// stamp it with the processing time so it is never persisted as the zero
+	// value.
+	occurredAt := request.OccurredAt
+	if occurredAt.IsZero() {
+		occurredAt = now
+	}
+
 	// Ownership gate: a non-admin actor may only transact on an account they
 	// own. We resolve the account up front (an unscoped lookup so we can tell
 	// "unknown account" apart from "not the owner" for the audit trail). Admins
@@ -83,7 +91,7 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 				AccountID:  request.AccountID,
 				Kind:       request.Kind,
 				Points:     delta,
-				OccurredAt: request.OccurredAt,
+				OccurredAt: occurredAt,
 				RecordedAt: now,
 				CreatedBy:  request.Actor,
 			},
@@ -153,6 +161,47 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 	//    transaction — so the trail survives the rejection.
 	if err != nil {
 		return s.rejectTransaction(ctx, request, delta, now, err)
+	}
+
+	return resp, nil
+}
+
+// ProcessTransactionBatch applies an ordered batch sequentially. Each element
+// reuses the single-transaction path — inheriting idempotency, the overdraft
+// floor, ownership checks, and the audit trail — so there is no second code
+// path to keep in sync. Elements are processed strictly in slice order and a
+// per-element rejection is captured in the result rather than aborting the
+// batch, so one bad row never sinks the rest.
+func (s *WalletServiceImpl) ProcessTransactionBatch(ctx context.Context, request pkgWallet.ProcessTransactionBatchRequest) (*pkgWallet.ProcessTransactionBatchResponse, error) {
+	resp := &pkgWallet.ProcessTransactionBatchResponse{
+		Results: make([]pkgWallet.BatchElementResult, 0, len(request.Transactions)),
+	}
+
+	for _, txRequest := range request.Transactions {
+		result, err := s.ProcessTransaction(ctx, txRequest)
+		switch {
+		case err != nil:
+			resp.Results = append(resp.Results, pkgWallet.BatchElementResult{
+				Ref:     txRequest.Ref,
+				Outcome: pkgWallet.BatchOutcomeRejected,
+				Reason:  reasonFor(err),
+			})
+			resp.Rejected++
+		case result.Duplicate:
+			resp.Results = append(resp.Results, pkgWallet.BatchElementResult{
+				Ref:     txRequest.Ref,
+				Outcome: pkgWallet.BatchOutcomeDuplicate,
+				Balance: result.Balance,
+			})
+			resp.Duplicate++
+		default:
+			resp.Results = append(resp.Results, pkgWallet.BatchElementResult{
+				Ref:     txRequest.Ref,
+				Outcome: pkgWallet.BatchOutcomeAccepted,
+				Balance: result.Balance,
+			})
+			resp.Accepted++
+		}
 	}
 
 	return resp, nil
