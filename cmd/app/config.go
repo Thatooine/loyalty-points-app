@@ -22,7 +22,7 @@ type SecureConfig struct {
 
 func GetConfig(configFileName string) (*Config, *SecureConfig) {
 	// set default configuration
-	viper.SetDefault("SQLiteDSN", "file:loyalty-points.db?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)")
+	viper.SetDefault("SQLiteDSN", "file:loyalty-points.db?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
 	viper.SetDefault("JWTPrivateKeyPEM", `-----BEGIN PRIVATE KEY-----
 MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQCsTXWAE1NG6IVw
 8Q/QkUbSGsNaHAgmtAXHvR79BTXziNMWU7iKBDdpXNZN6zmKsWxcoAu4y5DVKk5p

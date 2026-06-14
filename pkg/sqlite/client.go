@@ -16,6 +16,8 @@ func NewClient(ctx context.Context, dsn string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to open sqlite database: %w", err)
 	}
 
+	db.SetMaxOpenConns(1)
+
 	if err := db.PingContext(ctx); err != nil {
 		return nil, fmt.Errorf("failed to ping sqlite database: %w", err)
 	}
