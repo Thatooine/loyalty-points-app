@@ -55,7 +55,12 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 	// "unknown account" apart from "not the owner" for the audit trail). Admins
 	// bypass the check and may act on any account.
 	if !request.ActorIsAdmin {
-		account, err := s.accountRepository.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: request.AccountID})
+		account, err := s.accountRepository.GetByID(
+			ctx,
+			pkgAccounts.GetAccountByIDRequest{
+				AccountID: request.AccountID,
+			},
+		)
 		if err != nil {
 			return s.rejectTransaction(ctx, request, delta, now, err)
 		}
