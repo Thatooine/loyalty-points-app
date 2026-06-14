@@ -1,9 +1,9 @@
 CREATE TABLE audit_log (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ref         TEXT,                            -- nullable: malformed rows may not have one
     account_id  TEXT,
     kind        TEXT,
-    points      INTEGER,
+    points      BIGINT,
     source      TEXT NOT NULL,                   -- 'api' | 'batch:<filename>' | 'admin'
     outcome     TEXT NOT NULL CHECK (outcome IN ('accepted', 'rejected', 'duplicate')),
     reason      TEXT NOT NULL,                   -- 'ok' | 'insufficient balance' | 'unknown account' | ...

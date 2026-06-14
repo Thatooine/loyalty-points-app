@@ -11,12 +11,12 @@ import (
 
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
+	"github.com/Thatooine/loyalty-points-app/pkg/postgres"
 	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
-	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
 	"github.com/Thatooine/loyalty-points-app/pkg/time"
 )
 
-// AccountRepositoryImpl is the SQLite implementation of
+// AccountRepositoryImpl is the Postgres implementation of
 // accounts.AccountRepository. Every method resolves its executor from the
 // context, so it runs inside an ambient transaction when one is present and
 // against the pool otherwise.
@@ -42,7 +42,7 @@ func (r *AccountRepositoryImpl) Create(ctx context.Context, request pkgAccounts.
 	}
 	_, err := exec.ExecContext(ctx,
 		`INSERT INTO accounts (id, user_id, name, balance, created_at)
-		 VALUES (?, ?, ?, ?, ?)`,
+		 VALUES ($1, $2, $3, $4, $5)`,
 		account.ID,
 		account.UserID,
 		account.Name,
@@ -50,7 +50,7 @@ func (r *AccountRepositoryImpl) Create(ctx context.Context, request pkgAccounts.
 		time.FormatTime(account.CreatedAt),
 	)
 	if err != nil {
-		if sqlite.IsUniqueConstraintViolation(err) {
+		if postgres.IsUniqueConstraintViolation(err) {
 			return nil, fmt.Errorf("account %s: %w", account.ID, errs.ErrAlreadyExists)
 		}
 		return nil, fmt.Errorf("could not insert account: %w", err)
@@ -105,10 +105,10 @@ func (r *AccountRepositoryImpl) GetByID(ctx context.Context, request pkgAccounts
 	// missing account.
 	query := `SELECT id, user_id, name, balance, created_at
 		 FROM accounts
-		 WHERE id = ?`
+		 WHERE id = $1`
 	args := []any{request.AccountID}
 	if request.UserID != "" {
-		query += ` AND user_id = ?`
+		query += ` AND user_id = $2`
 		args = append(args, request.UserID)
 	}
 
@@ -134,10 +134,10 @@ func (r *AccountRepositoryImpl) GetAccountBalance(ctx context.Context, request p
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	// Ownership scoping mirrors GetByID: a non-owner gets ErrNotFound.
-	query := `SELECT balance FROM accounts WHERE id = ?`
+	query := `SELECT balance FROM accounts WHERE id = $1`
 	args := []any{request.AccountID}
 	if request.UserID != "" {
-		query += ` AND user_id = ?`
+		query += ` AND user_id = $2`
 		args = append(args, request.UserID)
 	}
 
@@ -162,13 +162,14 @@ func (r *AccountRepositoryImpl) UpdateAccountBalance(ctx context.Context, reques
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	// Single atomic, overdraft-guarded statement: the WHERE clause makes the
-	// read-check-write indivisible, so two concurrent debits can never both
-	// pass a balance check and drive the total negative. The CHECK constraint
-	// on the column is the backstop.
+	// read-check-write indivisible. On Postgres the row is locked for the life
+	// of the surrounding transaction, so two concurrent debits to the same
+	// account serialize at the row rather than the whole database. The CHECK
+	// constraint on the column is the backstop.
 	result, err := exec.ExecContext(ctx,
 		`UPDATE accounts
-		 SET balance = balance + ?
-		 WHERE id = ? AND balance + ? >= 0`,
+		 SET balance = balance + $1
+		 WHERE id = $2 AND balance + $3 >= 0`,
 		request.Delta,
 		request.AccountID,
 		request.Delta,
@@ -187,7 +188,7 @@ func (r *AccountRepositoryImpl) UpdateAccountBalance(ctx context.Context, reques
 		// the delta. Read the current balance to tell the two apart.
 		var balance int64
 		err := exec.QueryRowContext(ctx,
-			`SELECT balance FROM accounts WHERE id = ?`,
+			`SELECT balance FROM accounts WHERE id = $1`,
 			request.AccountID,
 		).Scan(&balance)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -201,7 +202,7 @@ func (r *AccountRepositoryImpl) UpdateAccountBalance(ctx context.Context, reques
 
 	var balance int64
 	if err := exec.QueryRowContext(ctx,
-		`SELECT balance FROM accounts WHERE id = ?`,
+		`SELECT balance FROM accounts WHERE id = $1`,
 		request.AccountID,
 	).Scan(&balance); err != nil {
 		return nil, fmt.Errorf("could not read updated account balance: %w", err)
@@ -209,7 +210,6 @@ func (r *AccountRepositoryImpl) UpdateAccountBalance(ctx context.Context, reques
 
 	return &pkgAccounts.UpdateAccountBalanceResponse{Balance: balance}, nil
 }
-
 func scanAccount(scan func(dest ...any) error) (*pkgAccounts.Account, error) {
 	var account pkgAccounts.Account
 	var createdAt string

@@ -1,0 +1,34 @@
+# Local Postgres for the loyalty-points app. Start it with:
+#
+#   docker compose up -d
+#
+# then point the app at it by setting the backend and DSN:
+#
+#   DB_DRIVER=postgres \
+#   POSTGRES_DSN='postgres://loyalty:loyalty@localhost:5432/loyalty_points?sslmode=disable' \
+#   go run ./cmd/app
+#
+# The credentials below match the default POSTGRES_DSN baked into the app config,
+# so with DB_DRIVER=postgres alone the app connects to this container out of the
+# box.
+services:
+  postgres:
+    image: postgres:17
+    container_name: loyalty-points-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: loyalty
+      POSTGRES_PASSWORD: loyalty
+      POSTGRES_DB: loyalty_points
+    ports:
+      - "5432:5432"
+    volumes:
+      - loyalty-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loyalty -d loyalty_points"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  loyalty-postgres-data:

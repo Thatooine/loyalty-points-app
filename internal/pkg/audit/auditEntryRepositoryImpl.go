@@ -14,10 +14,11 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/time"
 )
 
-// AuditEntryRepositoryImpl is the SQLite implementation of
-// audit.AuditEntryRepository. Every method resolves its executor from the
-// context, so it runs inside an ambient transaction when one is present and
-// against the pool otherwise.
+// AuditEntryRepositoryImpl is the Postgres implementation of
+// audit.AuditEntryRepository. Create reads back the generated identity with an
+// INSERT ... RETURNING id (pgx has no LastInsertId). Every method resolves its
+// executor from the context, so it runs inside an ambient transaction when one
+// is present and against the pool otherwise.
 type AuditEntryRepositoryImpl struct {
 	db *sql.DB
 }
@@ -35,9 +36,13 @@ func (r *AuditEntryRepositoryImpl) Create(ctx context.Context, request pkgAudit.
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	entry := request.AuditEntry
-	result, err := exec.ExecContext(ctx,
+	// pgx (extended protocol) has no LastInsertId; RETURNING id is the Postgres
+	// idiom for reading back the generated identity.
+	var id int64
+	err := exec.QueryRowContext(ctx,
 		`INSERT INTO audit_log (ref, account_id, kind, points, source, outcome, reason, actor, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		 RETURNING id`,
 		entry.Ref,
 		entry.AccountID,
 		entry.Kind,
@@ -47,14 +52,9 @@ func (r *AuditEntryRepositoryImpl) Create(ctx context.Context, request pkgAudit.
 		entry.Reason,
 		entry.Actor,
 		time.FormatTime(entry.CreatedAt),
-	)
+	).Scan(&id)
 	if err != nil {
 		return nil, fmt.Errorf("could not insert audit entry: %w", err)
-	}
-
-	id, err := result.LastInsertId()
-	if err != nil {
-		return nil, fmt.Errorf("could not read audit entry id: %w", err)
 	}
 	entry.ID = id
 
@@ -105,7 +105,7 @@ func (r *AuditEntryRepositoryImpl) GetByID(ctx context.Context, request pkgAudit
 	row := exec.QueryRowContext(ctx,
 		`SELECT id, ref, account_id, kind, points, source, outcome, reason, actor, created_at
 		 FROM audit_log
-		 WHERE id = ?`,
+		 WHERE id = $1`,
 		request.ID,
 	)
 
@@ -119,7 +119,6 @@ func (r *AuditEntryRepositoryImpl) GetByID(ctx context.Context, request pkgAudit
 
 	return &pkgAudit.GetAuditEntryByIDResponse{AuditEntry: *entry}, nil
 }
-
 func scanAuditEntry(scan func(dest ...any) error) (*pkgAudit.AuditEntry, error) {
 	var entry pkgAudit.AuditEntry
 	var outcome, createdAt string

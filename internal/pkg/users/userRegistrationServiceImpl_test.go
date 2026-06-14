@@ -12,12 +12,12 @@ import (
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 	pkgAuth "github.com/Thatooine/loyalty-points-app/pkg/authentication"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
-	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
+	"github.com/Thatooine/loyalty-points-app/pkg/postgres"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 )
 
 // newTestRegistrationService wires the registration service against a real
-// migrated SQLite database (shared with the user repo so assertions can read
+// migrated Postgres database (shared with the user repo so assertions can read
 // it back) and a token-service mock that hands out a fixed token.
 func newTestRegistrationService(t *testing.T) (*UserRegistrationServiceImpl, pkgAccounts.AccountRepository) {
 	t.Helper()
@@ -33,7 +33,7 @@ func newTestRegistrationService(t *testing.T) (*UserRegistrationServiceImpl, pkg
 	}
 
 	service := NewUserRegistrationServiceImpl(
-		sqlite.NewSQLiteTxManager(db),
+		postgres.NewPostgresTxManager(db),
 		userRepo,
 		accountRepo,
 		tokenMock,

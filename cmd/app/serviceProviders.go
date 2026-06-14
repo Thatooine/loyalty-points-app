@@ -9,8 +9,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Thatooine/loyalty-points-app/pkg/postgres"
 	sql2 "github.com/Thatooine/loyalty-points-app/pkg/sql"
-	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
 	"github.com/go-jose/go-jose/v4"
 
 	internalAccounts "github.com/Thatooine/loyalty-points-app/internal/pkg/accounts"
@@ -49,16 +49,21 @@ func (s *ServiceProviders) Close() error {
 // NewServiceProviders constructs all service implementations from the given
 // configuration.
 func NewServiceProviders(ctx context.Context, config *Config, secureConfig *SecureConfig) (*ServiceProviders, error) {
-	// open the SQLite database used for persistence
-	db, err := sqlite.NewClient(ctx, config.SQLiteDSN)
+	// open the Postgres database and apply any pending schema migrations
+	db, err := postgres.NewClient(ctx, config.PostgresDSN)
 	if err != nil {
-		return nil, fmt.Errorf("could not create sqlite client: %w", err)
+		return nil, fmt.Errorf("could not create postgres client: %w", err)
 	}
-
-	// apply any pending schema migrations
-	if err := sqlite.Migrate(ctx, db); err != nil {
+	if err := postgres.Migrate(ctx, db); err != nil {
 		return nil, fmt.Errorf("could not migrate database: %w", err)
 	}
+
+	// repositories and the transaction manager, all behind their ports
+	transactionManager := postgres.NewPostgresTxManager(db)
+	userRepository := internalUsers.NewUserRepositoryImpl(db)
+	accountRepository := internalAccounts.NewAccountRepositoryImpl(db)
+	transactionRepository := internalWallet.NewTransactionRepositoryImpl(db)
+	auditEntryRepository := internalAudit.NewAuditEntryRepositoryImpl(db)
 
 	// parse the RSA private key used to sign and verify access tokens
 	jwtPrivateKey, err := parseRSAPrivateKey(secureConfig.JWTPrivateKeyPEM)
@@ -75,14 +80,7 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 		return nil, fmt.Errorf("could not create token signer: %w", err)
 	}
 
-	// repositories first, then the services that compose them (mirrors the
-	// house wiring order)
-	transactionManager := sqlite.NewSQLiteTxManager(db)
-	userRepository := internalUsers.NewUserRepositoryImpl(db)
-	accountRepository := internalAccounts.NewAccountRepositoryImpl(db)
-	transactionRepository := internalWallet.NewTransactionRepositoryImpl(db)
-	auditEntryRepository := internalAudit.NewAuditEntryRepositoryImpl(db)
-
+	// services that compose the repositories (mirrors the house wiring order)
 	accessTokenService := internalAuth.NewAccessTokenServiceImpl(tokenSigner, &jwtPrivateKey.PublicKey)
 	emailPasswordAuthenticator := internalAuth.NewEmailPasswordAuthenticatorImpl(
 		userRepository,

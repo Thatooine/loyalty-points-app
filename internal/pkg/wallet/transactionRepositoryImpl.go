@@ -10,13 +10,13 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
+	"github.com/Thatooine/loyalty-points-app/pkg/postgres"
 	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
-	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
 	"github.com/Thatooine/loyalty-points-app/pkg/time"
 	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallet"
 )
 
-// TransactionRepositoryImpl is the SQLite implementation of
+// TransactionRepositoryImpl is the Postgres implementation of
 // wallet.TransactionRepository. Every method resolves its executor from the
 // context, so it runs inside an ambient transaction when one is present and
 // against the pool otherwise.
@@ -40,9 +40,16 @@ func (r *TransactionRepositoryImpl) Create(ctx context.Context, request pkgWalle
 	if transaction.ID == "" {
 		transaction.ID = uuid.NewString()
 	}
-	_, err := exec.ExecContext(ctx,
+	// ON CONFLICT (ref) DO NOTHING rather than letting the UNIQUE constraint
+	// raise: in Postgres a raised error aborts the surrounding transaction
+	// (SQLSTATE 25P02), but the wallet's idempotency flow catches ErrDuplicateRef
+	// and then keeps reading the original row in the SAME transaction. Swallowing
+	// the conflict keeps the transaction usable; a zero row count is the duplicate
+	// signal.
+	result, err := exec.ExecContext(ctx,
 		`INSERT INTO transactions (id, ref, account_id, kind, points, occurred_at, recorded_at, created_by)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 ON CONFLICT (ref) DO NOTHING`,
 		transaction.ID,
 		transaction.Ref,
 		transaction.AccountID,
@@ -53,13 +60,18 @@ func (r *TransactionRepositoryImpl) Create(ctx context.Context, request pkgWalle
 		transaction.CreatedBy,
 	)
 	if err != nil {
-		if sqlite.IsUniqueConstraintViolation(err) {
-			return nil, fmt.Errorf("transaction %s: %w", transaction.Ref, errs.ErrDuplicateRef)
-		}
-		if sqlite.IsForeignKeyConstraintViolation(err) {
+		if postgres.IsForeignKeyConstraintViolation(err) {
 			return nil, fmt.Errorf("account %s: %w", transaction.AccountID, errs.ErrNotFound)
 		}
 		return nil, fmt.Errorf("could not insert transaction: %w", err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("could not read affected rows: %w", err)
+	}
+	if affected == 0 {
+		return nil, fmt.Errorf("transaction %s: %w", transaction.Ref, errs.ErrDuplicateRef)
 	}
 
 	return &pkgWallet.CreateTransactionResponse{Transaction: transaction}, nil
@@ -109,7 +121,7 @@ func (r *TransactionRepositoryImpl) GetByID(ctx context.Context, request pkgWall
 	row := exec.QueryRowContext(ctx,
 		`SELECT id, ref, account_id, kind, points, occurred_at, recorded_at, created_by
 		 FROM transactions
-		 WHERE ref = ?`,
+		 WHERE ref = $1`,
 		request.Ref,
 	)
 
@@ -123,7 +135,6 @@ func (r *TransactionRepositoryImpl) GetByID(ctx context.Context, request pkgWall
 
 	return &pkgWallet.GetTransactionByIDResponse{Transaction: *transaction}, nil
 }
-
 func scanTransaction(scan func(dest ...any) error) (*pkgWallet.Transaction, error) {
 	var transaction pkgWallet.Transaction
 	var kind, occurredAt, recordedAt string

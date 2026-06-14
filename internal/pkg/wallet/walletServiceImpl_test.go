@@ -12,14 +12,14 @@ import (
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audit"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
-	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
+	"github.com/Thatooine/loyalty-points-app/pkg/postgres"
 	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallet"
 )
 
 func newWalletService(db *sql.DB) (*WalletServiceImpl, pkgAudit.AuditEntryRepository) {
 	auditRepo := internalAudit.NewAuditEntryRepositoryImpl(db)
 	service := NewWalletServiceImpl(
-		sqlite.NewSQLiteTxManager(db),
+		postgres.NewPostgresTxManager(db),
 		internalAccounts.NewAccountRepositoryImpl(db),
 		NewTransactionRepositoryImpl(db),
 		auditRepo,
@@ -58,7 +58,7 @@ func auditOutcomes(t *testing.T, repo pkgAudit.AuditEntryRepository) map[pkgAudi
 func ledgerSum(t *testing.T, db *sql.DB, accountID string) int64 {
 	t.Helper()
 	var sum sql.NullInt64
-	if err := db.QueryRow(`SELECT SUM(points) FROM transactions WHERE account_id = ?`, accountID).Scan(&sum); err != nil {
+	if err := db.QueryRow(`SELECT SUM(points) FROM transactions WHERE account_id = $1`, accountID).Scan(&sum); err != nil {
 		t.Fatalf("ledger sum query error = %v", err)
 	}
 	return sum.Int64
@@ -69,7 +69,7 @@ func ledgerSum(t *testing.T, db *sql.DB, accountID string) int64 {
 func accountBalance(t *testing.T, db *sql.DB, accountID string) int64 {
 	t.Helper()
 	var balance int64
-	if err := db.QueryRow(`SELECT balance FROM accounts WHERE id = ?`, accountID).Scan(&balance); err != nil {
+	if err := db.QueryRow(`SELECT balance FROM accounts WHERE id = $1`, accountID).Scan(&balance); err != nil {
 		t.Fatalf("account balance query error = %v", err)
 	}
 	return balance

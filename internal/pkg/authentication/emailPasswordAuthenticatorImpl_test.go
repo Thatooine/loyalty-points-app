@@ -3,34 +3,24 @@ package authentication
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
 	internalUsers "github.com/Thatooine/loyalty-points-app/internal/pkg/users"
+	"github.com/Thatooine/loyalty-points-app/internal/testsupport"
 	pkgAuth "github.com/Thatooine/loyalty-points-app/pkg/authentication"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
-	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// newAuthService wires the real SQLite user repository (on a temp DB) to a
-// token-service mock that echoes the claim's user id as the token.
+// newAuthService wires the real Postgres user repository to a token-service mock
+// that echoes the claim's user id as the token.
 func newAuthService(t *testing.T) *EmailPasswordAuthenticatorImpl {
 	t.Helper()
 	ctx := context.Background()
 
-	dsn := "file:" + filepath.Join(t.TempDir(), "test.db") + "?_pragma=foreign_keys(1)"
-	db, err := sqlite.NewClient(ctx, dsn)
-	if err != nil {
-		t.Fatalf("NewClient() error = %v", err)
-	}
-	t.Cleanup(func() { db.Close() })
-	if err := sqlite.Migrate(ctx, db); err != nil {
-		t.Fatalf("Migrate() error = %v", err)
-	}
-
+	db := testsupport.NewPostgresDB(t)
 	userRepo := internalUsers.NewUserRepositoryImpl(db)
 
 	hash, err := bcrypt.GenerateFromPassword([]byte("correct-horse"), bcrypt.MinCost)

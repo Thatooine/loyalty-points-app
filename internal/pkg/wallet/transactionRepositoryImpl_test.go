@@ -4,35 +4,22 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
 	internalAccounts "github.com/Thatooine/loyalty-points-app/internal/pkg/accounts"
 	internalUsers "github.com/Thatooine/loyalty-points-app/internal/pkg/users"
+	"github.com/Thatooine/loyalty-points-app/internal/testsupport"
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
-	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
+	"github.com/Thatooine/loyalty-points-app/pkg/postgres"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallet"
 )
 
 func newTestDB(t *testing.T) *sql.DB {
 	t.Helper()
-	ctx := context.Background()
-
-	dsn := "file:" + filepath.Join(t.TempDir(), "test.db") + "?_pragma=foreign_keys(1)"
-	db, err := sqlite.NewClient(ctx, dsn)
-	if err != nil {
-		t.Fatalf("NewClient() error = %v", err)
-	}
-	t.Cleanup(func() { db.Close() })
-
-	if err := sqlite.Migrate(ctx, db); err != nil {
-		t.Fatalf("Migrate() error = %v", err)
-	}
-
-	return db
+	return testsupport.NewPostgresDB(t)
 }
 
 func createTestUser(t *testing.T, db *sql.DB, userID string) {
@@ -139,7 +126,7 @@ func TestTransactionRepositoryImpl_GetByIDNotFound(t *testing.T) {
 func TestRunInTx_AtomicAcrossRepositories(t *testing.T) {
 	ctx := context.Background()
 	db := newTestDB(t)
-	txManager := sqlite.NewSQLiteTxManager(db)
+	txManager := postgres.NewPostgresTxManager(db)
 	accountRepo := internalAccounts.NewAccountRepositoryImpl(db)
 	transactionRepo := NewTransactionRepositoryImpl(db)
 	createTestUser(t, db, "user-1")
@@ -180,7 +167,7 @@ func TestRunInTx_AtomicAcrossRepositories(t *testing.T) {
 func TestRunInTx_CommitAcrossRepositories(t *testing.T) {
 	ctx := context.Background()
 	db := newTestDB(t)
-	txManager := sqlite.NewSQLiteTxManager(db)
+	txManager := postgres.NewPostgresTxManager(db)
 	accountRepo := internalAccounts.NewAccountRepositoryImpl(db)
 	transactionRepo := NewTransactionRepositoryImpl(db)
 	createTestUser(t, db, "user-1")

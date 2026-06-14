@@ -5,7 +5,7 @@ import "context"
 // TransactionRepository is the persistence port for the append-only points
 // ledger — no Update or Delete by design. Methods participate in an ambient
 // transaction when one is present in the context (see
-// sqlite.TransactionManager), and run against the pool otherwise.
+// sql.TxManager), and run against the pool otherwise.
 type TransactionRepository interface {
 	// Create appends a transaction to the ledger. A transaction with the
 	// same Ref results in errs.ErrDuplicateRef — the unique constraint is

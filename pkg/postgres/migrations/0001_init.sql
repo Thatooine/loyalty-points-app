@@ -11,7 +11,7 @@ CREATE TABLE accounts (
     id            TEXT PRIMARY KEY,              -- UUID assigned at persistence
     user_id       TEXT NOT NULL REFERENCES users(id),
     name          TEXT NOT NULL,
-    balance       INTEGER NOT NULL DEFAULT 0
+    balance       BIGINT NOT NULL DEFAULT 0
                   CHECK (balance >= 0),          -- DB-level backstop for the overdraft rule
     created_at    TEXT NOT NULL                  -- RFC3339 UTC
 );
@@ -22,7 +22,7 @@ CREATE TABLE transactions (
     ref         TEXT NOT NULL UNIQUE,            -- idempotency key: the UNIQUE constraint IS the dedupe mechanism
     account_id  TEXT NOT NULL REFERENCES accounts(id),
     kind        TEXT NOT NULL CHECK (kind IN ('earn', 'spend', 'adjust')),
-    points      INTEGER NOT NULL,                -- signed delta as applied: earn=+n, spend=-n, adjust=±n
+    points      BIGINT NOT NULL,                 -- signed delta as applied: earn=+n, spend=-n, adjust=±n
     occurred_at TEXT NOT NULL,                   -- business timestamp from the caller
     recorded_at TEXT NOT NULL,                   -- server timestamp
     created_by  TEXT NOT NULL                    -- acting principal (member or admin user id)

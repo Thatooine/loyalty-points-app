@@ -40,7 +40,7 @@ func registerParams(email string) map[string]any {
 
 // TestRegisterThenLogin walks the full happy path and asserts the data
 // persisted: logging in with the same credentials in a fresh request proves
-// the user and password hash were stored. When LOYALTY_DB_PATH is set it also
+// the user and password hash were stored. When LOYALTY_DB_DSN is set it also
 // checks the DB rows directly — the same checks as scripts/test_register_login.sh.
 func TestRegisterThenLogin(t *testing.T) {
 	c := setup(t)
@@ -81,12 +81,12 @@ func TestRegisterThenLogin(t *testing.T) {
 
 	// 3. Persistence (direct DB) — only when a DB path was provided.
 	if c.db == nil {
-		t.Log("LOYALTY_DB_PATH not set; skipping direct SQLite assertions")
+		t.Log("LOYALTY_DB_DSN not set; skipping direct DB assertions")
 		return
 	}
 
 	var dbEmail, dbRole, dbHash string
-	row := c.db.QueryRow("SELECT email, role, password_hash FROM users WHERE id = ?", reg.UserID)
+	row := c.db.QueryRow("SELECT email, role, password_hash FROM users WHERE id = $1", reg.UserID)
 	if err := row.Scan(&dbEmail, &dbRole, &dbHash); err != nil {
 		t.Fatalf("query user row: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestRegisterThenLogin(t *testing.T) {
 		accName, accUser string
 		accBalance       int64
 	)
-	row = c.db.QueryRow("SELECT name, balance, user_id FROM accounts WHERE id = ?", reg.AccountID)
+	row = c.db.QueryRow("SELECT name, balance, user_id FROM accounts WHERE id = $1", reg.AccountID)
 	if err := row.Scan(&accName, &accBalance, &accUser); err != nil {
 		t.Fatalf("query account row: %v", err)
 	}

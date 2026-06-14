@@ -4,7 +4,7 @@ import "context"
 
 // AccountRepository is the persistence port for Account entities. Methods
 // participate in an ambient transaction when one is present in the context
-// (see sqlite.TransactionManager), and run against the pool otherwise.
+// (see sql.TxManager), and run against the pool otherwise.
 type AccountRepository interface {
 	// Create persists a new account. An existing account with the same
 	// AccountID results in errs.ErrAlreadyExists.

@@ -4,7 +4,7 @@ import "context"
 
 // AuditEntryRepository is the persistence port for the audit trail. Methods
 // participate in an ambient transaction when one is present in the context
-// (see sqlite.TransactionManager), and run against the pool otherwise —
+// (see sql.TxManager), and run against the pool otherwise —
 // rejected attempts are audited outside the rolled-back transaction so the
 // trail survives the rejection.
 type AuditEntryRepository interface {

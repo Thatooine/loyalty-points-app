@@ -9,13 +9,13 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
+	"github.com/Thatooine/loyalty-points-app/pkg/postgres"
 	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
-	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
 	"github.com/Thatooine/loyalty-points-app/pkg/time"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 )
 
-// UserRepositoryImpl is the SQLite implementation of users.UserRepository.
+// UserRepositoryImpl is the Postgres implementation of users.UserRepository.
 // Every method resolves its executor from the context, so it runs inside an
 // ambient transaction when one is present and against the pool otherwise.
 type UserRepositoryImpl struct {
@@ -37,7 +37,7 @@ func (r *UserRepositoryImpl) Create(ctx context.Context, request pkgUsers.Create
 	user := request.User
 	_, err := exec.ExecContext(ctx,
 		`INSERT INTO users (id, email, password_hash, role, created_at)
-		 VALUES (?, ?, ?, ?, ?)`,
+		 VALUES ($1, $2, $3, $4, $5)`,
 		user.ID,
 		user.Email,
 		user.PasswordHash,
@@ -45,7 +45,7 @@ func (r *UserRepositoryImpl) Create(ctx context.Context, request pkgUsers.Create
 		time.FormatTime(user.CreatedAt),
 	)
 	if err != nil {
-		if sqlite.IsUniqueConstraintViolation(err) {
+		if postgres.IsUniqueConstraintViolation(err) {
 			return nil, fmt.Errorf("user %s: %w", user.ID, errs.ErrAlreadyExists)
 		}
 		return nil, fmt.Errorf("could not insert user: %w", err)
@@ -98,7 +98,7 @@ func (r *UserRepositoryImpl) GetByID(ctx context.Context, request pkgUsers.GetUs
 	row := exec.QueryRowContext(ctx,
 		`SELECT id, email, password_hash, role, created_at
 		 FROM users
-		 WHERE id = ?`,
+		 WHERE id = $1`,
 		request.ID,
 	)
 
@@ -124,7 +124,7 @@ func (r *UserRepositoryImpl) GetByEmail(ctx context.Context, request pkgUsers.Ge
 	row := exec.QueryRowContext(ctx,
 		`SELECT id, email, password_hash, role, created_at
 		 FROM users
-		 WHERE email = ?`,
+		 WHERE email = $1`,
 		request.Email,
 	)
 
@@ -138,7 +138,6 @@ func (r *UserRepositoryImpl) GetByEmail(ctx context.Context, request pkgUsers.Ge
 
 	return &pkgUsers.GetUserByEmailResponse{User: *user}, nil
 }
-
 func scanUser(scan func(dest ...any) error) (*pkgUsers.User, error) {
 	var user pkgUsers.User
 	var role, createdAt string

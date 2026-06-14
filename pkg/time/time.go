@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// Timestamps are stored as RFC3339 UTC TEXT — SQLite-idiomatic,
+// Timestamps are stored as RFC3339 UTC TEXT,
 // human-readable, and lexicographically sortable.
 
 // FormatTime encodes a time for storage in a TEXT column.

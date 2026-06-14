@@ -4,7 +4,7 @@ import "context"
 
 // UserRepository is the persistence port for User entities. Methods
 // participate in an ambient transaction when one is present in the context
-// (see sqlite.TransactionManager), and run against the pool otherwise.
+// (see sql.TxManager), and run against the pool otherwise.
 type UserRepository interface {
 	// Create persists a new user. An existing user with the same ID or
 	// email results in errs.ErrAlreadyExists.

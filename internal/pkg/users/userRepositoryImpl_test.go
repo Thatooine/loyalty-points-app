@@ -3,31 +3,17 @@ package users
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/Thatooine/loyalty-points-app/internal/testsupport"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
-	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 )
 
 func newTestRepository(t *testing.T) *UserRepositoryImpl {
 	t.Helper()
-	ctx := context.Background()
-
-	dsn := "file:" + filepath.Join(t.TempDir(), "test.db") + "?_pragma=foreign_keys(1)"
-	db, err := sqlite.NewClient(ctx, dsn)
-	if err != nil {
-		t.Fatalf("NewClient() error = %v", err)
-	}
-	t.Cleanup(func() { db.Close() })
-
-	if err := sqlite.Migrate(ctx, db); err != nil {
-		t.Fatalf("Migrate() error = %v", err)
-	}
-
-	return NewUserRepositoryImpl(db)
+	return NewUserRepositoryImpl(testsupport.NewPostgresDB(t))
 }
 
 func testUser(id, email string) pkgUsers.User {

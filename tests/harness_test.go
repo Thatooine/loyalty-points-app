@@ -5,7 +5,7 @@
 // The tests assume the server is already up. Point them at it with:
 //
 //	LOYALTY_API_URL   JSON-RPC endpoint   (default http://localhost:8080/api)
-//	LOYALTY_DB_PATH   optional SQLite file path; when set, the persistence test
+//	LOYALTY_DB_DSN    optional Postgres DSN; when set, the persistence test
 //	                  additionally reads the DB directly to confirm the bcrypt
 //	                  hash and the opened wallet account.
 //
@@ -28,8 +28,7 @@ import (
 	"testing"
 	"time"
 
-	// registers the modernc sqlite driver under the name "sqlite"
-	"github.com/Thatooine/loyalty-points-app/pkg/sqlite"
+	"github.com/Thatooine/loyalty-points-app/pkg/postgres"
 )
 
 const defaultAPIURL = "http://localhost:8080/api"
@@ -37,12 +36,12 @@ const defaultAPIURL = "http://localhost:8080/api"
 // apiClient talks to a running server over HTTP.
 type apiClient struct {
 	baseURL string
-	db      *sql.DB // non-nil only when LOYALTY_DB_PATH is set
+	db      *sql.DB // non-nil only when LOYALTY_DB_DSN is set
 }
 
 // setup returns a client for the running server, skipping the test if the
-// server cannot be reached. When LOYALTY_DB_PATH is set it also opens the DB
-// read-only for direct persistence assertions.
+// server cannot be reached. When LOYALTY_DB_DSN is set it also opens the DB
+// for direct persistence assertions.
 func setup(t *testing.T) *apiClient {
 	t.Helper()
 
@@ -57,11 +56,10 @@ func setup(t *testing.T) *apiClient {
 
 	c := &apiClient{baseURL: baseURL}
 
-	if dbPath := os.Getenv("LOYALTY_DB_PATH"); dbPath != "" {
-		dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&mode=ro", dbPath)
-		db, err := sqlite.NewClient(context.Background(), dsn)
+	if dsn := os.Getenv("LOYALTY_DB_DSN"); dsn != "" {
+		db, err := postgres.NewClient(context.Background(), dsn)
 		if err != nil {
-			t.Fatalf("open db at %s: %v", dbPath, err)
+			t.Fatalf("open db: %v", err)
 		}
 		c.db = db
 		t.Cleanup(func() { _ = db.Close() })
