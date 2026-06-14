@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Loyalty Points App",
-    "description": "JSON-RPC 2.0 API for the loyalty-points server. All methods are POSTed to the single /api endpoint. params MUST be a one-element array (the gorilla json2 codec unmarshals it into [1]interface{}). Public methods (Register, Login) need no token; Login's test script captures the returned token into the collection's {{token}} variable so protected calls inherit the Authorization header.\n\nImport into Requestly via Import -> Postman.",
+    "description": "JSON-RPC 2.0 API for the loyalty-points server. All methods are POSTed to the single /api endpoint. params MUST be a one-element array (the gorilla json2 codec unmarshals it into [1]interface{}).\n\nPreset credentials live in collection variables — {{email}}, {{password}}, {{name}}, {{accountName}} — and are shared by Register and Login, so editing them in one place keeps both in sync and you can log in with whatever you just registered. Public methods (Register, Login) need no token. Register and Login capture the returned {{token}}; Register also captures {{userID}} and {{accountID}} so protected calls (e.g. the wallet placeholder) reuse them automatically.\n\nTypical flow: run Register once, then Login (or any protected call) — variables are already populated.\n\nImport into Requestly via Import -> Postman.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -11,7 +11,37 @@
       "type": "string"
     },
     {
+      "key": "email",
+      "value": "ada@example.com",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "hunter2pw",
+      "type": "string"
+    },
+    {
+      "key": "name",
+      "value": "Ada Lovelace",
+      "type": "string"
+    },
+    {
+      "key": "accountName",
+      "value": "Primary Wallet",
+      "type": "string"
+    },
+    {
       "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "accountID",
       "value": "",
       "type": "string"
     }
@@ -35,7 +65,7 @@
             "body": {
               "mode": "raw",
               "options": { "raw": { "language": "json" } },
-              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"UserRegistrationService.Register\",\n  \"params\": [\n    {\n      \"email\": \"ada@example.com\",\n      \"password\": \"hunter2pw\",\n      \"name\": \"Ada Lovelace\",\n      \"accountName\": \"Primary Wallet\"\n    }\n  ],\n  \"id\": 1\n}"
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"UserRegistrationService.Register\",\n  \"params\": [\n    {\n      \"email\": \"{{email}}\",\n      \"password\": \"{{password}}\",\n      \"name\": \"{{name}}\",\n      \"accountName\": \"{{accountName}}\"\n    }\n  ],\n  \"id\": 1\n}"
             },
             "description": "Public. Creates a user and opens their first wallet account atomically, returning an access token so the caller is logged in immediately."
           },
@@ -47,9 +77,11 @@
                 "exec": [
                   "const body = pm.response.json();",
                   "pm.test('no JSON-RPC error', () => pm.expect(body.error, JSON.stringify(body.error)).to.be.undefined);",
-                  "if (body.result && body.result.token) {",
-                  "  pm.collectionVariables.set('token', body.result.token);",
-                  "  console.log('token captured into {{token}}');",
+                  "if (body.result) {",
+                  "  if (body.result.token)     { pm.collectionVariables.set('token', body.result.token); }",
+                  "  if (body.result.userID)    { pm.collectionVariables.set('userID', body.result.userID); }",
+                  "  if (body.result.accountID) { pm.collectionVariables.set('accountID', body.result.accountID); }",
+                  "  console.log('captured token, userID and accountID from register');",
                   "}"
                 ]
               }
@@ -71,7 +103,7 @@
             "body": {
               "mode": "raw",
               "options": { "raw": { "language": "json" } },
-              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"EmailPasswordAuthenticator.Login\",\n  \"params\": [\n    {\n      \"email\": \"ada@example.com\",\n      \"password\": \"hunter2pw\"\n    }\n  ],\n  \"id\": 1\n}"
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"EmailPasswordAuthenticator.Login\",\n  \"params\": [\n    {\n      \"email\": \"{{email}}\",\n      \"password\": \"{{password}}\"\n    }\n  ],\n  \"id\": 1\n}"
             },
             "description": "Public. Authenticates with email and password and returns an access token. The test script stores result.token into the {{token}} collection variable."
           },
@@ -116,7 +148,7 @@
             "body": {
               "mode": "raw",
               "options": { "raw": { "language": "json" } },
-              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"Wallet.ProcessTransaction\",\n  \"params\": [\n    {\n      \"ref\": \"tx-1\",\n      \"account_id\": \"acc-1\",\n      \"kind\": \"earn\",\n      \"points\": 100,\n      \"occurred_at\": \"2026-06-01T10:00:00Z\"\n    }\n  ],\n  \"id\": 1\n}"
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"Wallet.ProcessTransaction\",\n  \"params\": [\n    {\n      \"ref\": \"tx-1\",\n      \"account_id\": \"{{accountID}}\",\n      \"kind\": \"earn\",\n      \"points\": 100,\n      \"occurred_at\": \"2026-06-01T10:00:00Z\"\n    }\n  ],\n  \"id\": 1\n}"
             },
             "description": "PLACEHOLDER. The wallet JSON-RPC adaptor does not exist yet; method name and param field names mirror the CLI's provisional batch shape (cmd/cli/pkg/ingest/request.go) and must be aligned when the adaptor lands. Sends Authorization: Bearer {{token}}."
           }
