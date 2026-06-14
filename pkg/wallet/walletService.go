@@ -32,6 +32,12 @@ type ProcessTransactionRequest struct {
 	// Actor is the acting principal (the user ID submitting the transaction).
 	Actor string
 
+	// ActorIsAdmin reports whether the actor holds the admin role. Admins may
+	// transact on any account; a non-admin actor may only transact on an
+	// account they own. The adaptor sets this from the verified login claim —
+	// it is never taken from client input.
+	ActorIsAdmin bool
+
 	// Source records where the attempt came from: "api", "admin", or
 	// "batch:<filename>".
 	Source string

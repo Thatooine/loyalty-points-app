@@ -100,12 +100,19 @@ func (r *AccountRepositoryImpl) GetByID(ctx context.Context, request pkgAccounts
 
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
-	row := exec.QueryRowContext(ctx,
-		`SELECT id, user_id, name, balance, created_at
+	// Ownership scoping: when a UserID is supplied the WHERE clause restricts
+	// the row to that owner, so a non-owner sees the same ErrNotFound as for a
+	// missing account.
+	query := `SELECT id, user_id, name, balance, created_at
 		 FROM accounts
-		 WHERE id = ?`,
-		request.AccountID,
-	)
+		 WHERE id = ?`
+	args := []any{request.AccountID}
+	if request.UserID != "" {
+		query += ` AND user_id = ?`
+		args = append(args, request.UserID)
+	}
+
+	row := exec.QueryRowContext(ctx, query, args...)
 
 	account, err := scanAccount(row.Scan)
 	if err != nil {
@@ -116,6 +123,34 @@ func (r *AccountRepositoryImpl) GetByID(ctx context.Context, request pkgAccounts
 	}
 
 	return &pkgAccounts.GetAccountByIDResponse{Account: *account}, nil
+}
+
+func (r *AccountRepositoryImpl) GetAccountBalance(ctx context.Context, request pkgAccounts.GetAccountBalanceRequest) (*pkgAccounts.GetAccountBalanceResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for GetAccountBalance: %w", err)
+	}
+
+	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
+
+	// Ownership scoping mirrors GetByID: a non-owner gets ErrNotFound.
+	query := `SELECT balance FROM accounts WHERE id = ?`
+	args := []any{request.AccountID}
+	if request.UserID != "" {
+		query += ` AND user_id = ?`
+		args = append(args, request.UserID)
+	}
+
+	var balance int64
+	err := exec.QueryRowContext(ctx, query, args...).Scan(&balance)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("account %s: %w", request.AccountID, errs.ErrNotFound)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("could not read account balance: %w", err)
+	}
+
+	return &pkgAccounts.GetAccountBalanceResponse{Balance: balance}, nil
 }
 
 func (r *AccountRepositoryImpl) UpdateAccountBalance(ctx context.Context, request pkgAccounts.UpdateAccountBalanceRequest) (*pkgAccounts.UpdateAccountBalanceResponse, error) {

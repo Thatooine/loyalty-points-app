@@ -108,6 +108,70 @@ func TestAccountRepositoryImpl_GetByIDNotFound(t *testing.T) {
 	}
 }
 
+func TestAccountRepositoryImpl_GetByIDOwnershipScoped(t *testing.T) {
+	ctx := context.Background()
+	db := newTestDB(t)
+	createTestUser(t, db, "owner")
+	createTestUser(t, db, "intruder")
+	repo := NewAccountRepositoryImpl(db)
+
+	if _, err := repo.Create(ctx, pkgAccounts.CreateAccountRequest{Account: testAccount("member-123", "owner")}); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	// the owner can read it
+	if _, err := repo.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: "member-123", UserID: "owner"}); err != nil {
+		t.Fatalf("owner GetByID() error = %v", err)
+	}
+
+	// a non-owner gets ErrNotFound (indistinguishable from missing)
+	_, err := repo.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: "member-123", UserID: "intruder"})
+	if !errors.Is(err, errs.ErrNotFound) {
+		t.Fatalf("non-owner GetByID() error = %v, want errs.ErrNotFound", err)
+	}
+
+	// an unscoped lookup (no UserID) still returns it — internal/admin path
+	if _, err := repo.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: "member-123"}); err != nil {
+		t.Fatalf("unscoped GetByID() error = %v", err)
+	}
+}
+
+func TestAccountRepositoryImpl_GetAccountBalance(t *testing.T) {
+	ctx := context.Background()
+	db := newTestDB(t)
+	createTestUser(t, db, "owner")
+	createTestUser(t, db, "intruder")
+	repo := NewAccountRepositoryImpl(db)
+
+	if _, err := repo.Create(ctx, pkgAccounts.CreateAccountRequest{Account: testAccount("member-123", "owner")}); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: 250}); err != nil {
+		t.Fatalf("seed credit error = %v", err)
+	}
+
+	// owner reads the balance
+	got, err := repo.GetAccountBalance(ctx, pkgAccounts.GetAccountBalanceRequest{AccountID: "member-123", UserID: "owner"})
+	if err != nil {
+		t.Fatalf("GetAccountBalance() error = %v", err)
+	}
+	if got.Balance != 250 {
+		t.Fatalf("Balance = %d, want 250", got.Balance)
+	}
+
+	// non-owner is denied via ErrNotFound
+	_, err = repo.GetAccountBalance(ctx, pkgAccounts.GetAccountBalanceRequest{AccountID: "member-123", UserID: "intruder"})
+	if !errors.Is(err, errs.ErrNotFound) {
+		t.Fatalf("non-owner GetAccountBalance() error = %v, want errs.ErrNotFound", err)
+	}
+
+	// missing account
+	_, err = repo.GetAccountBalance(ctx, pkgAccounts.GetAccountBalanceRequest{AccountID: "missing", UserID: "owner"})
+	if !errors.Is(err, errs.ErrNotFound) {
+		t.Fatalf("missing GetAccountBalance() error = %v, want errs.ErrNotFound", err)
+	}
+}
+
 func TestAccountRepositoryImpl_UpdateAccountBalance(t *testing.T) {
 	ctx := context.Background()
 	db := newTestDB(t)

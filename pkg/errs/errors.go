@@ -23,4 +23,8 @@ var (
 	// unknown user and wrong password so callers cannot probe which emails
 	// exist.
 	ErrUnauthorized = errors.New("unauthorized")
+
+	// ErrForbidden indicates the caller is authenticated but not permitted to
+	// act on the target — e.g. transacting on an account they do not own.
+	ErrForbidden = errors.New("forbidden")
 )

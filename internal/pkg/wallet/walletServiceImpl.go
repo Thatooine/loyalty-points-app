@@ -50,6 +50,20 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 	delta := signedDelta(request.Kind, request.Points)
 	now := time.Now().UTC()
 
+	// Ownership gate: a non-admin actor may only transact on an account they
+	// own. We resolve the account up front (an unscoped lookup so we can tell
+	// "unknown account" apart from "not the owner" for the audit trail). Admins
+	// bypass the check and may act on any account.
+	if !request.ActorIsAdmin {
+		account, err := s.accounts.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: request.AccountID})
+		if err != nil {
+			return s.rejectTransaction(ctx, request, delta, now, err)
+		}
+		if account.Account.UserID != request.Actor {
+			return s.rejectTransaction(ctx, request, delta, now, errs.ErrForbidden)
+		}
+	}
+
 	var resp *pkgWallet.ProcessTransactionResponse
 
 	// One unit of work: ledger insert, balance update, and the accepted/
@@ -124,13 +138,20 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 	//    row on the plain context (pool executor) — outside the rolled-back
 	//    transaction — so the trail survives the rejection.
 	if err != nil {
-		if _, auditErr := s.auditEntries.Create(ctx, buildAuditEntry(request, delta, pkgAudit.OutcomeRejected, reasonFor(err), now)); auditErr != nil {
-			return nil, auditErr
-		}
-		return nil, err
+		return s.rejectTransaction(ctx, request, delta, now, err)
 	}
 
 	return resp, nil
+}
+
+// rejectTransaction records a rejected audit entry on the plain context (so the
+// trail survives the rolled-back unit of work, or a pre-flight rejection that
+// never opened one) and returns the originating error.
+func (s *WalletServiceImpl) rejectTransaction(ctx context.Context, request pkgWallet.ProcessTransactionRequest, delta int64, now time.Time, err error) (*pkgWallet.ProcessTransactionResponse, error) {
+	if _, auditErr := s.auditEntries.Create(ctx, buildAuditEntry(request, delta, pkgAudit.OutcomeRejected, reasonFor(err), now)); auditErr != nil {
+		return nil, auditErr
+	}
+	return nil, err
 }
 
 // signedDelta converts a request's points into the signed delta as applied:
@@ -149,6 +170,8 @@ func reasonFor(err error) string {
 		return "insufficient balance"
 	case errors.Is(err, errs.ErrNotFound):
 		return "unknown account"
+	case errors.Is(err, errs.ErrForbidden):
+		return "not account owner"
 	default:
 		return err.Error()
 	}

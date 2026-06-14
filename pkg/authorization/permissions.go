@@ -13,6 +13,15 @@ const loginMethod = "EmailPasswordAuthenticator.Login"
 // no token before signing up, so it is public.
 const registerMethod = "UserRegistrationService.Register"
 
+// Protected business methods a member may call. The wallet method enforces
+// account ownership in the service layer (admins bypass it); the account reads
+// are ownership-scoped in the repository.
+const (
+	processTransactionMethod = "Wallet.ProcessTransaction"
+	getAccountMethod         = "Account.GetByID"
+	getAccountBalanceMethod  = "Account.GetAccountBalance"
+)
+
 // Permissions answers "may this caller invoke this JSON-RPC method?". Methods
 // are identified by the exact "<ServiceName>.<Method>" string the JSON-RPC
 // client sends, where ServiceName is the value returned by the adaptor's
@@ -40,9 +49,14 @@ func DefaultPermissions() *Permissions {
 			users.RoleAdmin: {
 				wildcard: true,
 			},
-			// Members may act on their own wallet. Extend as adaptors land,
-			// e.g. "Wallet.ProcessTransaction", "Account.GetByID".
-			users.RoleMember: {},
+			// Members may act on their own wallet and read their own accounts.
+			// Ownership is enforced beneath these methods, not by the
+			// permission map.
+			users.RoleMember: {
+				processTransactionMethod: true,
+				getAccountMethod:         true,
+				getAccountBalanceMethod:  true,
+			},
 		},
 		map[string]bool{
 			loginMethod:    true,

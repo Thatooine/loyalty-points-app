@@ -11,10 +11,12 @@ import (
 	gorillaJSON "github.com/gorilla/rpc/v2/json2"
 	"github.com/rs/zerolog/log"
 
+	"github.com/Thatooine/loyalty-points-app/pkg/accounts"
 	"github.com/Thatooine/loyalty-points-app/pkg/authentication"
 	"github.com/Thatooine/loyalty-points-app/pkg/authorization"
 	"github.com/Thatooine/loyalty-points-app/pkg/jsonrpc"
 	"github.com/Thatooine/loyalty-points-app/pkg/users"
+	"github.com/Thatooine/loyalty-points-app/pkg/wallet"
 )
 
 func setupRPCServer(providers ServiceProviders) {
@@ -31,6 +33,8 @@ func setupRPCServer(providers ServiceProviders) {
 	services := []jsonrpc.Service{
 		authentication.NewEmailPasswordAuthenticatorJSONRPCAdaptor(providers.EmailPasswordAuthenticator),
 		users.NewUserRegistrationServiceJSONRPCAdaptor(providers.UserRegistrationService),
+		wallet.NewWalletServiceJSONRPCAdaptor(providers.WalletService),
+		accounts.NewAccountJSONRPCAdaptor(providers.AccountRepository),
 	}
 
 	apiRouter := router.PathPrefix("/api").Subrouter()

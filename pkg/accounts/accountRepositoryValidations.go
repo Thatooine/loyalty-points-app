@@ -41,6 +41,20 @@ func (r *GetAccountByIDRequest) Validate() error {
 	return nil
 }
 
+func (r *GetAccountBalanceRequest) Validate() error {
+	var reasons []string
+
+	if r.AccountID == "" {
+		reasons = append(reasons, "AccountID is required")
+	}
+
+	if len(reasons) > 0 {
+		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
+	}
+
+	return nil
+}
+
 func (r *UpdateAccountBalanceRequest) Validate() error {
 	var reasons []string
 

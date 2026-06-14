@@ -14,8 +14,15 @@ type AccountRepository interface {
 	List(ctx context.Context, request ListAccountsRequest) (*ListAccountsResponse, error)
 
 	// GetByID returns the account with the given AccountID, or
-	// errs.ErrNotFound.
+	// errs.ErrNotFound. When UserID is set the lookup is ownership-scoped: an
+	// account that exists but is owned by another user is reported as
+	// errs.ErrNotFound, indistinguishable from a missing account so callers
+	// cannot probe for accounts they do not own.
 	GetByID(ctx context.Context, request GetAccountByIDRequest) (*GetAccountByIDResponse, error)
+
+	// GetAccountBalance returns just the balance of the given account, or
+	// errs.ErrNotFound. Like GetByID it is ownership-scoped when UserID is set.
+	GetAccountBalance(ctx context.Context, request GetAccountBalanceRequest) (*GetAccountBalanceResponse, error)
 
 	// UpdateAccountBalance applies a signed delta to an account balance in a
 	// single atomic, overdraft-guarded statement (the only intent-revealing
@@ -47,11 +54,30 @@ type ListAccountsResponse struct {
 // GetAccountByIDRequest is the request for GetByID.
 type GetAccountByIDRequest struct {
 	AccountID string
+
+	// UserID, when non-empty, scopes the lookup to the owning user so the
+	// account is only returned to its owner. Leave empty for internal/admin
+	// lookups that must read any account.
+	UserID string
 }
 
 // GetAccountByIDResponse is the response for GetByID.
 type GetAccountByIDResponse struct {
 	Account Account
+}
+
+// GetAccountBalanceRequest is the request for GetAccountBalance.
+type GetAccountBalanceRequest struct {
+	AccountID string
+
+	// UserID, when non-empty, scopes the lookup to the owning user (see
+	// GetAccountByIDRequest.UserID).
+	UserID string
+}
+
+// GetAccountBalanceResponse is the response for GetAccountBalance.
+type GetAccountBalanceResponse struct {
+	Balance int64
 }
 
 // UpdateAccountBalanceRequest is the request for UpdateAccountBalance.

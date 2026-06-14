@@ -206,6 +206,50 @@ func TestProcessTransaction_Adjust(t *testing.T) {
 	}
 }
 
+func TestProcessTransaction_NotOwnerRejected(t *testing.T) {
+	ctx := context.Background()
+	db := newTestDB(t)
+	createTestAccount(t, db, "member-123") // owned by user-member-123
+	service, auditRepo := newWalletService(db)
+
+	// a non-admin actor who does not own the account
+	req := processRequest("tx-001", "member-123", pkgWallet.KindEarn, 100)
+	req.Actor = "user-intruder"
+
+	_, err := service.ProcessTransaction(ctx, req)
+	if !errors.Is(err, errs.ErrForbidden) {
+		t.Fatalf("error = %v, want errs.ErrForbidden", err)
+	}
+
+	// nothing was applied and the ledger stayed empty
+	if sum := ledgerSum(t, db, "member-123"); sum != 0 {
+		t.Fatalf("ledger sum = %d, want 0 (nothing applied)", sum)
+	}
+	if counts := auditOutcomes(t, auditRepo); counts[pkgAudit.OutcomeRejected] != 1 {
+		t.Fatalf("rejected audit rows = %d, want 1", counts[pkgAudit.OutcomeRejected])
+	}
+}
+
+func TestProcessTransaction_AdminBypassesOwnership(t *testing.T) {
+	ctx := context.Background()
+	db := newTestDB(t)
+	createTestAccount(t, db, "member-123") // owned by user-member-123
+	service, _ := newWalletService(db)
+
+	// an admin acting on an account they do not own
+	req := processRequest("tx-001", "member-123", pkgWallet.KindEarn, 100)
+	req.Actor = "admin-1"
+	req.ActorIsAdmin = true
+
+	resp, err := service.ProcessTransaction(ctx, req)
+	if err != nil {
+		t.Fatalf("admin ProcessTransaction() error = %v", err)
+	}
+	if resp.Balance != 100 {
+		t.Fatalf("Balance = %d, want 100", resp.Balance)
+	}
+}
+
 func TestProcessTransaction_UnknownAccount(t *testing.T) {
 	ctx := context.Background()
 	db := newTestDB(t)
