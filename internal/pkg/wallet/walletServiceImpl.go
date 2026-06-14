@@ -21,23 +21,23 @@ import (
 // idempotency, the overdraft floor, and the audit trail — hold once and are
 // tested once. The repositories beneath it stay policy-free.
 type WalletServiceImpl struct {
-	txManager    pkgSQL.TxManager
-	accounts     pkgAccounts.AccountRepository
-	transactions pkgWallet.TransactionRepository
-	auditEntries pkgAudit.AuditEntryRepository
+	txManager             pkgSQL.TxManager
+	accountRepository     pkgAccounts.AccountRepository
+	transactionRepository pkgWallet.TransactionRepository
+	auditEntryRepository  pkgAudit.AuditEntryRepository
 }
 
 func NewWalletServiceImpl(
 	txManager pkgSQL.TxManager,
-	accounts pkgAccounts.AccountRepository,
-	transactions pkgWallet.TransactionRepository,
-	auditEntries pkgAudit.AuditEntryRepository,
+	accountRepository pkgAccounts.AccountRepository,
+	transactionRepository pkgWallet.TransactionRepository,
+	auditEntryRepository pkgAudit.AuditEntryRepository,
 ) *WalletServiceImpl {
 	return &WalletServiceImpl{
-		txManager:    txManager,
-		accounts:     accounts,
-		transactions: transactions,
-		auditEntries: auditEntries,
+		txManager:             txManager,
+		accountRepository:     accountRepository,
+		transactionRepository: transactionRepository,
+		auditEntryRepository:  auditEntryRepository,
 	}
 }
 
@@ -55,7 +55,7 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 	// "unknown account" apart from "not the owner" for the audit trail). Admins
 	// bypass the check and may act on any account.
 	if !request.ActorIsAdmin {
-		account, err := s.accounts.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: request.AccountID})
+		account, err := s.accountRepository.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: request.AccountID})
 		if err != nil {
 			return s.rejectTransaction(ctx, request, delta, now, err)
 		}
@@ -72,7 +72,7 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 		// 1. Idempotency: attempt the ledger insert FIRST. The unique
 		//    constraint on ref is the dedupe mechanism — we never
 		//    check-then-insert.
-		created, err := s.transactions.Create(ctx, pkgWallet.CreateTransactionRequest{
+		created, err := s.transactionRepository.Create(ctx, pkgWallet.CreateTransactionRequest{
 			Transaction: pkgWallet.Transaction{
 				Ref:        request.Ref,
 				AccountID:  request.AccountID,
@@ -87,15 +87,15 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 			// Seen before: return the original outcome with Duplicate=true.
 			// This is normal operation (client retry / file reprocessing),
 			// not an error.
-			original, err := s.transactions.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: request.Ref})
+			original, err := s.transactionRepository.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: request.Ref})
 			if err != nil {
 				return err
 			}
-			account, err := s.accounts.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: request.AccountID})
+			account, err := s.accountRepository.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: request.AccountID})
 			if err != nil {
 				return err
 			}
-			if _, err := s.auditEntries.Create(ctx, buildAuditEntry(request, delta, pkgAudit.OutcomeDuplicate, "duplicate", now)); err != nil {
+			if _, err := s.auditEntryRepository.Create(ctx, buildAuditEntry(request, delta, pkgAudit.OutcomeDuplicate, "duplicate", now)); err != nil {
 				return err
 			}
 			resp = &pkgWallet.ProcessTransactionResponse{
@@ -113,16 +113,25 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 		//    returns ErrInsufficientBalance / ErrNotFound on zero rows. On
 		//    error the whole unit of work rolls back, discarding the ledger
 		//    insert above so the ref stays free for a later retry.
-		updated, err := s.accounts.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{
-			AccountID: request.AccountID,
-			Delta:     delta,
-		})
+		updated, err := s.accountRepository.UpdateAccountBalance(
+			ctx,
+			pkgAccounts.UpdateAccountBalanceRequest{
+				AccountID: request.AccountID,
+				Delta:     delta,
+			})
 		if err != nil {
 			return err
 		}
 
 		// 3. Audit the accepted attempt in the same unit of work.
-		if _, err := s.auditEntries.Create(ctx, buildAuditEntry(request, delta, pkgAudit.OutcomeAccepted, "ok", now)); err != nil {
+		if _, err := s.auditEntryRepository.Create(ctx,
+			buildAuditEntry(
+				request,
+				delta,
+				pkgAudit.OutcomeAccepted,
+				"ok",
+				now,
+			)); err != nil {
 			return err
 		}
 
@@ -148,7 +157,7 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 // trail survives the rolled-back unit of work, or a pre-flight rejection that
 // never opened one) and returns the originating error.
 func (s *WalletServiceImpl) rejectTransaction(ctx context.Context, request pkgWallet.ProcessTransactionRequest, delta int64, now time.Time, err error) (*pkgWallet.ProcessTransactionResponse, error) {
-	if _, auditErr := s.auditEntries.Create(ctx, buildAuditEntry(request, delta, pkgAudit.OutcomeRejected, reasonFor(err), now)); auditErr != nil {
+	if _, auditErr := s.auditEntryRepository.Create(ctx, buildAuditEntry(request, delta, pkgAudit.OutcomeRejected, reasonFor(err), now)); auditErr != nil {
 		return nil, auditErr
 	}
 	return nil, err
