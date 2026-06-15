@@ -107,7 +107,7 @@ func TestRegisterThenLogin(t *testing.T) {
 		accName, accUser string
 		accBalance       int64
 	)
-	row = c.db.QueryRow("SELECT name, balance, user_id FROM accounts WHERE id = $1", reg.AccountID)
+	row = c.db.QueryRow("SELECT name, balance, owner_id FROM accounts WHERE id = $1", reg.AccountID)
 	if err := row.Scan(&accName, &accBalance, &accUser); err != nil {
 		t.Fatalf("query account row: %v", err)
 	}

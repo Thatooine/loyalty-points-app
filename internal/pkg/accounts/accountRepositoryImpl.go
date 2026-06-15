@@ -41,7 +41,7 @@ func (r *AccountRepositoryImpl) Create(ctx context.Context, request pkgAccounts.
 		account.ID = uuid.NewString()
 	}
 	_, err := exec.ExecContext(ctx,
-		`INSERT INTO accounts (id, user_id, name, balance, created_at)
+		`INSERT INTO accounts (id, owner_id, name, balance, created_at)
 		 VALUES ($1, $2, $3, $4, $5)`,
 		account.ID,
 		account.OwnerID,
@@ -67,11 +67,18 @@ func (r *AccountRepositoryImpl) List(ctx context.Context, request pkgAccounts.Li
 
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
-	rows, err := exec.QueryContext(ctx,
-		`SELECT id, user_id, name, balance, created_at
-		 FROM accounts
-		 ORDER BY created_at, id`,
-	)
+	// Ownership scoping mirrors GetByID: when a UserID is supplied the WHERE
+	// clause restricts the listing to that owner's accounts.
+	query := `SELECT id, owner_id, name, balance, created_at
+		 FROM accounts`
+	var args []any
+	if request.UserID != "" {
+		query += ` WHERE owner_id = $1`
+		args = append(args, request.UserID)
+	}
+	query += ` ORDER BY created_at, id`
+
+	rows, err := exec.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("could not query accounts: %w", err)
 	}
@@ -103,12 +110,12 @@ func (r *AccountRepositoryImpl) GetByID(ctx context.Context, request pkgAccounts
 	// Ownership scoping: when a UserID is supplied the WHERE clause restricts
 	// the row to that owner, so a non-owner sees the same ErrNotFound as for a
 	// missing account.
-	query := `SELECT id, user_id, name, balance, created_at
+	query := `SELECT id, owner_id, name, balance, created_at
 		 FROM accounts
 		 WHERE id = $1`
 	args := []any{request.AccountID}
 	if request.UserID != "" {
-		query += ` AND user_id = $2`
+		query += ` AND owner_id = $2`
 		args = append(args, request.UserID)
 	}
 
@@ -137,7 +144,7 @@ func (r *AccountRepositoryImpl) GetAccountBalance(ctx context.Context, request p
 	query := `SELECT balance FROM accounts WHERE id = $1`
 	args := []any{request.AccountID}
 	if request.UserID != "" {
-		query += ` AND user_id = $2`
+		query += ` AND owner_id = $2`
 		args = append(args, request.UserID)
 	}
 
@@ -162,18 +169,23 @@ func (r *AccountRepositoryImpl) UpdateAccountBalance(ctx context.Context, reques
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	// Single atomic, overdraft-guarded statement: the WHERE clause makes the
-	// read-check-write indivisible. On Postgres the row is locked for the life
-	// of the surrounding transaction, so two concurrent debits to the same
-	// account serialize at the row rather than the whole database. The CHECK
-	// constraint on the column is the backstop.
-	result, err := exec.ExecContext(ctx,
-		`UPDATE accounts
+	// read-check-write indivisible. When a UserID is supplied the same clause
+	// also pins the row to that owner (owner_id), so the ownership check is
+	// enforced in the very statement that mutates — a non-owner's update matches
+	// no row. On Postgres the row is locked for the life of the surrounding
+	// transaction, so two concurrent debits to the same account serialize at the
+	// row rather than the whole database. The CHECK constraint on the column is
+	// the backstop.
+	query := `UPDATE accounts
 		 SET balance = balance + $1
-		 WHERE id = $2 AND balance + $3 >= 0`,
-		request.Delta,
-		request.AccountID,
-		request.Delta,
-	)
+		 WHERE id = $2 AND balance + $1 >= 0`
+	args := []any{request.Delta, request.AccountID}
+	if request.UserID != "" {
+		query += ` AND owner_id = $3`
+		args = append(args, request.UserID)
+	}
+
+	result, err := exec.ExecContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("could not update account balance: %w", err)
 	}
@@ -184,13 +196,18 @@ func (r *AccountRepositoryImpl) UpdateAccountBalance(ctx context.Context, reques
 	}
 
 	if affected == 0 {
-		// Zero rows means either the account is missing or the guard rejected
-		// the delta. Read the current balance to tell the two apart.
+		// Zero rows means the account is missing, not owned by this user, or the
+		// guard rejected the delta. Re-read with the same ownership scope: no row
+		// means missing-or-not-owned (reported as ErrNotFound, no existence leak,
+		// mirroring GetByID); a row means the balance guard rejected the delta.
+		checkQuery := `SELECT balance FROM accounts WHERE id = $1`
+		checkArgs := []any{request.AccountID}
+		if request.UserID != "" {
+			checkQuery += ` AND owner_id = $2`
+			checkArgs = append(checkArgs, request.UserID)
+		}
 		var balance int64
-		err := exec.QueryRowContext(ctx,
-			`SELECT balance FROM accounts WHERE id = $1`,
-			request.AccountID,
-		).Scan(&balance)
+		err := exec.QueryRowContext(ctx, checkQuery, checkArgs...).Scan(&balance)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("account %s: %w", request.AccountID, errs.ErrNotFound)
 		}

@@ -84,7 +84,7 @@ func TestTransactionRepositoryImpl_CreateAndGetByID(t *testing.T) {
 		t.Fatalf("Create() did not assign an ID")
 	}
 
-	got, err := repo.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: "tx-001"})
+	got, err := repo.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: "tx-001", UserID: "user-member-123"})
 	if err != nil {
 		t.Fatalf("GetByID() error = %v", err)
 	}
@@ -115,7 +115,7 @@ func TestTransactionRepositoryImpl_GetByIDNotFound(t *testing.T) {
 	db := newTestDB(t)
 	repo := NewTransactionRepositoryImpl(db)
 
-	_, err := repo.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: "missing"})
+	_, err := repo.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: "missing", UserID: "user-1"})
 	if !errors.Is(err, errs.ErrNotFound) {
 		t.Fatalf("GetByID() error = %v, want errs.ErrNotFound", err)
 	}
@@ -155,10 +155,10 @@ func TestRunInTx_AtomicAcrossRepositories(t *testing.T) {
 		t.Fatalf("RunInTx() error = %v, want forced failure", err)
 	}
 
-	if _, err := accountRepo.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: "member-123"}); !errors.Is(err, errs.ErrNotFound) {
+	if _, err := accountRepo.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: "member-123", UserID: "user-1"}); !errors.Is(err, errs.ErrNotFound) {
 		t.Fatalf("account survived rollback: error = %v, want errs.ErrNotFound", err)
 	}
-	if _, err := transactionRepo.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: "tx-001"}); !errors.Is(err, errs.ErrNotFound) {
+	if _, err := transactionRepo.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: "tx-001", UserID: "user-member-123"}); !errors.Is(err, errs.ErrNotFound) {
 		t.Fatalf("transaction survived rollback: error = %v, want errs.ErrNotFound", err)
 	}
 }
@@ -193,10 +193,10 @@ func TestRunInTx_CommitAcrossRepositories(t *testing.T) {
 		t.Fatalf("RunInTx() error = %v", err)
 	}
 
-	if _, err := accountRepo.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: "member-123"}); err != nil {
+	if _, err := accountRepo.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: "member-123", UserID: "user-1"}); err != nil {
 		t.Fatalf("account not committed: %v", err)
 	}
-	if _, err := transactionRepo.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: "tx-001"}); err != nil {
+	if _, err := transactionRepo.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: "tx-001", UserID: "user-member-123"}); err != nil {
 		t.Fatalf("transaction not committed: %v", err)
 	}
 }

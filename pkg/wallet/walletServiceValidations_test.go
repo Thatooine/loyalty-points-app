@@ -8,7 +8,7 @@ func validProcessRequest() ProcessTransactionRequest {
 		AccountID: "acc-1",
 		Kind:      KindEarn,
 		Points:    150,
-		Actor:     "user-1",
+		UserID:    "user-1",
 	}
 }
 
@@ -23,7 +23,7 @@ func TestProcessTransactionRequest_Validate(t *testing.T) {
 		{"valid adjust negative", func(r *ProcessTransactionRequest) { r.Kind = KindAdjust; r.Points = -30 }, false},
 		{"missing ref", func(r *ProcessTransactionRequest) { r.Ref = "" }, true},
 		{"missing account", func(r *ProcessTransactionRequest) { r.AccountID = "" }, true},
-		{"missing actor", func(r *ProcessTransactionRequest) { r.Actor = "" }, true},
+		{"missing user", func(r *ProcessTransactionRequest) { r.UserID = "" }, true},
 		{"earn with zero points", func(r *ProcessTransactionRequest) { r.Points = 0 }, true},
 		{"earn with negative points", func(r *ProcessTransactionRequest) { r.Points = -5 }, true},
 		{"spend with negative points", func(r *ProcessTransactionRequest) { r.Kind = KindSpend; r.Points = -5 }, true},

@@ -2,33 +2,15 @@ package accounts
 
 import "context"
 
-// AccountRepository is the persistence port for Account entities. Methods
-// participate in an ambient transaction when one is present in the context
-// (see sql.TxManager), and run against the pool otherwise.
 type AccountRepository interface {
-	// Create persists a new account. An existing account with the same
-	// AccountID results in errs.ErrAlreadyExists.
 	Create(ctx context.Context, request CreateAccountRequest) (*CreateAccountResponse, error)
 
-	// List returns all accounts, oldest first.
 	List(ctx context.Context, request ListAccountsRequest) (*ListAccountsResponse, error)
 
-	// GetByID returns the account with the given AccountID, or
-	// errs.ErrNotFound. When UserID is set the lookup is ownership-scoped: an
-	// account that exists but is owned by another user is reported as
-	// errs.ErrNotFound, indistinguishable from a missing account so callers
-	// cannot probe for accounts they do not own.
 	GetByID(ctx context.Context, request GetAccountByIDRequest) (*GetAccountByIDResponse, error)
 
-	// GetAccountBalance returns just the balance of the given account, or
-	// errs.ErrNotFound. Like GetByID it is ownership-scoped when UserID is set.
 	GetAccountBalance(ctx context.Context, request GetAccountBalanceRequest) (*GetAccountBalanceResponse, error)
 
-	// UpdateAccountBalance applies a signed delta to an account balance in a
-	// single atomic, overdraft-guarded statement (the only intent-revealing
-	// mutator beyond CRUD). It returns the new balance, or errs.ErrNotFound if
-	// the account does not exist, or errs.ErrInsufficientBalance if the delta
-	// would drive the balance below zero (balance left unchanged).
 	UpdateAccountBalance(ctx context.Context, request UpdateAccountBalanceRequest) (*UpdateAccountBalanceResponse, error)
 }
 
@@ -44,6 +26,10 @@ type CreateAccountResponse struct {
 
 // ListAccountsRequest is the request for List.
 type ListAccountsRequest struct {
+	// UserID, when non-empty, scopes the listing to the owning user so only
+	// that user's accounts are returned (see GetAccountByIDRequest.UserID).
+	// Leave empty for internal/admin listings that must see every account.
+	UserID string
 }
 
 // ListAccountsResponse is the response for List.
@@ -86,6 +72,12 @@ type UpdateAccountBalanceRequest struct {
 	// Delta is the signed amount to apply: positive to credit, negative to
 	// debit.
 	Delta int64
+
+	// UserID, when non-empty, scopes the update to the owning user so the
+	// balance is only mutated on an account that user owns (see
+	// GetAccountByIDRequest.UserID). Leave empty for internal/admin updates that
+	// must act on any account.
+	UserID string
 }
 
 // UpdateAccountBalanceResponse is the response for UpdateAccountBalance.

@@ -12,8 +12,8 @@ func (r *CreateAuditEntryRequest) Validate() error {
 		reasons = append(reasons, "Reason is required")
 	}
 
-	if r.AuditEntry.Actor == "" {
-		reasons = append(reasons, "Actor is required")
+	if r.AuditEntry.UserID == "" {
+		reasons = append(reasons, "UserID is required")
 	}
 
 	switch r.AuditEntry.Outcome {
@@ -36,6 +36,10 @@ func (r *GetAuditEntryByIDRequest) Validate() error {
 		reasons = append(reasons, "ID must be greater than 0")
 	}
 
+	if r.UserID == "" {
+		reasons = append(reasons, "UserID is required")
+	}
+
 	if len(reasons) > 0 {
 		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
 	}
@@ -43,8 +47,17 @@ func (r *GetAuditEntryByIDRequest) Validate() error {
 	return nil
 }
 
-// Validate has no fields to check; defined for a uniform call site.
 func (r *ListAuditEntriesRequest) Validate() error {
+	var reasons []string
+
+	if r.UserID == "" {
+		reasons = append(reasons, "UserID is required")
+	}
+
+	if len(reasons) > 0 {
+		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
+	}
+
 	return nil
 }
 
@@ -53,6 +66,10 @@ func (r *ListAuditEntriesByTransactionRefRequest) Validate() error {
 
 	if r.TransactionRef == "" {
 		reasons = append(reasons, "TransactionRef is required")
+	}
+
+	if r.UserID == "" {
+		reasons = append(reasons, "UserID is required")
 	}
 
 	if len(reasons) > 0 {
@@ -67,6 +84,10 @@ func (r *ListAuditEntriesByAccountIDRequest) Validate() error {
 
 	if r.AccountID == "" {
 		reasons = append(reasons, "AccountID is required")
+	}
+
+	if r.UserID == "" {
+		reasons = append(reasons, "UserID is required")
 	}
 
 	if len(reasons) > 0 {

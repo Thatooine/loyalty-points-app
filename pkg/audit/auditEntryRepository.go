@@ -41,6 +41,10 @@ type CreateAuditEntryResponse struct {
 
 // ListAuditEntriesRequest is the request for List.
 type ListAuditEntriesRequest struct {
+	// UserID, when non-empty, scopes the listing to the owning user so only
+	// that user's audit entries are returned. Leave empty for internal/admin
+	// listings that must see every entry.
+	UserID string
 }
 
 // ListAuditEntriesResponse is the response for List.
@@ -51,6 +55,11 @@ type ListAuditEntriesResponse struct {
 // ListAuditEntriesByTransactionRefRequest is the request for ListByTransactionRef.
 type ListAuditEntriesByTransactionRefRequest struct {
 	TransactionRef string
+
+	// UserID, when non-empty, scopes the listing to the owning user so entries
+	// for another user's account are not returned. Leave empty for
+	// internal/admin listings.
+	UserID string
 }
 
 // ListAuditEntriesByTransactionRefResponse is the response for ListByTransactionRef.
@@ -61,6 +70,11 @@ type ListAuditEntriesByTransactionRefResponse struct {
 // ListAuditEntriesByAccountIDRequest is the request for ListByAccountID.
 type ListAuditEntriesByAccountIDRequest struct {
 	AccountID string
+
+	// UserID, when non-empty, scopes the listing to the owning user so a caller
+	// cannot read audit entries for an account they do not own. Leave empty for
+	// internal/admin listings.
+	UserID string
 }
 
 // ListAuditEntriesByAccountIDResponse is the response for ListByAccountID.
@@ -71,6 +85,11 @@ type ListAuditEntriesByAccountIDResponse struct {
 // GetAuditEntryByIDRequest is the request for GetByID.
 type GetAuditEntryByIDRequest struct {
 	ID int64
+
+	// UserID, when non-empty, scopes the lookup to the owning user: an entry
+	// owned by another user is reported as errs.ErrNotFound. Leave empty for
+	// internal/admin lookups that must read any entry.
+	UserID string
 }
 
 // GetAuditEntryByIDResponse is the response for GetByID.

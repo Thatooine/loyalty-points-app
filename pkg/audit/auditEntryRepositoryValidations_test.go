@@ -5,7 +5,7 @@ import "testing"
 func TestCreateAuditEntryRequest_Validate(t *testing.T) {
 	valid := func() CreateAuditEntryRequest {
 		return CreateAuditEntryRequest{AuditEntry: AuditEntry{
-			Outcome: OutcomeAccepted, Reason: "ok", Actor: "user-1",
+			Outcome: OutcomeAccepted, Reason: "ok", UserID: "user-1",
 		}}
 	}
 
@@ -16,7 +16,7 @@ func TestCreateAuditEntryRequest_Validate(t *testing.T) {
 	}{
 		{"valid", func(r *CreateAuditEntryRequest) {}, false},
 		{"missing reason", func(r *CreateAuditEntryRequest) { r.AuditEntry.Reason = "" }, true},
-		{"missing actor", func(r *CreateAuditEntryRequest) { r.AuditEntry.Actor = "" }, true},
+		{"missing user", func(r *CreateAuditEntryRequest) { r.AuditEntry.UserID = "" }, true},
 		{"unknown outcome", func(r *CreateAuditEntryRequest) { r.AuditEntry.Outcome = "pending" }, true},
 	}
 
@@ -36,10 +36,13 @@ func TestCreateAuditEntryRequest_Validate(t *testing.T) {
 }
 
 func TestGetAuditEntryByIDRequest_Validate(t *testing.T) {
-	if err := (&GetAuditEntryByIDRequest{ID: 1}).Validate(); err != nil {
+	if err := (&GetAuditEntryByIDRequest{ID: 1, UserID: "user-1"}).Validate(); err != nil {
 		t.Fatalf("valid request: %v", err)
 	}
-	if err := (&GetAuditEntryByIDRequest{ID: 0}).Validate(); err == nil {
+	if err := (&GetAuditEntryByIDRequest{ID: 0, UserID: "user-1"}).Validate(); err == nil {
 		t.Fatalf("zero ID: want error")
+	}
+	if err := (&GetAuditEntryByIDRequest{ID: 1}).Validate(); err == nil {
+		t.Fatalf("missing UserID: want error")
 	}
 }

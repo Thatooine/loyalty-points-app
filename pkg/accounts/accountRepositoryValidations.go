@@ -34,6 +34,10 @@ func (r *GetAccountByIDRequest) Validate() error {
 		reasons = append(reasons, "AccountID is required")
 	}
 
+	if r.UserID == "" {
+		reasons = append(reasons, "UserID is required")
+	}
+
 	if len(reasons) > 0 {
 		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
 	}
@@ -46,6 +50,10 @@ func (r *GetAccountBalanceRequest) Validate() error {
 
 	if r.AccountID == "" {
 		reasons = append(reasons, "AccountID is required")
+	}
+
+	if r.UserID == "" {
+		reasons = append(reasons, "UserID is required")
 	}
 
 	if len(reasons) > 0 {
@@ -66,6 +74,10 @@ func (r *UpdateAccountBalanceRequest) Validate() error {
 		reasons = append(reasons, "Delta must be non-zero")
 	}
 
+	if r.UserID == "" {
+		reasons = append(reasons, "UserID is required")
+	}
+
 	if len(reasons) > 0 {
 		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
 	}
@@ -73,7 +85,16 @@ func (r *UpdateAccountBalanceRequest) Validate() error {
 	return nil
 }
 
-// Validate has no fields to check; defined for a uniform call site.
 func (r *ListAccountsRequest) Validate() error {
+	var reasons []string
+
+	if r.UserID == "" {
+		reasons = append(reasons, "UserID is required")
+	}
+
+	if len(reasons) > 0 {
+		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
+	}
+
 	return nil
 }

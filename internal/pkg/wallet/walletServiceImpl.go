@@ -58,26 +58,22 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 		occurredAt = now
 	}
 
-	// Resolve the owning account up front. The lookup is unscoped so we can tell
-	// "unknown account" apart from "not the owner" for the audit trail, and so
-	// the owner id is stamped on the ledger and audit rows for member and admin
-	// callers alike. A failed lookup rejects the attempt (no owner to record).
+	// Resolve the account, scoped to the caller. Ownership is enforced by the
+	// scoped read itself: an account the caller does not own reads as
+	// ErrNotFound, indistinguishable from a missing one (no existence leak), so
+	// there is no separate ownership gate. The resolved owner id is stamped on
+	// the ledger and audit rows. A failed lookup rejects the attempt.
 	account, err := s.accountRepository.GetByID(
 		ctx,
 		pkgAccounts.GetAccountByIDRequest{
 			AccountID: request.AccountID,
+			UserID:    request.UserID,
 		},
 	)
 	if err != nil {
 		return s.rejectTransaction(ctx, request, delta, now, nil, err)
 	}
 	ownerID := account.Account.OwnerID
-
-	// Ownership gate: a non-admin actor may only transact on an account they
-	// own. Admins bypass the check and may act on any account.
-	if !request.ActorIsAdmin && ownerID != request.Actor {
-		return s.rejectTransaction(ctx, request, delta, now, &ownerID, errs.ErrForbidden)
-	}
 
 	var resp *pkgWallet.ProcessTransactionResponse
 
@@ -96,18 +92,18 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 				Points:     delta,
 				OccurredAt: occurredAt,
 				RecordedAt: now,
-				CreatedBy:  request.Actor,
+				CreatedBy:  request.UserID,
 			},
 		})
 		if errors.Is(err, errs.ErrDuplicateRef) {
 			// Seen before: return the original outcome with Duplicate=true.
 			// This is normal operation (client retry / file reprocessing),
 			// not an error.
-			original, err := s.transactionRepository.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: request.Ref})
+			original, err := s.transactionRepository.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: request.Ref, UserID: request.UserID})
 			if err != nil {
 				return err
 			}
-			account, err := s.accountRepository.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: request.AccountID})
+			account, err := s.accountRepository.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: request.AccountID, UserID: request.UserID})
 			if err != nil {
 				return err
 			}
@@ -128,12 +124,14 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 		// 2. Balance floor: the repository's single overdraft-guarded UPDATE
 		//    returns ErrInsufficientBalance / ErrNotFound on zero rows. On
 		//    error the whole unit of work rolls back, discarding the ledger
-		//    insert above so the ref stays free for a later retry.
+		//    insert above so the ref stays free for a later retry. The update is
+		//    scoped to the owner so the repository re-enforces ownership in SQL.
 		updated, err := s.accountRepository.UpdateAccountBalance(
 			ctx,
 			pkgAccounts.UpdateAccountBalanceRequest{
 				AccountID: request.AccountID,
 				Delta:     delta,
+				UserID:    ownerID,
 			})
 		if err != nil {
 			return err
@@ -270,7 +268,7 @@ func buildAuditEntry(request pkgWallet.ProcessTransactionRequest, delta int64, o
 			Points:         &points,
 			Outcome:        outcome,
 			Reason:         reason,
-			Actor:          request.Actor,
+			UserID:         request.UserID,
 			CreatedAt:      now,
 		},
 	}

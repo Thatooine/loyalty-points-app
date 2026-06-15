@@ -86,11 +86,18 @@ func (r *TransactionRepositoryImpl) List(ctx context.Context, request pkgWallet.
 
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
-	rows, err := exec.QueryContext(ctx,
-		`SELECT id, ref, account_id, owner_id, kind, points, occurred_at, recorded_at, created_by
-		 FROM transactions
-		 ORDER BY recorded_at DESC, ref`,
-	)
+	// Ownership scoping: when a UserID is supplied the WHERE clause restricts
+	// the listing to that owner's transactions.
+	query := `SELECT id, ref, account_id, owner_id, kind, points, occurred_at, recorded_at, created_by
+		 FROM transactions`
+	var args []any
+	if request.UserID != "" {
+		query += ` WHERE owner_id = $1`
+		args = append(args, request.UserID)
+	}
+	query += ` ORDER BY recorded_at DESC, ref`
+
+	rows, err := exec.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("could not query transactions: %w", err)
 	}
@@ -119,12 +126,18 @@ func (r *TransactionRepositoryImpl) GetByID(ctx context.Context, request pkgWall
 
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
-	row := exec.QueryRowContext(ctx,
-		`SELECT id, ref, account_id, owner_id, kind, points, occurred_at, recorded_at, created_by
+	// Ownership scoping mirrors the account repository: when a UserID is
+	// supplied a non-owner gets the same ErrNotFound as for a missing row.
+	query := `SELECT id, ref, account_id, owner_id, kind, points, occurred_at, recorded_at, created_by
 		 FROM transactions
-		 WHERE ref = $1`,
-		request.Ref,
-	)
+		 WHERE ref = $1`
+	args := []any{request.Ref}
+	if request.UserID != "" {
+		query += ` AND owner_id = $2`
+		args = append(args, request.UserID)
+	}
+
+	row := exec.QueryRowContext(ctx, query, args...)
 
 	transaction, err := scanTransaction(row.Scan)
 	if err != nil {

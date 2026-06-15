@@ -40,7 +40,7 @@ func (r *AuditEntryRepositoryImpl) Create(ctx context.Context, request pkgAudit.
 	// idiom for reading back the generated identity.
 	var id int64
 	err := exec.QueryRowContext(ctx,
-		`INSERT INTO audit_log (ref, account_id, owner_id, kind, points, outcome, reason, actor, created_at)
+		`INSERT INTO audit_log (ref, account_id, owner_id, kind, points, outcome, reason, user_id, created_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		 RETURNING id`,
 		entry.TransactionRef,
@@ -50,7 +50,7 @@ func (r *AuditEntryRepositoryImpl) Create(ctx context.Context, request pkgAudit.
 		entry.Points,
 		string(entry.Outcome),
 		entry.Reason,
-		entry.Actor,
+		entry.UserID,
 		time.FormatTime(entry.CreatedAt),
 	).Scan(&id)
 	if err != nil {
@@ -67,11 +67,18 @@ func (r *AuditEntryRepositoryImpl) List(ctx context.Context, request pkgAudit.Li
 		return nil, fmt.Errorf("invalid request for List: %w", err)
 	}
 
-	entries, err := r.queryEntries(ctx,
-		`SELECT id, ref, account_id, owner_id, kind, points, outcome, reason, actor, created_at
-		 FROM audit_log
-		 ORDER BY id`,
-	)
+	// Ownership scoping: when a UserID is supplied the WHERE clause restricts
+	// the listing to that owner's entries.
+	query := `SELECT id, ref, account_id, owner_id, kind, points, outcome, reason, user_id, created_at
+		 FROM audit_log`
+	var args []any
+	if request.UserID != "" {
+		query += ` WHERE owner_id = $1`
+		args = append(args, request.UserID)
+	}
+	query += ` ORDER BY id`
+
+	entries, err := r.queryEntries(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -85,13 +92,17 @@ func (r *AuditEntryRepositoryImpl) ListByTransactionRef(ctx context.Context, req
 		return nil, fmt.Errorf("invalid request for ListByTransactionRef: %w", err)
 	}
 
-	entries, err := r.queryEntries(ctx,
-		`SELECT id, ref, account_id, owner_id, kind, points, outcome, reason, actor, created_at
+	query := `SELECT id, ref, account_id, owner_id, kind, points, outcome, reason, user_id, created_at
 		 FROM audit_log
-		 WHERE ref = $1
-		 ORDER BY id`,
-		request.TransactionRef,
-	)
+		 WHERE ref = $1`
+	args := []any{request.TransactionRef}
+	if request.UserID != "" {
+		query += ` AND owner_id = $2`
+		args = append(args, request.UserID)
+	}
+	query += ` ORDER BY id`
+
+	entries, err := r.queryEntries(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -105,13 +116,17 @@ func (r *AuditEntryRepositoryImpl) ListByAccountID(ctx context.Context, request 
 		return nil, fmt.Errorf("invalid request for ListByAccountID: %w", err)
 	}
 
-	entries, err := r.queryEntries(ctx,
-		`SELECT id, ref, account_id, owner_id, kind, points, outcome, reason, actor, created_at
+	query := `SELECT id, ref, account_id, owner_id, kind, points, outcome, reason, user_id, created_at
 		 FROM audit_log
-		 WHERE account_id = $1
-		 ORDER BY id`,
-		request.AccountID,
-	)
+		 WHERE account_id = $1`
+	args := []any{request.AccountID}
+	if request.UserID != "" {
+		query += ` AND owner_id = $2`
+		args = append(args, request.UserID)
+	}
+	query += ` ORDER BY id`
+
+	entries, err := r.queryEntries(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -154,12 +169,16 @@ func (r *AuditEntryRepositoryImpl) GetByID(ctx context.Context, request pkgAudit
 
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
-	row := exec.QueryRowContext(ctx,
-		`SELECT id, ref, account_id, owner_id, kind, points, outcome, reason, actor, created_at
+	query := `SELECT id, ref, account_id, owner_id, kind, points, outcome, reason, user_id, created_at
 		 FROM audit_log
-		 WHERE id = $1`,
-		request.ID,
-	)
+		 WHERE id = $1`
+	args := []any{request.ID}
+	if request.UserID != "" {
+		query += ` AND owner_id = $2`
+		args = append(args, request.UserID)
+	}
+
+	row := exec.QueryRowContext(ctx, query, args...)
 
 	entry, err := scanAuditEntry(row.Scan)
 	if err != nil {
@@ -184,7 +203,7 @@ func scanAuditEntry(scan func(dest ...any) error) (*pkgAudit.AuditEntry, error) 
 		&entry.Points,
 		&outcome,
 		&entry.Reason,
-		&entry.Actor,
+		&entry.UserID,
 		&createdAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

@@ -16,8 +16,8 @@ func (r *ProcessTransactionRequest) Validate() error {
 		reasons = append(reasons, "AccountID is required")
 	}
 
-	if r.Actor == "" {
-		reasons = append(reasons, "Actor is required")
+	if r.UserID == "" {
+		reasons = append(reasons, "UserID is required")
 	}
 
 	// Points is supplied positive for earn/spend (the sign is derived from

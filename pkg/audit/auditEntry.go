@@ -19,6 +19,9 @@ type AuditEntry struct {
 	// ID is the autoincrement key; an attempt log has no natural key.
 	ID int64 `json:"id"`
 
+	// UserID is the principal that submitted the attempt.
+	UserID string `json:"userID"`
+
 	// TransactionRef is nullable: a malformed CSV row may not have one.
 	TransactionRef *string `json:"transactionRef"`
 
@@ -39,9 +42,6 @@ type AuditEntry struct {
 	// Reason explains the outcome: 'ok', 'insufficient balance', 'unknown
 	// account', ...
 	Reason string `json:"reason"`
-
-	// Actor is the principal that submitted the attempt.
-	Actor string `json:"actor"`
 
 	CreatedAt time.Time `json:"createdAt"`
 }

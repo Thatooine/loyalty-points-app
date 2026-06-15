@@ -46,6 +46,10 @@ func (r *GetTransactionByIDRequest) Validate() error {
 		reasons = append(reasons, "Ref is required")
 	}
 
+	if r.UserID == "" {
+		reasons = append(reasons, "UserID is required")
+	}
+
 	if len(reasons) > 0 {
 		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
 	}
@@ -53,7 +57,16 @@ func (r *GetTransactionByIDRequest) Validate() error {
 	return nil
 }
 
-// Validate has no fields to check; defined for a uniform call site.
 func (r *ListTransactionsRequest) Validate() error {
+	var reasons []string
+
+	if r.UserID == "" {
+		reasons = append(reasons, "UserID is required")
+	}
+
+	if len(reasons) > 0 {
+		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
+	}
+
 	return nil
 }

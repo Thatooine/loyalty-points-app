@@ -5,10 +5,6 @@ import (
 	"time"
 )
 
-// WalletService owns the wallet's business rules. ProcessTransaction is the
-// single write path for every earn, spend, and adjustment — from the API and
-// from CSV batch ingestion alike — so idempotency, the overdraft floor, and
-// the audit trail are enforced once and tested once.
 type WalletService interface {
 	ProcessTransaction(ctx context.Context, request ProcessTransactionRequest) (*ProcessTransactionResponse, error)
 
@@ -24,6 +20,11 @@ type WalletService interface {
 
 // ProcessTransactionRequest is the request for ProcessTransaction.
 type ProcessTransactionRequest struct {
+	// UserID is the acting principal (the user ID submitting the transaction).
+	// Ownership is enforced by scoping every account read/update to this user,
+	// so a caller can only transact on an account they own.
+	UserID string
+
 	// Ref is the idempotency key: the same ref never counts twice.
 	Ref string
 
@@ -39,15 +40,6 @@ type ProcessTransactionRequest struct {
 	// is the zero value the service stamps it with the processing time, so it is
 	// never persisted empty.
 	OccurredAt time.Time
-
-	// Actor is the acting principal (the user ID submitting the transaction).
-	Actor string
-
-	// ActorIsAdmin reports whether the actor holds the admin role. Admins may
-	// transact on any account; a non-admin actor may only transact on an
-	// account they own. The adaptor sets this from the verified login claim —
-	// it is never taken from client input.
-	ActorIsAdmin bool
 }
 
 // ProcessTransactionResponse is the response for ProcessTransaction.

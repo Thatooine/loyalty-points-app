@@ -57,7 +57,7 @@ func TestAccountRepositoryImpl_CreateAndGetByID(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: "member-123"})
+	got, err := repo.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: "member-123", UserID: "user-1"})
 	if err != nil {
 		t.Fatalf("GetByID() error = %v", err)
 	}
@@ -88,7 +88,7 @@ func TestAccountRepositoryImpl_GetByIDNotFound(t *testing.T) {
 	db := newTestDB(t)
 	repo := NewAccountRepositoryImpl(db)
 
-	_, err := repo.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: "missing"})
+	_, err := repo.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: "missing", UserID: "user-1"})
 	if !errors.Is(err, errs.ErrNotFound) {
 		t.Fatalf("GetByID() error = %v, want errs.ErrNotFound", err)
 	}
@@ -115,11 +115,6 @@ func TestAccountRepositoryImpl_GetByIDOwnershipScoped(t *testing.T) {
 	if !errors.Is(err, errs.ErrNotFound) {
 		t.Fatalf("non-owner GetByID() error = %v, want errs.ErrNotFound", err)
 	}
-
-	// an unscoped lookup (no UserID) still returns it — internal/admin path
-	if _, err := repo.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: "member-123"}); err != nil {
-		t.Fatalf("unscoped GetByID() error = %v", err)
-	}
 }
 
 func TestAccountRepositoryImpl_GetAccountBalance(t *testing.T) {
@@ -132,7 +127,7 @@ func TestAccountRepositoryImpl_GetAccountBalance(t *testing.T) {
 	if _, err := repo.Create(ctx, pkgAccounts.CreateAccountRequest{Account: testAccount("member-123", "owner")}); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: 250}); err != nil {
+	if _, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: 250, UserID: "owner"}); err != nil {
 		t.Fatalf("seed credit error = %v", err)
 	}
 
@@ -169,7 +164,7 @@ func TestAccountRepositoryImpl_UpdateAccountBalance(t *testing.T) {
 	}
 
 	// credit
-	credit, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: 150})
+	credit, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: 150, UserID: "user-1"})
 	if err != nil {
 		t.Fatalf("UpdateAccountBalance() credit error = %v", err)
 	}
@@ -178,7 +173,7 @@ func TestAccountRepositoryImpl_UpdateAccountBalance(t *testing.T) {
 	}
 
 	// debit within balance
-	debit, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: -50})
+	debit, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: -50, UserID: "user-1"})
 	if err != nil {
 		t.Fatalf("UpdateAccountBalance() debit error = %v", err)
 	}
@@ -196,17 +191,17 @@ func TestAccountRepositoryImpl_UpdateAccountBalanceOverdraft(t *testing.T) {
 	if _, err := repo.Create(ctx, pkgAccounts.CreateAccountRequest{Account: testAccount("member-123", "user-1")}); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: 100}); err != nil {
+	if _, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: 100, UserID: "user-1"}); err != nil {
 		t.Fatalf("seed credit error = %v", err)
 	}
 
-	_, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: -150})
+	_, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: -150, UserID: "user-1"})
 	if !errors.Is(err, errs.ErrInsufficientBalance) {
 		t.Fatalf("overdraft error = %v, want errs.ErrInsufficientBalance", err)
 	}
 
 	// balance must be unchanged
-	got, err := repo.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: "member-123"})
+	got, err := repo.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: "member-123", UserID: "user-1"})
 	if err != nil {
 		t.Fatalf("GetByID() error = %v", err)
 	}
@@ -220,7 +215,7 @@ func TestAccountRepositoryImpl_UpdateAccountBalanceUnknownAccount(t *testing.T) 
 	db := newTestDB(t)
 	repo := NewAccountRepositoryImpl(db)
 
-	_, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "missing", Delta: 100})
+	_, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "missing", Delta: 100, UserID: "user-1"})
 	if !errors.Is(err, errs.ErrNotFound) {
 		t.Fatalf("unknown account error = %v, want errs.ErrNotFound", err)
 	}
@@ -239,7 +234,7 @@ func TestAccountRepositoryImpl_List(t *testing.T) {
 		}
 	}
 
-	got, err := repo.List(ctx, pkgAccounts.ListAccountsRequest{})
+	got, err := repo.List(ctx, pkgAccounts.ListAccountsRequest{UserID: "user-1"})
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}

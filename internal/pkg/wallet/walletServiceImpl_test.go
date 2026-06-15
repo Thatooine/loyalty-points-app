@@ -34,20 +34,31 @@ func processRequest(ref, accountID string, kind pkgWallet.Kind, points int64) pk
 		Kind:       kind,
 		Points:     points,
 		OccurredAt: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
-		Actor:      "user-" + accountID,
+		UserID:     "user-" + accountID,
 	}
 }
 
-// auditOutcomes returns the count of audit rows per outcome.
-func auditOutcomes(t *testing.T, repo pkgAudit.AuditEntryRepository) map[pkgAudit.Outcome]int {
+// auditOutcomes returns the count of audit rows per outcome. It reads the table
+// directly rather than through the repository's List, which is now ownership-
+// scoped and so cannot return rejected rows for an unknown account (nil owner).
+func auditOutcomes(t *testing.T, db *sql.DB) map[pkgAudit.Outcome]int {
 	t.Helper()
-	resp, err := repo.List(context.Background(), pkgAudit.ListAuditEntriesRequest{})
+	rows, err := db.Query(`SELECT outcome, COUNT(*) FROM audit_log GROUP BY outcome`)
 	if err != nil {
-		t.Fatalf("audit List() error = %v", err)
+		t.Fatalf("audit outcomes query error = %v", err)
 	}
+	defer rows.Close()
 	counts := map[pkgAudit.Outcome]int{}
-	for _, entry := range resp.AuditEntries {
-		counts[entry.Outcome]++
+	for rows.Next() {
+		var outcome string
+		var n int
+		if err := rows.Scan(&outcome, &n); err != nil {
+			t.Fatalf("scan audit outcome error = %v", err)
+		}
+		counts[pkgAudit.Outcome(outcome)] = n
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate audit outcomes error = %v", err)
 	}
 	return counts
 }
@@ -78,7 +89,7 @@ func TestProcessTransaction_Earn(t *testing.T) {
 	ctx := context.Background()
 	db := newTestDB(t)
 	createTestAccount(t, db, "member-123")
-	service, auditRepo := newWalletService(db)
+	service, _ := newWalletService(db)
 
 	resp, err := service.ProcessTransaction(ctx, processRequest("tx-001", "member-123", pkgWallet.KindEarn, 150))
 	if err != nil {
@@ -93,7 +104,7 @@ func TestProcessTransaction_Earn(t *testing.T) {
 	if resp.Transaction.Points != 150 {
 		t.Fatalf("Transaction.Points = %d, want 150", resp.Transaction.Points)
 	}
-	if got := auditOutcomes(t, auditRepo); got[pkgAudit.OutcomeAccepted] != 1 {
+	if got := auditOutcomes(t, db); got[pkgAudit.OutcomeAccepted] != 1 {
 		t.Fatalf("accepted audit rows = %d, want 1", got[pkgAudit.OutcomeAccepted])
 	}
 }
@@ -129,7 +140,7 @@ func TestProcessTransaction_DuplicateRef(t *testing.T) {
 	ctx := context.Background()
 	db := newTestDB(t)
 	createTestAccount(t, db, "member-123")
-	service, auditRepo := newWalletService(db)
+	service, _ := newWalletService(db)
 
 	first, err := service.ProcessTransaction(ctx, processRequest("tx-001", "member-123", pkgWallet.KindEarn, 150))
 	if err != nil {
@@ -151,7 +162,7 @@ func TestProcessTransaction_DuplicateRef(t *testing.T) {
 		t.Fatalf("duplicate returned ref %q, want tx-001", second.Transaction.Ref)
 	}
 
-	counts := auditOutcomes(t, auditRepo)
+	counts := auditOutcomes(t, db)
 	if counts[pkgAudit.OutcomeAccepted] != 1 || counts[pkgAudit.OutcomeDuplicate] != 1 {
 		t.Fatalf("audit outcomes = %+v, want 1 accepted + 1 duplicate", counts)
 	}
@@ -161,7 +172,7 @@ func TestProcessTransaction_Overdraft(t *testing.T) {
 	ctx := context.Background()
 	db := newTestDB(t)
 	createTestAccount(t, db, "member-123")
-	service, auditRepo := newWalletService(db)
+	service, _ := newWalletService(db)
 
 	if _, err := service.ProcessTransaction(ctx, processRequest("tx-001", "member-123", pkgWallet.KindEarn, 100)); err != nil {
 		t.Fatalf("earn error = %v", err)
@@ -175,14 +186,14 @@ func TestProcessTransaction_Overdraft(t *testing.T) {
 	// balance unchanged, and the rejected ledger insert rolled back so the
 	// ref is free again
 	txnRepo := NewTransactionRepositoryImpl(db)
-	if _, err := txnRepo.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: "tx-002"}); !errors.Is(err, errs.ErrNotFound) {
+	if _, err := txnRepo.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: "tx-002", UserID: "user-member-123"}); !errors.Is(err, errs.ErrNotFound) {
 		t.Fatalf("rejected ledger row survived: error = %v, want errs.ErrNotFound", err)
 	}
 	if sum := ledgerSum(t, db, "member-123"); sum != 100 {
 		t.Fatalf("ledger sum after rejected spend = %d, want 100", sum)
 	}
 
-	counts := auditOutcomes(t, auditRepo)
+	counts := auditOutcomes(t, db)
 	if counts[pkgAudit.OutcomeRejected] != 1 {
 		t.Fatalf("rejected audit rows = %d, want 1", counts[pkgAudit.OutcomeRejected])
 	}
@@ -221,43 +232,24 @@ func TestProcessTransaction_NotOwnerRejected(t *testing.T) {
 	ctx := context.Background()
 	db := newTestDB(t)
 	createTestAccount(t, db, "member-123") // owned by user-member-123
-	service, auditRepo := newWalletService(db)
+	service, _ := newWalletService(db)
 
-	// a non-admin actor who does not own the account
+	// a non-admin user who does not own the account: the ownership-scoped read
+	// makes it indistinguishable from a missing account.
 	req := processRequest("tx-001", "member-123", pkgWallet.KindEarn, 100)
-	req.Actor = "user-intruder"
+	req.UserID = "user-intruder"
 
 	_, err := service.ProcessTransaction(ctx, req)
-	if !errors.Is(err, errs.ErrForbidden) {
-		t.Fatalf("error = %v, want errs.ErrForbidden", err)
+	if !errors.Is(err, errs.ErrNotFound) {
+		t.Fatalf("error = %v, want errs.ErrNotFound", err)
 	}
 
 	// nothing was applied and the ledger stayed empty
 	if sum := ledgerSum(t, db, "member-123"); sum != 0 {
 		t.Fatalf("ledger sum = %d, want 0 (nothing applied)", sum)
 	}
-	if counts := auditOutcomes(t, auditRepo); counts[pkgAudit.OutcomeRejected] != 1 {
+	if counts := auditOutcomes(t, db); counts[pkgAudit.OutcomeRejected] != 1 {
 		t.Fatalf("rejected audit rows = %d, want 1", counts[pkgAudit.OutcomeRejected])
-	}
-}
-
-func TestProcessTransaction_AdminBypassesOwnership(t *testing.T) {
-	ctx := context.Background()
-	db := newTestDB(t)
-	createTestAccount(t, db, "member-123") // owned by user-member-123
-	service, _ := newWalletService(db)
-
-	// an admin acting on an account they do not own
-	req := processRequest("tx-001", "member-123", pkgWallet.KindEarn, 100)
-	req.Actor = "admin-1"
-	req.ActorIsAdmin = true
-
-	resp, err := service.ProcessTransaction(ctx, req)
-	if err != nil {
-		t.Fatalf("admin ProcessTransaction() error = %v", err)
-	}
-	if resp.Balance != 100 {
-		t.Fatalf("Balance = %d, want 100", resp.Balance)
 	}
 }
 
@@ -267,7 +259,7 @@ func TestProcessTransactionBatch_OrderedApplication(t *testing.T) {
 	createTestAccount(t, db, "member-123")
 	// seed a starting balance of 10
 	repo := internalAccounts.NewAccountRepositoryImpl(db)
-	if _, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: 10}); err != nil {
+	if _, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: 10, UserID: "user-member-123"}); err != nil {
 		t.Fatalf("seed credit error = %v", err)
 	}
 	service, _ := newWalletService(db)
@@ -304,7 +296,7 @@ func TestProcessTransactionBatch_WrongOrderRejectsSpend(t *testing.T) {
 	db := newTestDB(t)
 	createTestAccount(t, db, "member-123")
 	repo := internalAccounts.NewAccountRepositoryImpl(db)
-	if _, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: 10}); err != nil {
+	if _, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: 10, UserID: "user-member-123"}); err != nil {
 		t.Fatalf("seed credit error = %v", err)
 	}
 	service, _ := newWalletService(db)
@@ -367,14 +359,14 @@ func TestProcessTransactionBatch_DuplicateWithinBatch(t *testing.T) {
 func TestProcessTransaction_UnknownAccount(t *testing.T) {
 	ctx := context.Background()
 	db := newTestDB(t)
-	service, auditRepo := newWalletService(db)
+	service, _ := newWalletService(db)
 
 	_, err := service.ProcessTransaction(ctx, processRequest("tx-001", "ghost", pkgWallet.KindEarn, 100))
 	if !errors.Is(err, errs.ErrNotFound) {
 		t.Fatalf("unknown account error = %v, want errs.ErrNotFound", err)
 	}
 
-	if counts := auditOutcomes(t, auditRepo); counts[pkgAudit.OutcomeRejected] != 1 {
+	if counts := auditOutcomes(t, db); counts[pkgAudit.OutcomeRejected] != 1 {
 		t.Fatalf("rejected audit rows = %d, want 1", counts[pkgAudit.OutcomeRejected])
 	}
 }

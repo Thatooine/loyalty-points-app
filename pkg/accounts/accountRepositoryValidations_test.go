@@ -39,10 +39,11 @@ func TestUpdateAccountBalanceRequest_Validate(t *testing.T) {
 		request UpdateAccountBalanceRequest
 		wantErr bool
 	}{
-		{"valid credit", UpdateAccountBalanceRequest{AccountID: "acc-1", Delta: 100}, false},
-		{"valid debit", UpdateAccountBalanceRequest{AccountID: "acc-1", Delta: -100}, false},
-		{"missing account", UpdateAccountBalanceRequest{Delta: 100}, true},
-		{"zero delta", UpdateAccountBalanceRequest{AccountID: "acc-1", Delta: 0}, true},
+		{"valid credit", UpdateAccountBalanceRequest{AccountID: "acc-1", Delta: 100, UserID: "user-1"}, false},
+		{"valid debit", UpdateAccountBalanceRequest{AccountID: "acc-1", Delta: -100, UserID: "user-1"}, false},
+		{"missing account", UpdateAccountBalanceRequest{Delta: 100, UserID: "user-1"}, true},
+		{"zero delta", UpdateAccountBalanceRequest{AccountID: "acc-1", Delta: 0, UserID: "user-1"}, true},
+		{"missing userID", UpdateAccountBalanceRequest{AccountID: "acc-1", Delta: 100}, true},
 	}
 
 	for _, tt := range tests {
@@ -59,10 +60,13 @@ func TestUpdateAccountBalanceRequest_Validate(t *testing.T) {
 }
 
 func TestGetAccountByIDRequest_Validate(t *testing.T) {
-	if err := (&GetAccountByIDRequest{AccountID: "acc-1"}).Validate(); err != nil {
+	if err := (&GetAccountByIDRequest{AccountID: "acc-1", UserID: "user-1"}).Validate(); err != nil {
 		t.Fatalf("valid request: %v", err)
 	}
 	if err := (&GetAccountByIDRequest{}).Validate(); err == nil {
 		t.Fatalf("empty AccountID: want error")
+	}
+	if err := (&GetAccountByIDRequest{AccountID: "acc-1"}).Validate(); err == nil {
+		t.Fatalf("missing UserID: want error")
 	}
 }

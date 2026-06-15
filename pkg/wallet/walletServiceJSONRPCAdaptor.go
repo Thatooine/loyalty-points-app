@@ -12,12 +12,6 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/users"
 )
 
-// WalletServiceJSONRPCAdaptor exposes WalletService over JSON-RPC. It is a
-// protected service: the authorization middleware authenticates the caller and
-// places the verified login claim in the request context before any method is
-// reached. The acting principal (Actor) and admin status are taken from that
-// claim — never from client input — so a caller cannot transact as someone
-// else.
 type WalletServiceJSONRPCAdaptor struct {
 	walletService WalletService
 }
@@ -30,10 +24,6 @@ func (a *WalletServiceJSONRPCAdaptor) Name() string {
 	return "Wallet"
 }
 
-// ProcessTransactionJSONRPCRequest is the wire request. Field names match the CSV batch
-// shape the CLI sends (account_id, occurred_at) so a batch of these can be
-// posted directly. Actor is intentionally absent: it comes from the
-// verified claim, not the client.
 type ProcessTransactionJSONRPCRequest struct {
 	Ref       string `json:"ref"`
 	AccountID string `json:"account_id"`
@@ -65,13 +55,12 @@ func (a *WalletServiceJSONRPCAdaptor) ProcessTransaction(r *http.Request, params
 	}
 
 	resp, err := a.walletService.ProcessTransaction(ctx, ProcessTransactionRequest{
-		Ref:          params.Ref,
-		AccountID:    params.AccountID,
-		Kind:         Kind(params.Kind),
-		Points:       params.Points,
-		OccurredAt:   params.OccurredAt,
-		Actor:        claim.UserID,
-		ActorIsAdmin: claim.Role == users.RoleAdmin,
+		Ref:        params.Ref,
+		AccountID:  params.AccountID,
+		Kind:       Kind(params.Kind),
+		Points:     params.Points,
+		OccurredAt: params.OccurredAt,
+		UserID:     claim.UserID,
 	})
 	if err != nil {
 		log.Ctx(ctx).Warn().Err(err).Str("accountID", params.AccountID).Msg("wallet: process transaction failed")
@@ -151,13 +140,12 @@ func (a *WalletServiceJSONRPCAdaptor) ProcessTransactionBatch(r *http.Request, p
 	}
 	for _, p := range params.Transactions {
 		batch.Transactions = append(batch.Transactions, ProcessTransactionRequest{
-			Ref:          p.Ref,
-			AccountID:    p.AccountID,
-			Kind:         Kind(p.Kind),
-			Points:       p.Points,
-			OccurredAt:   p.OccurredAt,
-			Actor:        claim.UserID,
-			ActorIsAdmin: true,
+			Ref:        p.Ref,
+			AccountID:  p.AccountID,
+			Kind:       Kind(p.Kind),
+			Points:     p.Points,
+			OccurredAt: p.OccurredAt,
+			UserID:     claim.UserID,
 		})
 	}
 
