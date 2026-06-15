@@ -87,7 +87,7 @@ func (s *UserRegistrationServiceImpl) Register(ctx context.Context, request pkgU
 
 		created, err := s.accounts.Create(ctx, pkgAccounts.CreateAccountRequest{
 			Account: pkgAccounts.Account{
-				UserID:    user.ID,
+				OwnerID:   user.ID,
 				Name:      accountName,
 				Balance:   0,
 				CreatedAt: time.Now().UTC(),

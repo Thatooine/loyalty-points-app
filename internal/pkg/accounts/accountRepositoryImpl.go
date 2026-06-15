@@ -44,7 +44,7 @@ func (r *AccountRepositoryImpl) Create(ctx context.Context, request pkgAccounts.
 		`INSERT INTO accounts (id, user_id, name, balance, created_at)
 		 VALUES ($1, $2, $3, $4, $5)`,
 		account.ID,
-		account.UserID,
+		account.OwnerID,
 		account.Name,
 		account.Balance,
 		time.FormatTime(account.CreatedAt),
@@ -216,7 +216,7 @@ func scanAccount(scan func(dest ...any) error) (*pkgAccounts.Account, error) {
 
 	if err := scan(
 		&account.ID,
-		&account.UserID,
+		&account.OwnerID,
 		&account.Name,
 		&account.Balance,
 		&createdAt,

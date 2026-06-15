@@ -39,7 +39,7 @@ func createTestUser(t *testing.T, db *sql.DB, userID string) {
 func testAccount(accountID, userID string) pkgAccounts.Account {
 	return pkgAccounts.Account{
 		ID:        accountID,
-		UserID:    userID,
+		OwnerID:   userID,
 		Name:      "Test Member",
 		Balance:   0,
 		CreatedAt: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),

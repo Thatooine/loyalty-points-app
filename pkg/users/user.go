@@ -12,7 +12,7 @@ const (
 )
 
 // User is an authenticated principal. A user owns zero or more wallet
-// accounts (Account.UserID points back here); credentials and identity live
+// accounts (Account.OwnerID points back here); credentials and identity live
 // on the user, never on the account.
 type User struct {
 	ID string `json:"id"`

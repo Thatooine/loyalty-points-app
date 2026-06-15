@@ -92,7 +92,7 @@ func TestRegister_HappyPath(t *testing.T) {
 		t.Fatalf("opened %d accounts, want 1", len(accounts.Accounts))
 	}
 	account := accounts.Accounts[0]
-	if account.ID != resp.AccountID || account.UserID != resp.UserID {
+	if account.ID != resp.AccountID || account.OwnerID != resp.UserID {
 		t.Fatalf("account %+v does not link to user %s", account, resp.UserID)
 	}
 	if account.Name != defaultAccountName || account.Balance != 0 {

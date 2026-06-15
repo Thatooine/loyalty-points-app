@@ -46,7 +46,7 @@ func createTestAccount(t *testing.T, db *sql.DB, accountID string) {
 	_, err := accountRepo.Create(context.Background(), pkgAccounts.CreateAccountRequest{
 		Account: pkgAccounts.Account{
 			ID:        accountID,
-			UserID:    "user-" + accountID,
+			OwnerID:   "user-" + accountID,
 			Name:      "Test Member",
 			CreatedAt: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
 		},
@@ -136,7 +136,7 @@ func TestRunInTx_AtomicAcrossRepositories(t *testing.T) {
 		if _, err := accountRepo.Create(ctx, pkgAccounts.CreateAccountRequest{
 			Account: pkgAccounts.Account{
 				ID:        "member-123",
-				UserID:    "user-1",
+				OwnerID:   "user-1",
 				Name:      "Test Member",
 				CreatedAt: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
 			},
@@ -176,7 +176,7 @@ func TestRunInTx_CommitAcrossRepositories(t *testing.T) {
 		if _, err := accountRepo.Create(ctx, pkgAccounts.CreateAccountRequest{
 			Account: pkgAccounts.Account{
 				ID:        "member-123",
-				UserID:    "user-1",
+				OwnerID:   "user-1",
 				Name:      "Test Member",
 				CreatedAt: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
 			},

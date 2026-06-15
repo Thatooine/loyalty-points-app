@@ -68,7 +68,7 @@ func (a *AccountJSONRPCAdaptor) GetByID(r *http.Request, params *GetByIDParams, 
 	}
 
 	result.ID = resp.Account.ID
-	result.UserID = resp.Account.UserID
+	result.UserID = resp.Account.OwnerID
 	result.Name = resp.Account.Name
 	result.Balance = resp.Account.Balance
 	result.CreatedAt = resp.Account.CreatedAt

@@ -10,8 +10,8 @@ type Account struct {
 	// ID is the account's unique identifier, a UUID assigned at persistence.
 	ID string `json:"id"`
 
-	// UserID is the owning user (users.User.ID).
-	UserID string `json:"userID"`
+	// OwnerID is the owning user (users.User.ID).
+	OwnerID string `json:"ownerID"`
 
 	Name string `json:"name"`
 

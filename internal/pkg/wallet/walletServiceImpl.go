@@ -72,7 +72,7 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 		if err != nil {
 			return s.rejectTransaction(ctx, request, delta, now, err)
 		}
-		if account.Account.UserID != request.Actor {
+		if account.Account.OwnerID != request.Actor {
 			return s.rejectTransaction(ctx, request, delta, now, errs.ErrForbidden)
 		}
 	}

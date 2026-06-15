@@ -8,8 +8,8 @@ import (
 func (r *CreateAccountRequest) Validate() error {
 	var reasons []string
 
-	if r.Account.UserID == "" {
-		reasons = append(reasons, "UserID is required")
+	if r.Account.OwnerID == "" {
+		reasons = append(reasons, "OwnerID is required")
 	}
 
 	if r.Account.Name == "" {

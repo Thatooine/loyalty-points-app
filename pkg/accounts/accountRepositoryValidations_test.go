@@ -4,7 +4,7 @@ import "testing"
 
 func TestCreateAccountRequest_Validate(t *testing.T) {
 	valid := func() CreateAccountRequest {
-		return CreateAccountRequest{Account: Account{UserID: "user-1", Name: "Wallet", Balance: 0}}
+		return CreateAccountRequest{Account: Account{OwnerID: "user-1", Name: "Wallet", Balance: 0}}
 	}
 
 	tests := []struct {
@@ -13,7 +13,7 @@ func TestCreateAccountRequest_Validate(t *testing.T) {
 		wantErr bool
 	}{
 		{"valid", func(r *CreateAccountRequest) {}, false},
-		{"missing userID", func(r *CreateAccountRequest) { r.Account.UserID = "" }, true},
+		{"missing ownerID", func(r *CreateAccountRequest) { r.Account.OwnerID = "" }, true},
 		{"missing name", func(r *CreateAccountRequest) { r.Account.Name = "" }, true},
 		{"negative balance", func(r *CreateAccountRequest) { r.Account.Balance = -1 }, true},
 	}
