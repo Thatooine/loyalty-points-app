@@ -1,8 +1,10 @@
 package authorization
 
 import (
+	"context"
 	"testing"
 
+	"github.com/Thatooine/loyalty-points-app/pkg/authentication"
 	"github.com/Thatooine/loyalty-points-app/pkg/scope"
 	"github.com/Thatooine/loyalty-points-app/pkg/users"
 )
@@ -63,11 +65,6 @@ func TestPolicy_Authorize(t *testing.T) {
 			if gotOK := policy.Authorize(tt.perms, tt.method); gotOK != tt.wantOK {
 				t.Fatalf("Authorize(%v, %q) = %v, want %v", tt.perms, tt.method, gotOK, tt.wantOK)
 			}
-			if tt.wantOK {
-				if gotScope := policy.EffectiveScope(tt.perms, tt.method); gotScope != tt.wantScope {
-					t.Fatalf("EffectiveScope(%v, %q) = %q, want %q", tt.perms, tt.method, gotScope, tt.wantScope)
-				}
-			}
 		})
 	}
 }
@@ -88,5 +85,58 @@ func TestPermissionsForRole(t *testing.T) {
 	}
 	if got := PermissionsForRole(users.Role("ghost")); got != nil {
 		t.Fatalf("unknown role should have no permissions, got %v", got)
+	}
+}
+
+func TestRolePermissions_AdminIsAllScopedOnly(t *testing.T) {
+	for _, perm := range PermissionsForRole(users.RoleAdmin) {
+		if s, ok := scope.Of(perm); ok && s != scope.All {
+			t.Fatalf("admin holds non-all-scoped permission %q", perm)
+		}
+	}
+}
+
+func TestRolePermissions_AccountWriteGrants(t *testing.T) {
+	if !contains(PermissionsForRole(users.RoleMember), PermAccountWriteOwn) {
+		t.Fatalf("member should hold %q", PermAccountWriteOwn)
+	}
+	if !contains(PermissionsForRole(users.RoleAdmin), PermAccountWriteAll) {
+		t.Fatalf("admin should hold %q", PermAccountWriteAll)
+	}
+}
+
+func contains(perms []string, want string) bool {
+	for _, p := range perms {
+		if p == want {
+			return true
+		}
+	}
+	return false
+}
+
+func TestIsGranted(t *testing.T) {
+	withPerms := func(perms ...string) context.Context {
+		return authentication.ContextWithLoginClaim(context.Background(), authentication.LoginClaim{Permissions: perms})
+	}
+
+	tests := []struct {
+		name       string
+		ctx        context.Context
+		permission string
+		want       bool
+	}{
+		{"holds the permission", withPerms(PermAccountReadAll), PermAccountReadAll, true},
+		{"holds it among others", withPerms(PermAccountReadOwn, PermWalletTransactOwn), PermAccountReadOwn, true},
+		{"own does not satisfy all", withPerms(PermAccountReadOwn), PermAccountReadAll, false},
+		{"permission not granted", withPerms(PermWalletTransactOwn), PermAccountReadAll, false},
+		{"no claim in context", context.Background(), PermAccountReadAll, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsGranted(tt.ctx, tt.permission); got != tt.want {
+				t.Fatalf("IsGranted(ctx, %q) = %v, want %v", tt.permission, got, tt.want)
+			}
+		})
 	}
 }

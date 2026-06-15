@@ -1,9 +1,6 @@
 package scope
 
-import (
-	"context"
-	"testing"
-)
+import "testing"
 
 func TestOf(t *testing.T) {
 	tests := []struct {
@@ -42,17 +39,5 @@ func TestIsAllIsOwn(t *testing.T) {
 	}
 	if IsOwn("wallet:earn") {
 		t.Fatal("IsOwn(wallet:earn) = true, want false")
-	}
-}
-
-func TestContextRoundTrip(t *testing.T) {
-	ctx := ContextWithScope(context.Background(), All)
-	got, ok := FromContext(ctx)
-	if !ok || got != All {
-		t.Fatalf("FromContext = (%q, %v), want (%q, true)", got, ok, All)
-	}
-
-	if _, ok := FromContext(context.Background()); ok {
-		t.Fatal("FromContext on bare context = ok, want not ok")
 	}
 }

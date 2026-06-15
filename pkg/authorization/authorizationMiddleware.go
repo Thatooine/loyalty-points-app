@@ -22,9 +22,10 @@ import (
 //     then checks the caller's permissions against the method (authorization).
 //
 // A caller who fails either check receives a JSON-RPC error envelope rather
-// than reaching the handler. On success the verified LoginClaim and the
-// effective scope of the matched permission are placed in the request context
-// for downstream handlers.
+// than reaching the handler. On success the verified LoginClaim is placed in
+// the request context. Method gating here is all-or-nothing; how broadly the
+// caller may act on the data (own vs all) is a separate decision resolved on
+// demand by the data layer from the claim's permissions (see IsGranted).
 func NewAuthorizationMiddleware(accessTokenService authentication.AccessTokenValidator, policy *Policy) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -69,7 +70,8 @@ func NewAuthorizationMiddleware(accessTokenService authentication.AccessTokenVal
 			claim := tokenResp.LoginClaim
 
 			// Authorize: the caller must hold a permission the method accepts.
-			// The matched permission's scope governs ownership downstream.
+			// This gate is all-or-nothing — it does not resolve a scope; the data
+			// layer enforces own-vs-all later via IsGranted.
 			if !policy.Authorize(claim.Permissions, envelope.Method) {
 				log.Ctx(ctx).Warn().
 					Str("userID", claim.UserID).
@@ -81,7 +83,8 @@ func NewAuthorizationMiddleware(accessTokenService authentication.AccessTokenVal
 				return
 			}
 
-			// Hand the verified claim and effective scope to downstream handlers.
+			// Hand the verified claim to downstream handlers; ownership scope is
+			// derived from its permissions on demand (see IsGranted).
 			ctx = authentication.ContextWithLoginClaim(ctx, claim)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

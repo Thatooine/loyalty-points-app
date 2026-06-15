@@ -10,9 +10,20 @@ import (
 	internalUsers "github.com/Thatooine/loyalty-points-app/internal/pkg/users"
 	"github.com/Thatooine/loyalty-points-app/internal/testsupport"
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
+	"github.com/Thatooine/loyalty-points-app/pkg/authentication"
+	"github.com/Thatooine/loyalty-points-app/pkg/authorization"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 )
+
+// ctxWithPerms returns a context carrying a login claim with the given
+// permissions, mirroring what the authorization middleware places on a request.
+func ctxWithPerms(perms ...string) context.Context {
+	return authentication.ContextWithLoginClaim(
+		context.Background(),
+		authentication.LoginClaim{Permissions: perms},
+	)
+}
 
 func newTestDB(t *testing.T) *sql.DB {
 	t.Helper()
@@ -240,5 +251,60 @@ func TestAccountRepositoryImpl_List(t *testing.T) {
 	}
 	if len(got.Accounts) != 2 {
 		t.Fatalf("List() returned %d accounts, want 2", len(got.Accounts))
+	}
+}
+
+func TestAccountRepositoryImpl_ListAllScopeSeesEveryOwner(t *testing.T) {
+	db := newTestDB(t)
+	createTestUser(t, db, "owner-a")
+	createTestUser(t, db, "owner-b")
+	repo := NewAccountRepositoryImpl(db)
+
+	seed := context.Background()
+	if _, err := repo.Create(seed, pkgAccounts.CreateAccountRequest{Account: testAccount("acct-a", "owner-a")}); err != nil {
+		t.Fatalf("Create(acct-a) error = %v", err)
+	}
+	if _, err := repo.Create(seed, pkgAccounts.CreateAccountRequest{Account: testAccount("acct-b", "owner-b")}); err != nil {
+		t.Fatalf("Create(acct-b) error = %v", err)
+	}
+
+	// An account:read:all caller lists across owners even though UserID names a
+	// single user (it owns just one of the accounts).
+	ctx := ctxWithPerms(authorization.PermAccountReadAll)
+	got, err := repo.List(ctx, pkgAccounts.ListAccountsRequest{UserID: "owner-a"})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(got.Accounts) != 2 {
+		t.Fatalf("all-scope List() returned %d accounts, want 2", len(got.Accounts))
+	}
+}
+
+func TestAccountRepositoryImpl_UpdateAccountBalanceAllScopeActsAcrossOwners(t *testing.T) {
+	db := newTestDB(t)
+	createTestUser(t, db, "owner")
+	createTestUser(t, db, "operator")
+	repo := NewAccountRepositoryImpl(db)
+
+	seed := context.Background()
+	if _, err := repo.Create(seed, pkgAccounts.CreateAccountRequest{Account: testAccount("member-123", "owner")}); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	// Without account:write:all, a non-owner's update matches no row.
+	_, err := repo.UpdateAccountBalance(seed, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: 100, UserID: "operator"})
+	if !errors.Is(err, errs.ErrNotFound) {
+		t.Fatalf("non-owner scoped update error = %v, want errs.ErrNotFound", err)
+	}
+
+	// With account:write:all the owner pin is dropped, so the same caller may
+	// mutate another owner's account (targeted by id).
+	ctx := ctxWithPerms(authorization.PermAccountWriteAll)
+	updated, err := repo.UpdateAccountBalance(ctx, pkgAccounts.UpdateAccountBalanceRequest{AccountID: "member-123", Delta: 100, UserID: "operator"})
+	if err != nil {
+		t.Fatalf("all-scope UpdateAccountBalance() error = %v", err)
+	}
+	if updated.Balance != 100 {
+		t.Fatalf("balance after all-scope credit = %d, want 100", updated.Balance)
 	}
 }

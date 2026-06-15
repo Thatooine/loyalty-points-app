@@ -11,11 +11,22 @@ import (
 	internalUsers "github.com/Thatooine/loyalty-points-app/internal/pkg/users"
 	"github.com/Thatooine/loyalty-points-app/internal/testsupport"
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
+	"github.com/Thatooine/loyalty-points-app/pkg/authentication"
+	"github.com/Thatooine/loyalty-points-app/pkg/authorization"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 	"github.com/Thatooine/loyalty-points-app/pkg/postgres"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallet"
 )
+
+// ctxWithPerms returns a context carrying a login claim with the given
+// permissions, mirroring what the authorization middleware places on a request.
+func ctxWithPerms(perms ...string) context.Context {
+	return authentication.ContextWithLoginClaim(
+		context.Background(),
+		authentication.LoginClaim{Permissions: perms},
+	)
+}
 
 func newTestDB(t *testing.T) *sql.DB {
 	t.Helper()
@@ -107,6 +118,40 @@ func TestTransactionRepositoryImpl_DuplicateRef(t *testing.T) {
 	_, err := repo.Create(ctx, pkgWallet.CreateTransactionRequest{Transaction: transaction})
 	if !errors.Is(err, errs.ErrDuplicateRef) {
 		t.Fatalf("Create() duplicate error = %v, want errs.ErrDuplicateRef", err)
+	}
+}
+
+func TestTransactionRepositoryImpl_AllScopeReadsAcrossOwners(t *testing.T) {
+	db := newTestDB(t)
+	createTestAccount(t, db, "acct-a")
+	createTestAccount(t, db, "acct-b")
+	repo := NewTransactionRepositoryImpl(db)
+
+	seed := context.Background()
+	if _, err := repo.Create(seed, pkgWallet.CreateTransactionRequest{Transaction: testTransaction("tx-a", "acct-a")}); err != nil {
+		t.Fatalf("Create(tx-a) error = %v", err)
+	}
+	if _, err := repo.Create(seed, pkgWallet.CreateTransactionRequest{Transaction: testTransaction("tx-b", "acct-b")}); err != nil {
+		t.Fatalf("Create(tx-b) error = %v", err)
+	}
+
+	// Without transaction:read:all, a non-owner gets ErrNotFound.
+	if _, err := repo.GetByID(seed, pkgWallet.GetTransactionByIDRequest{Ref: "tx-b", UserID: "user-acct-a"}); !errors.Is(err, errs.ErrNotFound) {
+		t.Fatalf("scoped non-owner GetByID error = %v, want errs.ErrNotFound", err)
+	}
+
+	// With transaction:read:all the owner filter is dropped, so the same caller
+	// reads another owner's transaction and lists across owners.
+	ctx := ctxWithPerms(authorization.PermTransactionReadAll)
+	if _, err := repo.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: "tx-b", UserID: "user-acct-a"}); err != nil {
+		t.Fatalf("all-scope GetByID error = %v", err)
+	}
+	got, err := repo.List(ctx, pkgWallet.ListTransactionsRequest{UserID: "user-acct-a"})
+	if err != nil {
+		t.Fatalf("all-scope List error = %v", err)
+	}
+	if len(got.Transactions) != 2 {
+		t.Fatalf("all-scope List returned %d transactions, want 2", len(got.Transactions))
 	}
 }
 

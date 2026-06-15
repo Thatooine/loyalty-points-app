@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
+	"github.com/Thatooine/loyalty-points-app/pkg/authorization"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 	"github.com/Thatooine/loyalty-points-app/pkg/postgres"
 	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
@@ -67,12 +68,13 @@ func (r *AccountRepositoryImpl) List(ctx context.Context, request pkgAccounts.Li
 
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
-	// Ownership scoping mirrors GetByID: when a UserID is supplied the WHERE
-	// clause restricts the listing to that owner's accounts.
+	// Ownership scoping mirrors GetByID: holding account:read:all lists every
+	// owner's accounts; otherwise the WHERE clause restricts the listing to
+	// request.UserID.
 	query := `SELECT id, owner_id, name, balance, created_at
 		 FROM accounts`
 	var args []any
-	if request.UserID != "" {
+	if !authorization.IsGranted(ctx, authorization.PermAccountReadAll) {
 		query += ` WHERE owner_id = $1`
 		args = append(args, request.UserID)
 	}
@@ -107,14 +109,16 @@ func (r *AccountRepositoryImpl) GetByID(ctx context.Context, request pkgAccounts
 
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
-	// Ownership scoping: when a UserID is supplied the WHERE clause restricts
-	// the row to that owner, so a non-owner sees the same ErrNotFound as for a
+	// Ownership scoping is driven by the caller's permissions: holding
+	// account:read:all reads across owners; otherwise (own-scope only, or no
+	// account:read:all grant — e.g. an internal caller) the WHERE clause restricts
+	// the row to request.UserID, so a non-owner sees the same ErrNotFound as for a
 	// missing account.
 	query := `SELECT id, owner_id, name, balance, created_at
 		 FROM accounts
 		 WHERE id = $1`
 	args := []any{request.AccountID}
-	if request.UserID != "" {
+	if !authorization.IsGranted(ctx, authorization.PermAccountReadAll) {
 		query += ` AND owner_id = $2`
 		args = append(args, request.UserID)
 	}
@@ -140,10 +144,12 @@ func (r *AccountRepositoryImpl) GetAccountBalance(ctx context.Context, request p
 
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
-	// Ownership scoping mirrors GetByID: a non-owner gets ErrNotFound.
+	// Ownership scoping mirrors GetByID: holding account:read:all reads across
+	// owners; otherwise the read is restricted to request.UserID and a non-owner
+	// gets ErrNotFound.
 	query := `SELECT balance FROM accounts WHERE id = $1`
 	args := []any{request.AccountID}
-	if request.UserID != "" {
+	if !authorization.IsGranted(ctx, authorization.PermAccountReadAll) {
 		query += ` AND owner_id = $2`
 		args = append(args, request.UserID)
 	}
@@ -169,18 +175,19 @@ func (r *AccountRepositoryImpl) UpdateAccountBalance(ctx context.Context, reques
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	// Single atomic, overdraft-guarded statement: the WHERE clause makes the
-	// read-check-write indivisible. When a UserID is supplied the same clause
-	// also pins the row to that owner (owner_id), so the ownership check is
-	// enforced in the very statement that mutates — a non-owner's update matches
-	// no row. On Postgres the row is locked for the life of the surrounding
-	// transaction, so two concurrent debits to the same account serialize at the
-	// row rather than the whole database. The CHECK constraint on the column is
-	// the backstop.
+	// read-check-write indivisible. Unless the caller holds account:write:all the
+	// same clause also pins the row to request.UserID (owner_id), so the
+	// ownership check is enforced in the very statement that mutates — a
+	// non-owner's update matches no row. On Postgres the row is locked for the
+	// life of the surrounding transaction, so two concurrent debits to the same
+	// account serialize at the row rather than the whole database. The CHECK
+	// constraint on the column is the backstop.
+	scoped := !authorization.IsGranted(ctx, authorization.PermAccountWriteAll)
 	query := `UPDATE accounts
 		 SET balance = balance + $1
 		 WHERE id = $2 AND balance + $1 >= 0`
 	args := []any{request.Delta, request.AccountID}
-	if request.UserID != "" {
+	if scoped {
 		query += ` AND owner_id = $3`
 		args = append(args, request.UserID)
 	}
@@ -202,7 +209,7 @@ func (r *AccountRepositoryImpl) UpdateAccountBalance(ctx context.Context, reques
 		// mirroring GetByID); a row means the balance guard rejected the delta.
 		checkQuery := `SELECT balance FROM accounts WHERE id = $1`
 		checkArgs := []any{request.AccountID}
-		if request.UserID != "" {
+		if scoped {
 			checkQuery += ` AND owner_id = $2`
 			checkArgs = append(checkArgs, request.UserID)
 		}

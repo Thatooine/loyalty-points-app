@@ -41,9 +41,9 @@ type CreateAuditEntryResponse struct {
 
 // ListAuditEntriesRequest is the request for List.
 type ListAuditEntriesRequest struct {
-	// UserID, when non-empty, scopes the listing to the owning user so only
-	// that user's audit entries are returned. Leave empty for internal/admin
-	// listings that must see every entry.
+	// UserID names the owner the listing is scoped to. A caller granted
+	// audit:read:all reads across owners regardless; otherwise only this user's
+	// audit entries are returned.
 	UserID string
 }
 
@@ -56,9 +56,9 @@ type ListAuditEntriesResponse struct {
 type ListAuditEntriesByTransactionRefRequest struct {
 	TransactionRef string
 
-	// UserID, when non-empty, scopes the listing to the owning user so entries
-	// for another user's account are not returned. Leave empty for
-	// internal/admin listings.
+	// UserID names the owner the listing is scoped to. A caller granted
+	// audit:read:all reads across owners regardless; otherwise entries for
+	// another user's account are not returned.
 	UserID string
 }
 
@@ -71,9 +71,9 @@ type ListAuditEntriesByTransactionRefResponse struct {
 type ListAuditEntriesByAccountIDRequest struct {
 	AccountID string
 
-	// UserID, when non-empty, scopes the listing to the owning user so a caller
-	// cannot read audit entries for an account they do not own. Leave empty for
-	// internal/admin listings.
+	// UserID names the owner the listing is scoped to. A caller granted
+	// audit:read:all reads across owners regardless; otherwise a caller cannot
+	// read audit entries for an account they do not own.
 	UserID string
 }
 
@@ -86,9 +86,9 @@ type ListAuditEntriesByAccountIDResponse struct {
 type GetAuditEntryByIDRequest struct {
 	ID int64
 
-	// UserID, when non-empty, scopes the lookup to the owning user: an entry
-	// owned by another user is reported as errs.ErrNotFound. Leave empty for
-	// internal/admin lookups that must read any entry.
+	// UserID names the owner the lookup is scoped to. A caller granted
+	// audit:read:all reads any entry; otherwise an entry owned by another user is
+	// reported as errs.ErrNotFound.
 	UserID string
 }
 

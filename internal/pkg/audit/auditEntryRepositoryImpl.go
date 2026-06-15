@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audit"
+	"github.com/Thatooine/loyalty-points-app/pkg/authorization"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
 	"github.com/Thatooine/loyalty-points-app/pkg/time"
@@ -67,12 +68,13 @@ func (r *AuditEntryRepositoryImpl) List(ctx context.Context, request pkgAudit.Li
 		return nil, fmt.Errorf("invalid request for List: %w", err)
 	}
 
-	// Ownership scoping: when a UserID is supplied the WHERE clause restricts
-	// the listing to that owner's entries.
+	// Ownership scoping mirrors the account repository: holding audit:read:all
+	// lists every owner's entries; otherwise the WHERE clause restricts the
+	// listing to request.UserID.
 	query := `SELECT id, ref, account_id, owner_id, kind, points, outcome, reason, user_id, created_at
 		 FROM audit_log`
 	var args []any
-	if request.UserID != "" {
+	if !authorization.IsGranted(ctx, authorization.PermAuditReadAll) {
 		query += ` WHERE owner_id = $1`
 		args = append(args, request.UserID)
 	}
@@ -96,7 +98,7 @@ func (r *AuditEntryRepositoryImpl) ListByTransactionRef(ctx context.Context, req
 		 FROM audit_log
 		 WHERE ref = $1`
 	args := []any{request.TransactionRef}
-	if request.UserID != "" {
+	if !authorization.IsGranted(ctx, authorization.PermAuditReadAll) {
 		query += ` AND owner_id = $2`
 		args = append(args, request.UserID)
 	}
@@ -120,7 +122,7 @@ func (r *AuditEntryRepositoryImpl) ListByAccountID(ctx context.Context, request 
 		 FROM audit_log
 		 WHERE account_id = $1`
 	args := []any{request.AccountID}
-	if request.UserID != "" {
+	if !authorization.IsGranted(ctx, authorization.PermAuditReadAll) {
 		query += ` AND owner_id = $2`
 		args = append(args, request.UserID)
 	}
@@ -173,7 +175,7 @@ func (r *AuditEntryRepositoryImpl) GetByID(ctx context.Context, request pkgAudit
 		 FROM audit_log
 		 WHERE id = $1`
 	args := []any{request.ID}
-	if request.UserID != "" {
+	if !authorization.IsGranted(ctx, authorization.PermAuditReadAll) {
 		query += ` AND owner_id = $2`
 		args = append(args, request.UserID)
 	}

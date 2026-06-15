@@ -13,7 +13,6 @@ import (
 	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audit"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 	"github.com/Thatooine/loyalty-points-app/pkg/postgres"
-	"github.com/Thatooine/loyalty-points-app/pkg/scope"
 	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallet"
 )
 
@@ -35,8 +34,7 @@ func processRequest(ref, accountID string, kind pkgWallet.Kind, points int64) pk
 		Kind:       kind,
 		Points:     points,
 		OccurredAt: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
-		ActorID:    "user-" + accountID,
-		Scope:      scope.Own,
+		UserID:     "user-" + accountID,
 	}
 }
 
@@ -239,7 +237,7 @@ func TestProcessTransaction_NotOwnerRejected(t *testing.T) {
 	// a non-admin user who does not own the account: the ownership-scoped read
 	// makes it indistinguishable from a missing account.
 	req := processRequest("tx-001", "member-123", pkgWallet.KindEarn, 100)
-	req.ActorID = "user-intruder"
+	req.UserID = "user-intruder"
 
 	_, err := service.ProcessTransaction(ctx, req)
 	if !errors.Is(err, errs.ErrNotFound) {
@@ -252,31 +250,6 @@ func TestProcessTransaction_NotOwnerRejected(t *testing.T) {
 	}
 	if counts := auditOutcomes(t, db); counts[pkgAudit.OutcomeRejected] != 1 {
 		t.Fatalf("rejected audit rows = %d, want 1", counts[pkgAudit.OutcomeRejected])
-	}
-}
-
-func TestProcessTransaction_AllScopeActsOnAnyOwner(t *testing.T) {
-	ctx := context.Background()
-	db := newTestDB(t)
-	createTestAccount(t, db, "member-123") // owned by user-member-123
-	service, _ := newWalletService(db)
-
-	// An all-scoped caller (e.g. an admin) who does not own the account: the
-	// empty owner filter lets the transaction through, and the ledger records
-	// the actor as CreatedBy even though they are not the owner.
-	req := processRequest("tx-001", "member-123", pkgWallet.KindEarn, 100)
-	req.ActorID = "user-admin"
-	req.Scope = scope.All
-
-	resp, err := service.ProcessTransaction(ctx, req)
-	if err != nil {
-		t.Fatalf("all-scope ProcessTransaction() error = %v", err)
-	}
-	if resp.Balance != 100 {
-		t.Fatalf("Balance = %d, want 100", resp.Balance)
-	}
-	if got := resp.Transaction.CreatedBy; got != "user-admin" {
-		t.Fatalf("CreatedBy = %q, want user-admin", got)
 	}
 }
 

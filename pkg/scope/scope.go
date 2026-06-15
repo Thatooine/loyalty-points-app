@@ -7,14 +7,13 @@
 // permissions carry no scope segment at all (e.g. a hypothetical
 // "system:ping").
 //
-// The package is deliberately a leaf with no dependencies beyond the standard
-// library: it parses strings and carries the resolved scope on a context so the
-// authorization middleware can hand it to downstream adaptors.
+// The package is a pure parser: it inspects permission strings and has no
+// dependencies. Whether a caller actually holds a permission is answered by
+// authorization.IsGranted, which reads the login claim from the request
+// context.
 package scope
 
-import (
-	"strings"
-)
+import "strings"
 
 // Scope is the access breadth encoded in a permission string.
 type Scope string

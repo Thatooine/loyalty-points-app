@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
+	"github.com/Thatooine/loyalty-points-app/pkg/authorization"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 	"github.com/Thatooine/loyalty-points-app/pkg/postgres"
 	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
@@ -86,12 +87,13 @@ func (r *TransactionRepositoryImpl) List(ctx context.Context, request pkgWallet.
 
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
-	// Ownership scoping: when a UserID is supplied the WHERE clause restricts
-	// the listing to that owner's transactions.
+	// Ownership scoping mirrors the account repository: holding
+	// transaction:read:all lists every owner's transactions; otherwise the WHERE
+	// clause restricts the listing to request.UserID.
 	query := `SELECT id, ref, account_id, owner_id, kind, points, occurred_at, recorded_at, created_by
 		 FROM transactions`
 	var args []any
-	if request.UserID != "" {
+	if !authorization.IsGranted(ctx, authorization.PermTransactionReadAll) {
 		query += ` WHERE owner_id = $1`
 		args = append(args, request.UserID)
 	}
@@ -126,13 +128,14 @@ func (r *TransactionRepositoryImpl) GetByID(ctx context.Context, request pkgWall
 
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
-	// Ownership scoping mirrors the account repository: when a UserID is
-	// supplied a non-owner gets the same ErrNotFound as for a missing row.
+	// Ownership scoping mirrors the account repository: holding
+	// transaction:read:all reads across owners; otherwise a non-owner gets the
+	// same ErrNotFound as for a missing row.
 	query := `SELECT id, ref, account_id, owner_id, kind, points, occurred_at, recorded_at, created_by
 		 FROM transactions
 		 WHERE ref = $1`
 	args := []any{request.Ref}
-	if request.UserID != "" {
+	if !authorization.IsGranted(ctx, authorization.PermTransactionReadAll) {
 		query += ` AND owner_id = $2`
 		args = append(args, request.UserID)
 	}

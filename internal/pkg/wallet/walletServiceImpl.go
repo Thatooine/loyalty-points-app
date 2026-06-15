@@ -67,7 +67,7 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 		ctx,
 		pkgAccounts.GetAccountByIDRequest{
 			AccountID: request.AccountID,
-			UserID:    request.OwnerFilter(),
+			UserID:    request.UserID,
 		},
 	)
 	if err != nil {
@@ -92,18 +92,18 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 				Points:     delta,
 				OccurredAt: occurredAt,
 				RecordedAt: now,
-				CreatedBy:  request.ActorID,
+				CreatedBy:  request.UserID,
 			},
 		})
 		if errors.Is(err, errs.ErrDuplicateRef) {
 			// Seen before: return the original outcome with Duplicate=true.
 			// This is normal operation (client retry / file reprocessing),
 			// not an error.
-			original, err := s.transactionRepository.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: request.Ref, UserID: request.OwnerFilter()})
+			original, err := s.transactionRepository.GetByID(ctx, pkgWallet.GetTransactionByIDRequest{Ref: request.Ref, UserID: request.UserID})
 			if err != nil {
 				return err
 			}
-			account, err := s.accountRepository.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: request.AccountID, UserID: request.OwnerFilter()})
+			account, err := s.accountRepository.GetByID(ctx, pkgAccounts.GetAccountByIDRequest{AccountID: request.AccountID, UserID: request.UserID})
 			if err != nil {
 				return err
 			}
@@ -268,7 +268,7 @@ func buildAuditEntry(request pkgWallet.ProcessTransactionRequest, delta int64, o
 			Points:         &points,
 			Outcome:        outcome,
 			Reason:         reason,
-			UserID:         request.ActorID,
+			UserID:         request.UserID,
 			CreatedAt:      now,
 		},
 	}

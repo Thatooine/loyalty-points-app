@@ -1,6 +1,11 @@
 package authorization
 
-import "github.com/Thatooine/loyalty-points-app/pkg/users"
+import (
+	"context"
+
+	"github.com/Thatooine/loyalty-points-app/pkg/authentication"
+	"github.com/Thatooine/loyalty-points-app/pkg/users"
+)
 
 // Permissions are the unit of access control. Each is a string formatted
 // "resource:action[:scope]" where scope is "own" (the caller's own data) or
@@ -13,6 +18,25 @@ const (
 	PermAccountReadOwn = "account:read:own"
 	// PermAccountReadAll lets a caller read any account or balance.
 	PermAccountReadAll = "account:read:all"
+
+	// PermAccountWriteOwn lets a caller mutate the balance of an account they
+	// own.
+	PermAccountWriteOwn = "account:write:own"
+	// PermAccountWriteAll lets a caller mutate the balance of any account. It is
+	// a data-scope permission consumed by the account repository to widen
+	// ownership enforcement; it is not mapped to an RPC method in Policy, since
+	// balance mutation is reached only through the wallet transaction flow.
+	PermAccountWriteAll = "account:write:all"
+
+	// PermAuditReadOwn lets a caller read audit entries they own.
+	PermAuditReadOwn = "audit:read:own"
+	// PermAuditReadAll lets a caller read any owner's audit entries.
+	PermAuditReadAll = "audit:read:all"
+
+	// PermTransactionReadOwn lets a caller read transactions they own.
+	PermTransactionReadOwn = "transaction:read:own"
+	// PermTransactionReadAll lets a caller read any owner's transactions.
+	PermTransactionReadAll = "transaction:read:all"
 
 	// PermWalletTransactOwn lets a caller process a transaction against an
 	// account they own.
@@ -32,10 +56,16 @@ const (
 var RolePermissions = map[users.Role][]string{
 	users.RoleMember: {
 		PermAccountReadOwn,
+		PermAccountWriteOwn,
+		PermAuditReadOwn,
+		PermTransactionReadOwn,
 		PermWalletTransactOwn,
 	},
 	users.RoleAdmin: {
 		PermAccountReadAll,
+		PermAccountWriteAll,
+		PermAuditReadAll,
+		PermTransactionReadAll,
 		PermWalletTransactAll,
 		PermWalletBatchAll,
 	},
@@ -46,4 +76,26 @@ var RolePermissions = map[users.Role][]string{
 // caller's permissions travel with their access token.
 func PermissionsForRole(role users.Role) []string {
 	return RolePermissions[role]
+}
+
+// IsGranted reports whether the authenticated caller holds the given
+// permission. The caller's login claim — carrying the permissions they were
+// granted — is read from ctx, where the authorization middleware placed it. It
+// returns false when no claim is present or the permission is not among those
+// granted.
+//
+// The result drives ownership enforcement downstream: a read scopes to the
+// caller's own rows unless they hold the matching ":all" permission, e.g.
+// PermAccountReadAll.
+func IsGranted(ctx context.Context, permission string) bool {
+	claim, ok := authentication.LoginClaimFromContext(ctx)
+	if !ok {
+		return false
+	}
+	for _, p := range claim.Permissions {
+		if p == permission {
+			return true
+		}
+	}
+	return false
 }

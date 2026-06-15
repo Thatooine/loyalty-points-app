@@ -12,7 +12,6 @@ import (
 
 	"github.com/Thatooine/loyalty-points-app/pkg/authentication"
 	"github.com/Thatooine/loyalty-points-app/pkg/jsonrpc"
-	"github.com/Thatooine/loyalty-points-app/pkg/scope"
 )
 
 // fakeTokenService is a test double for authentication.AccessTokenValidator.
@@ -118,26 +117,6 @@ func TestAuthorizationMiddleware_AllowsPermittedMethod(t *testing.T) {
 	}
 	if seenBody != body {
 		t.Fatalf("body not restored for handler: got %q", seenBody)
-	}
-}
-
-func TestAuthorizationMiddleware_PublishesEffectiveScope(t *testing.T) {
-	policy := DefaultPolicy()
-	tokens := fakeTokenService{claim: authentication.LoginClaim{UserID: "admin1", Permissions: []string{PermAccountReadAll}}}
-
-	var gotScope scope.Scope
-	var gotOK bool
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotScope, gotOK = scope.FromContext(r.Context())
-	})
-	handler := NewAuthorizationMiddleware(tokens, policy)(next)
-
-	req := httptest.NewRequest(http.MethodPost, "/api", strings.NewReader(rpcBody(getAccountMethod)))
-	req.Header.Set("Authorization", "Bearer valid-token")
-	handler.ServeHTTP(httptest.NewRecorder(), req)
-
-	if !gotOK || gotScope != scope.All {
-		t.Fatalf("effective scope in context = (%q, %v), want (%q, true)", gotScope, gotOK, scope.All)
 	}
 }
 

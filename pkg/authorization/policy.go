@@ -20,8 +20,9 @@ const (
 // Policy is the access-control entity: it maps each JSON-RPC method to the
 // permissions that may invoke it, and records which methods are public. A
 // method maps to one or more permissions; a caller is authorized when they hold
-// any one of them, and the matched permission's scope governs how ownership is
-// enforced downstream.
+// any one of them. This is purely an all-or-nothing method gate — it resolves
+// no scope; how broadly the caller may act (own vs all) is enforced separately
+// by the data layer via IsGranted.
 type Policy struct {
 	byMethod map[string][]string
 	public   map[string]bool
@@ -60,7 +61,8 @@ func (p *Policy) IsPublic(method string) bool {
 
 // Authorize reports whether a caller holding callerPerms may invoke method: it
 // is true when the caller holds at least one of the method's permissions. The
-// breadth of that access is reported separately by EffectiveScope.
+// breadth of that access (own vs all) is enforced separately, on demand, by
+// checking the caller's claim for a specific permission via IsGranted.
 func (p *Policy) Authorize(callerPerms []string, method string) bool {
 	required, ok := p.byMethod[method]
 	if !ok {
