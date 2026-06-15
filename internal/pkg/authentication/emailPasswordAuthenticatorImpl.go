@@ -19,7 +19,7 @@ import (
 const accessTokenTTL = 24 * time.Hour
 
 type EmailPasswordAuthenticatorImpl struct {
-	users              pkgUsers.UserRepository
+	userRepository     pkgUsers.UserRepository
 	accessTokenService pkgAuth.AccessTokenIssuer
 }
 
@@ -28,7 +28,7 @@ func NewEmailPasswordAuthenticatorImpl(
 	accessTokenService pkgAuth.AccessTokenIssuer,
 ) *EmailPasswordAuthenticatorImpl {
 	return &EmailPasswordAuthenticatorImpl{
-		users:              users,
+		userRepository:     users,
 		accessTokenService: accessTokenService,
 	}
 }
@@ -39,8 +39,13 @@ func (s *EmailPasswordAuthenticatorImpl) Authenticate(ctx context.Context, reque
 		return nil, fmt.Errorf("invalid request for Authenticate: %w", err)
 	}
 
-	// 1. retrieve the user entity by email
-	userResp, err := s.users.GetByEmail(ctx, pkgUsers.GetUserByEmailRequest{Email: request.Email})
+	// 1. retrieve the user entity by email. Login runs before any claim exists,
+	// so it acts as the system principal: the user repository exempts
+	// SystemUserID from ownership scoping, letting the lookup resolve any email.
+	userResp, err := s.userRepository.GetByEmail(ctx, pkgUsers.GetUserByEmailRequest{
+		Email:  request.Email,
+		UserID: pkgUsers.SystemUserID,
+	})
 	if err != nil {
 		if errors.Is(err, errs.ErrNotFound) {
 			log.Ctx(ctx).Warn().Str("email", request.Email).Msg("authentication failed: no user for email")

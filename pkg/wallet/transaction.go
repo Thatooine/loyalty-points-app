@@ -7,9 +7,8 @@ import "time"
 type Kind string
 
 const (
-	KindEarn   Kind = "earn"
-	KindSpend  Kind = "spend"
-	KindAdjust Kind = "adjust"
+	KindEarn  Kind = "earn"
+	KindSpend Kind = "spend"
 )
 
 // Transaction is one entry in the append-only points ledger — the source of

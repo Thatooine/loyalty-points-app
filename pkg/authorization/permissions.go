@@ -38,6 +38,12 @@ const (
 	// PermTransactionReadAll lets a caller read any owner's transactions.
 	PermTransactionReadAll = "transaction:read:all"
 
+	// PermUserReadOwn lets a caller read their own user record. For users the
+	// owner identity is the row's own id, so "own" means id == caller.
+	PermUserReadOwn = "user:read:own"
+	// PermUserReadAll lets a caller read any user record.
+	PermUserReadAll = "user:read:all"
+
 	// PermWalletTransactOwn lets a caller process a transaction against an
 	// account they own.
 	PermWalletTransactOwn = "wallet:transact:own"
@@ -59,6 +65,7 @@ var RolePermissions = map[users.Role][]string{
 		PermAccountWriteOwn,
 		PermAuditReadOwn,
 		PermTransactionReadOwn,
+		PermUserReadOwn,
 		PermWalletTransactOwn,
 	},
 	users.RoleAdmin: {
@@ -66,6 +73,7 @@ var RolePermissions = map[users.Role][]string{
 		PermAccountWriteAll,
 		PermAuditReadAll,
 		PermTransactionReadAll,
+		PermUserReadAll,
 		PermWalletTransactAll,
 		PermWalletBatchAll,
 	},
