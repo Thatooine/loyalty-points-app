@@ -24,6 +24,11 @@ type AuditEntry struct {
 
 	AccountID *string `json:"accountID"`
 
+	// OwnerID is the owning user of the account, when it could be resolved. Like
+	// AccountID it is nullable: an unknown account (or a malformed row) has no
+	// owner to record.
+	OwnerID *string `json:"ownerID"`
+
 	// Kind and Points echo the attempted payload so the audit trail is
 	// readable without cross-referencing the ledger.
 	Kind   *string `json:"kind"`

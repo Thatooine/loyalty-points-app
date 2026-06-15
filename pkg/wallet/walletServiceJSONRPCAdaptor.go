@@ -32,7 +32,7 @@ func (a *WalletServiceJSONRPCAdaptor) Name() string {
 
 // ProcessTransactionJSONRPCRequest is the wire request. Field names match the CSV batch
 // shape the CLI sends (account_id, occurred_at) so a batch of these can be
-// posted directly. Actor/Source are intentionally absent: they come from the
+// posted directly. Actor is intentionally absent: it comes from the
 // verified claim, not the client.
 type ProcessTransactionJSONRPCRequest struct {
 	Ref       string `json:"ref"`
@@ -72,7 +72,6 @@ func (a *WalletServiceJSONRPCAdaptor) ProcessTransaction(r *http.Request, params
 		OccurredAt:   params.OccurredAt,
 		Actor:        claim.UserID,
 		ActorIsAdmin: claim.Role == users.RoleAdmin,
-		Source:       "api",
 	})
 	if err != nil {
 		log.Ctx(ctx).Warn().Err(err).Str("accountID", params.AccountID).Msg("wallet: process transaction failed")
@@ -102,7 +101,7 @@ func (a *WalletServiceJSONRPCAdaptor) ProcessTransaction(r *http.Request, params
 // ProcessTransactionBatchParams is the wire request for the batch ingestion
 // path. Transactions are applied in array order — the caller (the CLI) sorts
 // them by OccurredAt, then line, before sending. As with the single method,
-// Actor/Source are taken from the verified claim, never from the client.
+// Actor is taken from the verified claim, never from the client.
 type ProcessTransactionBatchParams struct {
 	Transactions []ProcessTransactionJSONRPCRequest `json:"transactions"`
 }
@@ -159,7 +158,6 @@ func (a *WalletServiceJSONRPCAdaptor) ProcessTransactionBatch(r *http.Request, p
 			OccurredAt:   p.OccurredAt,
 			Actor:        claim.UserID,
 			ActorIsAdmin: true,
-			Source:       "batch",
 		})
 	}
 

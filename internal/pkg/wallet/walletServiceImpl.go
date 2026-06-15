@@ -58,30 +58,32 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 		occurredAt = now
 	}
 
+	// Resolve the owning account up front. The lookup is unscoped so we can tell
+	// "unknown account" apart from "not the owner" for the audit trail, and so
+	// the owner id is stamped on the ledger and audit rows for member and admin
+	// callers alike. A failed lookup rejects the attempt (no owner to record).
+	account, err := s.accountRepository.GetByID(
+		ctx,
+		pkgAccounts.GetAccountByIDRequest{
+			AccountID: request.AccountID,
+		},
+	)
+	if err != nil {
+		return s.rejectTransaction(ctx, request, delta, now, nil, err)
+	}
+	ownerID := account.Account.OwnerID
+
 	// Ownership gate: a non-admin actor may only transact on an account they
-	// own. We resolve the account up front (an unscoped lookup so we can tell
-	// "unknown account" apart from "not the owner" for the audit trail). Admins
-	// bypass the check and may act on any account.
-	if !request.ActorIsAdmin {
-		account, err := s.accountRepository.GetByID(
-			ctx,
-			pkgAccounts.GetAccountByIDRequest{
-				AccountID: request.AccountID,
-			},
-		)
-		if err != nil {
-			return s.rejectTransaction(ctx, request, delta, now, err)
-		}
-		if account.Account.OwnerID != request.Actor {
-			return s.rejectTransaction(ctx, request, delta, now, errs.ErrForbidden)
-		}
+	// own. Admins bypass the check and may act on any account.
+	if !request.ActorIsAdmin && ownerID != request.Actor {
+		return s.rejectTransaction(ctx, request, delta, now, &ownerID, errs.ErrForbidden)
 	}
 
 	var resp *pkgWallet.ProcessTransactionResponse
 
 	// One unit of work: ledger insert, balance update, and the accepted/
 	// duplicate audit row all commit together or not at all.
-	err := s.txManager.RunInTx(ctx, func(ctx context.Context) error {
+	err = s.txManager.RunInTx(ctx, func(ctx context.Context) error {
 		// 1. Idempotency: attempt the ledger insert FIRST. The unique
 		//    constraint on ref is the dedupe mechanism — we never
 		//    check-then-insert.
@@ -89,6 +91,7 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 			Transaction: pkgWallet.Transaction{
 				Ref:        request.Ref,
 				AccountID:  request.AccountID,
+				OwnerID:    ownerID,
 				Kind:       request.Kind,
 				Points:     delta,
 				OccurredAt: occurredAt,
@@ -108,7 +111,7 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 			if err != nil {
 				return err
 			}
-			if _, err := s.auditEntryRepository.Create(ctx, buildAuditEntry(request, delta, pkgAudit.OutcomeDuplicate, "duplicate", now)); err != nil {
+			if _, err := s.auditEntryRepository.Create(ctx, buildAuditEntry(request, delta, &ownerID, pkgAudit.OutcomeDuplicate, "duplicate", now)); err != nil {
 				return err
 			}
 			resp = &pkgWallet.ProcessTransactionResponse{
@@ -141,6 +144,7 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 			buildAuditEntry(
 				request,
 				delta,
+				&ownerID,
 				pkgAudit.OutcomeAccepted,
 				"ok",
 				now,
@@ -160,7 +164,7 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 	//    row on the plain context (pool executor) — outside the rolled-back
 	//    transaction — so the trail survives the rejection.
 	if err != nil {
-		return s.rejectTransaction(ctx, request, delta, now, err)
+		return s.rejectTransaction(ctx, request, delta, now, &ownerID, err)
 	}
 
 	return resp, nil
@@ -210,12 +214,13 @@ func (s *WalletServiceImpl) ProcessTransactionBatch(ctx context.Context, request
 // rejectTransaction records a rejected audit entry on the plain context (so the
 // trail survives the rolled-back unit of work, or a pre-flight rejection that
 // never opened one) and returns the originating error.
-func (s *WalletServiceImpl) rejectTransaction(ctx context.Context, request pkgWallet.ProcessTransactionRequest, delta int64, now time.Time, err error) (*pkgWallet.ProcessTransactionResponse, error) {
+func (s *WalletServiceImpl) rejectTransaction(ctx context.Context, request pkgWallet.ProcessTransactionRequest, delta int64, now time.Time, ownerID *string, err error) (*pkgWallet.ProcessTransactionResponse, error) {
 	if _, auditErr := s.auditEntryRepository.Create(
 		ctx,
 		buildAuditEntry(
 			request,
 			delta,
+			ownerID,
 			pkgAudit.OutcomeRejected,
 			reasonFor(err),
 			now),
@@ -250,7 +255,7 @@ func reasonFor(err error) string {
 
 // buildAuditEntry assembles an audit row echoing the attempted payload. Points
 // records the signed delta as applied, matching the ledger.
-func buildAuditEntry(request pkgWallet.ProcessTransactionRequest, delta int64, outcome pkgAudit.Outcome, reason string, now time.Time) pkgAudit.CreateAuditEntryRequest {
+func buildAuditEntry(request pkgWallet.ProcessTransactionRequest, delta int64, ownerID *string, outcome pkgAudit.Outcome, reason string, now time.Time) pkgAudit.CreateAuditEntryRequest {
 	ref := request.Ref
 	accountID := request.AccountID
 	kind := string(request.Kind)
@@ -260,6 +265,7 @@ func buildAuditEntry(request pkgWallet.ProcessTransactionRequest, delta int64, o
 		AuditEntry: pkgAudit.AuditEntry{
 			TransactionRef: &ref,
 			AccountID:      &accountID,
+			OwnerID:        ownerID,
 			Kind:           &kind,
 			Points:         &points,
 			Outcome:        outcome,

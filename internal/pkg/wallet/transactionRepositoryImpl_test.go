@@ -60,6 +60,7 @@ func testTransaction(ref, accountID string) pkgWallet.Transaction {
 	return pkgWallet.Transaction{
 		Ref:        ref,
 		AccountID:  accountID,
+		OwnerID:    "user-" + accountID,
 		Kind:       pkgWallet.KindEarn,
 		Points:     150,
 		OccurredAt: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),

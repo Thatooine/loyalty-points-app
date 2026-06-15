@@ -48,10 +48,6 @@ type ProcessTransactionRequest struct {
 	// account they own. The adaptor sets this from the verified login claim —
 	// it is never taken from client input.
 	ActorIsAdmin bool
-
-	// Source records where the attempt came from: "api", "admin", or
-	// "batch:<filename>".
-	Source string
 }
 
 // ProcessTransactionResponse is the response for ProcessTransaction.

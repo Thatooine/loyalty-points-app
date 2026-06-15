@@ -9,7 +9,6 @@ func validProcessRequest() ProcessTransactionRequest {
 		Kind:      KindEarn,
 		Points:    150,
 		Actor:     "user-1",
-		Source:    "api",
 	}
 }
 

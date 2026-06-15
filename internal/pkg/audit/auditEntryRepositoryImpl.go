@@ -40,11 +40,12 @@ func (r *AuditEntryRepositoryImpl) Create(ctx context.Context, request pkgAudit.
 	// idiom for reading back the generated identity.
 	var id int64
 	err := exec.QueryRowContext(ctx,
-		`INSERT INTO audit_log (ref, account_id, kind, points, outcome, reason, actor, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`INSERT INTO audit_log (ref, account_id, owner_id, kind, points, outcome, reason, actor, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		 RETURNING id`,
 		entry.TransactionRef,
 		entry.AccountID,
+		entry.OwnerID,
 		entry.Kind,
 		entry.Points,
 		string(entry.Outcome),
@@ -67,7 +68,7 @@ func (r *AuditEntryRepositoryImpl) List(ctx context.Context, request pkgAudit.Li
 	}
 
 	entries, err := r.queryEntries(ctx,
-		`SELECT id, ref, account_id, kind, points, outcome, reason, actor, created_at
+		`SELECT id, ref, account_id, owner_id, kind, points, outcome, reason, actor, created_at
 		 FROM audit_log
 		 ORDER BY id`,
 	)
@@ -85,7 +86,7 @@ func (r *AuditEntryRepositoryImpl) ListByTransactionRef(ctx context.Context, req
 	}
 
 	entries, err := r.queryEntries(ctx,
-		`SELECT id, ref, account_id, kind, points, outcome, reason, actor, created_at
+		`SELECT id, ref, account_id, owner_id, kind, points, outcome, reason, actor, created_at
 		 FROM audit_log
 		 WHERE ref = $1
 		 ORDER BY id`,
@@ -105,7 +106,7 @@ func (r *AuditEntryRepositoryImpl) ListByAccountID(ctx context.Context, request 
 	}
 
 	entries, err := r.queryEntries(ctx,
-		`SELECT id, ref, account_id, kind, points, outcome, reason, actor, created_at
+		`SELECT id, ref, account_id, owner_id, kind, points, outcome, reason, actor, created_at
 		 FROM audit_log
 		 WHERE account_id = $1
 		 ORDER BY id`,
@@ -154,7 +155,7 @@ func (r *AuditEntryRepositoryImpl) GetByID(ctx context.Context, request pkgAudit
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	row := exec.QueryRowContext(ctx,
-		`SELECT id, ref, account_id, kind, points, outcome, reason, actor, created_at
+		`SELECT id, ref, account_id, owner_id, kind, points, outcome, reason, actor, created_at
 		 FROM audit_log
 		 WHERE id = $1`,
 		request.ID,
@@ -178,6 +179,7 @@ func scanAuditEntry(scan func(dest ...any) error) (*pkgAudit.AuditEntry, error) 
 		&entry.ID,
 		&entry.TransactionRef,
 		&entry.AccountID,
+		&entry.OwnerID,
 		&entry.Kind,
 		&entry.Points,
 		&outcome,

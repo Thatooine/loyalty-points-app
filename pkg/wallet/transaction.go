@@ -25,6 +25,12 @@ type Transaction struct {
 
 	AccountID string `json:"accountID"`
 
+	// OwnerID is the owning user of the account (accounts.OwnerID), denormalised
+	// onto the ledger so an account's entries can be attributed to an owner
+	// without a join. For a member it equals CreatedBy; for an admin action it
+	// is the account owner, not the acting admin.
+	OwnerID string `json:"ownerID"`
+
 	Kind Kind `json:"kind"`
 
 	// Points is the signed delta as applied (earn=+n, spend=-n, adjust=±n),

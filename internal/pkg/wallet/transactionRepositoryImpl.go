@@ -47,12 +47,13 @@ func (r *TransactionRepositoryImpl) Create(ctx context.Context, request pkgWalle
 	// the conflict keeps the transaction usable; a zero row count is the duplicate
 	// signal.
 	result, err := exec.ExecContext(ctx,
-		`INSERT INTO transactions (id, ref, account_id, kind, points, occurred_at, recorded_at, created_by)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`INSERT INTO transactions (id, ref, account_id, owner_id, kind, points, occurred_at, recorded_at, created_by)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		 ON CONFLICT (ref) DO NOTHING`,
 		transaction.ID,
 		transaction.Ref,
 		transaction.AccountID,
+		transaction.OwnerID,
 		string(transaction.Kind),
 		transaction.Points,
 		time.FormatTime(transaction.OccurredAt),
@@ -86,7 +87,7 @@ func (r *TransactionRepositoryImpl) List(ctx context.Context, request pkgWallet.
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	rows, err := exec.QueryContext(ctx,
-		`SELECT id, ref, account_id, kind, points, occurred_at, recorded_at, created_by
+		`SELECT id, ref, account_id, owner_id, kind, points, occurred_at, recorded_at, created_by
 		 FROM transactions
 		 ORDER BY recorded_at DESC, ref`,
 	)
@@ -119,7 +120,7 @@ func (r *TransactionRepositoryImpl) GetByID(ctx context.Context, request pkgWall
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	row := exec.QueryRowContext(ctx,
-		`SELECT id, ref, account_id, kind, points, occurred_at, recorded_at, created_by
+		`SELECT id, ref, account_id, owner_id, kind, points, occurred_at, recorded_at, created_by
 		 FROM transactions
 		 WHERE ref = $1`,
 		request.Ref,
@@ -143,6 +144,7 @@ func scanTransaction(scan func(dest ...any) error) (*pkgWallet.Transaction, erro
 		&transaction.ID,
 		&transaction.Ref,
 		&transaction.AccountID,
+		&transaction.OwnerID,
 		&kind,
 		&transaction.Points,
 		&occurredAt,

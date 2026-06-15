@@ -35,7 +35,6 @@ func processRequest(ref, accountID string, kind pkgWallet.Kind, points int64) pk
 		Points:     points,
 		OccurredAt: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
 		Actor:      "user-" + accountID,
-		Source:     "api",
 	}
 }
 
