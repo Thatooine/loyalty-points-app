@@ -17,12 +17,12 @@ import (
 	internalAudit "github.com/Thatooine/loyalty-points-app/internal/pkg/audit"
 	internalAuth "github.com/Thatooine/loyalty-points-app/internal/pkg/authentication"
 	internalUsers "github.com/Thatooine/loyalty-points-app/internal/pkg/users"
-	internalWallet "github.com/Thatooine/loyalty-points-app/internal/pkg/wallet"
+	internalWallet "github.com/Thatooine/loyalty-points-app/internal/pkg/wallets"
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audit"
 	pkgAuth "github.com/Thatooine/loyalty-points-app/pkg/authentication"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
-	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallet"
+	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallets"
 )
 
 // ServiceProviders holds the wired-up service implementations used by the

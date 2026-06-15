@@ -1,4 +1,4 @@
-package wallet
+package wallets
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audit"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
-	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallet"
+	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallets"
 )
 
 // WalletServiceImpl is the heart of the system (plan §5.1): every write path

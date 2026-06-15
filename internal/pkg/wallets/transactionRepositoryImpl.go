@@ -1,4 +1,4 @@
-package wallet
+package wallets
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/postgres"
 	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
 	"github.com/Thatooine/loyalty-points-app/pkg/time"
-	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallet"
+	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallets"
 )
 
 // TransactionRepositoryImpl is the Postgres implementation of

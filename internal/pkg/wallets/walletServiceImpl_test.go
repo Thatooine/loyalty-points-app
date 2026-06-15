@@ -1,4 +1,4 @@
-package wallet
+package wallets
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audit"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 	"github.com/Thatooine/loyalty-points-app/pkg/postgres"
-	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallet"
+	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallets"
 )
 
 func newWalletService(db *sql.DB) (*WalletServiceImpl, pkgAudit.AuditEntryRepository) {

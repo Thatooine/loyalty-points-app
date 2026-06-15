@@ -16,7 +16,7 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/authorization"
 	"github.com/Thatooine/loyalty-points-app/pkg/jsonrpc"
 	"github.com/Thatooine/loyalty-points-app/pkg/users"
-	"github.com/Thatooine/loyalty-points-app/pkg/wallet"
+	"github.com/Thatooine/loyalty-points-app/pkg/wallets"
 )
 
 func setupRPCServer(providers ServiceProviders) {
@@ -33,7 +33,7 @@ func setupRPCServer(providers ServiceProviders) {
 	services := []jsonrpc.Service{
 		authentication.NewEmailPasswordAuthenticatorJSONRPCAdaptor(providers.EmailPasswordAuthenticator),
 		users.NewUserRegistrationServiceJSONRPCAdaptor(providers.UserRegistrationService),
-		wallet.NewWalletServiceJSONRPCAdaptor(providers.WalletService),
+		wallets.NewWalletServiceJSONRPCAdaptor(providers.WalletService),
 		accounts.NewAccountJSONRPCAdaptor(providers.AccountRepository),
 	}
 

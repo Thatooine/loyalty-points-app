@@ -1,4 +1,4 @@
-package wallet
+package wallets
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 	"github.com/Thatooine/loyalty-points-app/pkg/postgres"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
-	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallet"
+	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallets"
 )
 
 // ctxWithPerms returns a context carrying a login claim with the given
