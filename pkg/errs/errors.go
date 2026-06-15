@@ -27,4 +27,8 @@ var (
 	// ErrForbidden indicates the caller is authenticated but not permitted to
 	// act on the target — e.g. transacting on an account they do not own.
 	ErrForbidden = errors.New("forbidden")
+
+	// ErrInvalidArgument indicates a caller-supplied value was malformed — e.g.
+	// an unparseable pagination cursor. It is a client error, not a server fault.
+	ErrInvalidArgument = errors.New("invalid argument")
 )

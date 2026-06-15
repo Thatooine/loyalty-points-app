@@ -64,6 +64,12 @@ func (r *ListTransactionsRequest) Validate() error {
 		reasons = append(reasons, "UserID is required")
 	}
 
+	// Zero is allowed and means "server default"; only a negative page size is a
+	// caller error. The repository clamps positive values to its maximum.
+	if r.PageSize < 0 {
+		reasons = append(reasons, "PageSize must be >= 0")
+	}
+
 	if len(reasons) > 0 {
 		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
 	}

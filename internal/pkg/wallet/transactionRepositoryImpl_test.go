@@ -3,7 +3,9 @@ package wallet
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -152,6 +154,125 @@ func TestTransactionRepositoryImpl_AllScopeReadsAcrossOwners(t *testing.T) {
 	}
 	if len(got.Transactions) != 2 {
 		t.Fatalf("all-scope List returned %d transactions, want 2", len(got.Transactions))
+	}
+}
+
+// seedTransaction creates one transaction stamped with a specific recorded_at,
+// so pagination tests can control the (recorded_at DESC, ref) ordering.
+func seedTransaction(t *testing.T, repo *TransactionRepositoryImpl, ref, accountID string, recordedAt time.Time) {
+	t.Helper()
+	tx := testTransaction(ref, accountID)
+	tx.RecordedAt = recordedAt
+	if _, err := repo.Create(context.Background(), pkgWallet.CreateTransactionRequest{Transaction: tx}); err != nil {
+		t.Fatalf("seed transaction %s error = %v", ref, err)
+	}
+}
+
+// TestTransactionRepositoryImpl_ListPagination walks every page via the cursor
+// and proves the keyset covers the whole set exactly once, newest-first, with no
+// page exceeding PageSize and the final page reporting no NextCursor.
+func TestTransactionRepositoryImpl_ListPagination(t *testing.T) {
+	db := newTestDB(t)
+	createTestAccount(t, db, "page-acct")
+	repo := NewTransactionRepositoryImpl(db)
+
+	base := time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC)
+	// Seed newest-last so the expected newest-first order is tx-4..tx-0.
+	for i := 0; i < 5; i++ {
+		seedTransaction(t, repo, fmt.Sprintf("tx-%d", i), "page-acct", base.Add(time.Duration(i)*time.Second))
+	}
+
+	ctx := context.Background()
+	const pageSize = 2
+	var got []string
+	cursor := ""
+	for pages := 0; ; pages++ {
+		if pages > 5 {
+			t.Fatalf("pagination did not terminate after %d pages", pages)
+		}
+		resp, err := repo.List(ctx, pkgWallet.ListTransactionsRequest{UserID: "user-page-acct", PageSize: pageSize, Cursor: cursor})
+		if err != nil {
+			t.Fatalf("List(cursor=%q) error = %v", cursor, err)
+		}
+		if len(resp.Transactions) > pageSize {
+			t.Fatalf("page returned %d transactions, want <= %d", len(resp.Transactions), pageSize)
+		}
+		for _, tx := range resp.Transactions {
+			got = append(got, tx.Ref)
+		}
+		if resp.NextCursor == "" {
+			break
+		}
+		cursor = resp.NextCursor
+	}
+
+	want := []string{"tx-4", "tx-3", "tx-2", "tx-1", "tx-0"}
+	if len(got) != len(want) {
+		t.Fatalf("paginated refs = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("paginated refs = %v, want %v", got, want)
+		}
+	}
+}
+
+// TestTransactionRepositoryImpl_ListInvalidCursor proves a malformed cursor is
+// reported as a caller error rather than silently returning an empty page.
+func TestTransactionRepositoryImpl_ListInvalidCursor(t *testing.T) {
+	db := newTestDB(t)
+	createTestAccount(t, db, "page-acct")
+	repo := NewTransactionRepositoryImpl(db)
+
+	_, err := repo.List(context.Background(), pkgWallet.ListTransactionsRequest{UserID: "user-page-acct", Cursor: "!!!not-base64!!!"})
+	if !errors.Is(err, errs.ErrInvalidArgument) {
+		t.Fatalf("List(bad cursor) error = %v, want errs.ErrInvalidArgument", err)
+	}
+}
+
+func TestTransactionCursorRoundTrip(t *testing.T) {
+	recordedAt := "2026-06-01T10:00:01Z"
+	ref := "tx-001"
+
+	gotTS, gotRef, err := decodeTransactionCursor(encodeTransactionCursor(recordedAt, ref))
+	if err != nil {
+		t.Fatalf("decode(encode()) error = %v", err)
+	}
+	if gotTS != recordedAt || gotRef != ref {
+		t.Fatalf("round trip = (%q, %q), want (%q, %q)", gotTS, gotRef, recordedAt, ref)
+	}
+}
+
+func TestDecodeTransactionCursorRejectsMalformed(t *testing.T) {
+	cases := map[string]string{
+		"not base64":        "%%%",
+		"missing separator": base64.URLEncoding.EncodeToString([]byte("2026-06-01T10:00:01Z")),
+		"empty ref":         base64.URLEncoding.EncodeToString([]byte("2026-06-01T10:00:01Z\x00")),
+		"bad timestamp":     base64.URLEncoding.EncodeToString([]byte("not-a-time\x00tx-001")),
+	}
+	for name, cursor := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, _, err := decodeTransactionCursor(cursor); !errors.Is(err, errs.ErrInvalidArgument) {
+				t.Fatalf("decode(%q) error = %v, want errs.ErrInvalidArgument", cursor, err)
+			}
+		})
+	}
+}
+
+func TestClampPageSize(t *testing.T) {
+	cases := []struct {
+		in, want int
+	}{
+		{0, defaultPageSize},
+		{-5, defaultPageSize},
+		{10, 10},
+		{maxPageSize, maxPageSize},
+		{maxPageSize + 1, maxPageSize},
+	}
+	for _, c := range cases {
+		if got := clampPageSize(c.in); got != c.want {
+			t.Fatalf("clampPageSize(%d) = %d, want %d", c.in, got, c.want)
+		}
 	}
 }
 
