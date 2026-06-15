@@ -39,7 +39,7 @@ func setupRPCServer(providers ServiceProviders) {
 
 	apiRouter := router.PathPrefix("/api").Subrouter()
 	apiRouter.Use(logger.Middleware)
-	apiRouter.Use(authorization.NewAuthorizationMiddleware(providers.AccessTokenValidator, authorization.DefaultPermissions()))
+	apiRouter.Use(authorization.NewAuthorizationMiddleware(providers.AccessTokenValidator, authorization.DefaultPolicy()))
 	apiRouter.Handle("", newJSONRPCServer(services))
 
 	// start the http server

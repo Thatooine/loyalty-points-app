@@ -12,7 +12,7 @@ import (
 
 	"github.com/Thatooine/loyalty-points-app/pkg/authentication"
 	"github.com/Thatooine/loyalty-points-app/pkg/jsonrpc"
-	"github.com/Thatooine/loyalty-points-app/pkg/users"
+	"github.com/Thatooine/loyalty-points-app/pkg/scope"
 )
 
 // fakeTokenService is a test double for authentication.AccessTokenValidator.
@@ -47,7 +47,7 @@ type errorResponse struct {
 // run drives the middleware with a request body, an access-token service, and
 // an optional bearer token. It returns whether next was reached, the recorded
 // response, and the body the handler observed (to prove the body was restored).
-func run(t *testing.T, accessTokenService authentication.AccessTokenValidator, perms *Permissions, body, token string) (bool, *httptest.ResponseRecorder, string) {
+func run(t *testing.T, accessTokenService authentication.AccessTokenValidator, policy *Policy, body, token string) (bool, *httptest.ResponseRecorder, string) {
 	t.Helper()
 
 	nextCalled := false
@@ -58,7 +58,7 @@ func run(t *testing.T, accessTokenService authentication.AccessTokenValidator, p
 		seenBody = string(b)
 	})
 
-	handler := NewAuthorizationMiddleware(accessTokenService, perms)(next)
+	handler := NewAuthorizationMiddleware(accessTokenService, policy)(next)
 
 	req := httptest.NewRequest(http.MethodPost, "/api", strings.NewReader(body))
 	if token != "" {
@@ -79,14 +79,18 @@ func decodeError(t *testing.T, rec *httptest.ResponseRecorder) errorResponse {
 	return resp
 }
 
+func memberTokens() fakeTokenService {
+	return fakeTokenService{claim: authentication.LoginClaim{UserID: "u1", Permissions: []string{PermAccountReadOwn, PermWalletTransactOwn}}}
+}
+
 func TestAuthorizationMiddleware_PublicMethodBypassesAuth(t *testing.T) {
-	perms := DefaultPermissions()
+	policy := DefaultPolicy()
 	// A token service that always errors — proves a public method never
 	// touches authentication.
 	tokens := fakeTokenService{err: errors.New("should not be called")}
 
 	body := rpcBody(loginMethod)
-	nextCalled, rec, seenBody := run(t, tokens, perms, body, "")
+	nextCalled, rec, seenBody := run(t, tokens, policy, body, "")
 
 	if !nextCalled {
 		t.Fatalf("public method did not reach next handler")
@@ -100,13 +104,11 @@ func TestAuthorizationMiddleware_PublicMethodBypassesAuth(t *testing.T) {
 }
 
 func TestAuthorizationMiddleware_AllowsPermittedMethod(t *testing.T) {
-	perms := NewPermissions(map[users.Role]map[string]bool{
-		users.RoleMember: {"Wallet.GetByID": true},
-	}, nil)
-	tokens := fakeTokenService{claim: authentication.LoginClaim{UserID: "u1", Role: users.RoleMember}}
+	policy := DefaultPolicy()
+	tokens := fakeTokenService{claim: authentication.LoginClaim{UserID: "u1", Permissions: []string{PermAccountReadOwn}}}
 
-	body := rpcBody("Wallet.GetByID")
-	nextCalled, rec, seenBody := run(t, tokens, perms, body, "valid-token")
+	body := rpcBody(getAccountMethod)
+	nextCalled, rec, seenBody := run(t, tokens, policy, body, "valid-token")
 
 	if !nextCalled {
 		t.Fatalf("permitted method did not reach next handler")
@@ -119,24 +121,31 @@ func TestAuthorizationMiddleware_AllowsPermittedMethod(t *testing.T) {
 	}
 }
 
-func TestAuthorizationMiddleware_AdminWildcard(t *testing.T) {
-	perms := DefaultPermissions()
-	tokens := fakeTokenService{claim: authentication.LoginClaim{UserID: "admin1", Role: users.RoleAdmin}}
+func TestAuthorizationMiddleware_PublishesEffectiveScope(t *testing.T) {
+	policy := DefaultPolicy()
+	tokens := fakeTokenService{claim: authentication.LoginClaim{UserID: "admin1", Permissions: []string{PermAccountReadAll}}}
 
-	nextCalled, rec, _ := run(t, tokens, perms, rpcBody("Wallet.ProcessTransaction"), "valid-token")
+	var gotScope scope.Scope
+	var gotOK bool
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotScope, gotOK = scope.FromContext(r.Context())
+	})
+	handler := NewAuthorizationMiddleware(tokens, policy)(next)
 
-	if !nextCalled || rec.Code != http.StatusOK {
-		t.Fatalf("admin should be allowed: nextCalled=%v status=%d", nextCalled, rec.Code)
+	req := httptest.NewRequest(http.MethodPost, "/api", strings.NewReader(rpcBody(getAccountMethod)))
+	req.Header.Set("Authorization", "Bearer valid-token")
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	if !gotOK || gotScope != scope.All {
+		t.Fatalf("effective scope in context = (%q, %v), want (%q, true)", gotScope, gotOK, scope.All)
 	}
 }
 
 func TestAuthorizationMiddleware_DeniesUnpermittedMethod(t *testing.T) {
-	perms := NewPermissions(map[users.Role]map[string]bool{
-		users.RoleMember: {"Wallet.GetByID": true},
-	}, nil)
-	tokens := fakeTokenService{claim: authentication.LoginClaim{UserID: "u1", Role: users.RoleMember}}
+	policy := DefaultPolicy()
+	tokens := memberTokens()
 
-	nextCalled, rec, _ := run(t, tokens, perms, rpcBody("Wallet.ProcessTransaction"), "valid-token")
+	nextCalled, rec, _ := run(t, tokens, policy, rpcBody(processTransactionBatchMethod), "valid-token")
 
 	if nextCalled {
 		t.Fatalf("denied method should not reach next handler")
@@ -151,12 +160,10 @@ func TestAuthorizationMiddleware_DeniesUnpermittedMethod(t *testing.T) {
 }
 
 func TestAuthorizationMiddleware_MissingTokenIsUnauthorized(t *testing.T) {
-	perms := NewPermissions(map[users.Role]map[string]bool{
-		users.RoleMember: {"Wallet.GetByID": true},
-	}, nil)
-	tokens := fakeTokenService{claim: authentication.LoginClaim{UserID: "u1", Role: users.RoleMember}}
+	policy := DefaultPolicy()
+	tokens := memberTokens()
 
-	nextCalled, rec, _ := run(t, tokens, perms, rpcBody("Wallet.GetByID"), "")
+	nextCalled, rec, _ := run(t, tokens, policy, rpcBody(getAccountMethod), "")
 
 	if nextCalled {
 		t.Fatalf("protected method without a token should not reach next handler")
@@ -167,10 +174,10 @@ func TestAuthorizationMiddleware_MissingTokenIsUnauthorized(t *testing.T) {
 }
 
 func TestAuthorizationMiddleware_InvalidTokenIsUnauthorized(t *testing.T) {
-	perms := DefaultPermissions()
+	policy := DefaultPolicy()
 	tokens := fakeTokenService{err: errors.New("expired")}
 
-	nextCalled, rec, _ := run(t, tokens, perms, rpcBody("Wallet.GetByID"), "bad-token")
+	nextCalled, rec, _ := run(t, tokens, policy, rpcBody(getAccountMethod), "bad-token")
 
 	if nextCalled {
 		t.Fatalf("invalid token should not reach next handler")
@@ -181,10 +188,10 @@ func TestAuthorizationMiddleware_InvalidTokenIsUnauthorized(t *testing.T) {
 }
 
 func TestAuthorizationMiddleware_MalformedBody(t *testing.T) {
-	perms := DefaultPermissions()
-	tokens := fakeTokenService{claim: authentication.LoginClaim{UserID: "u1", Role: users.RoleAdmin}}
+	policy := DefaultPolicy()
+	tokens := fakeTokenService{claim: authentication.LoginClaim{UserID: "u1", Permissions: []string{PermAccountReadAll}}}
 
-	nextCalled, rec, _ := run(t, tokens, perms, "{not json", "valid-token")
+	nextCalled, rec, _ := run(t, tokens, policy, "{not json", "valid-token")
 
 	if nextCalled {
 		t.Fatalf("malformed body should not reach next handler")

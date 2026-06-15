@@ -19,12 +19,13 @@ import (
 //   - lets public methods (e.g. login) through untouched, so a caller can
 //     obtain a token in the first place;
 //   - for every other method, validates the access token (authentication),
-//     then checks the caller's role against the method (authorization).
+//     then checks the caller's permissions against the method (authorization).
 //
 // A caller who fails either check receives a JSON-RPC error envelope rather
-// than reaching the handler. On success the verified LoginClaim is placed in
-// the request context for downstream handlers.
-func NewAuthorizationMiddleware(accessTokenService authentication.AccessTokenValidator, perms *Permissions) func(http.Handler) http.Handler {
+// than reaching the handler. On success the verified LoginClaim and the
+// effective scope of the matched permission are placed in the request context
+// for downstream handlers.
+func NewAuthorizationMiddleware(accessTokenService authentication.AccessTokenValidator, policy *Policy) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -47,7 +48,7 @@ func NewAuthorizationMiddleware(accessTokenService authentication.AccessTokenVal
 			}
 
 			// Public methods need no token — pass straight through.
-			if perms.IsPublic(envelope.Method) {
+			if policy.IsPublic(envelope.Method) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -67,19 +68,20 @@ func NewAuthorizationMiddleware(accessTokenService authentication.AccessTokenVal
 			}
 			claim := tokenResp.LoginClaim
 
-			// Authorize: the caller's role must permit the method.
-			if !perms.Can(claim.Role, envelope.Method) {
+			// Authorize: the caller must hold a permission the method accepts.
+			// The matched permission's scope governs ownership downstream.
+			if !policy.Authorize(claim.Permissions, envelope.Method) {
 				log.Ctx(ctx).Warn().
 					Str("userID", claim.UserID).
-					Str("role", string(claim.Role)).
+					Strs("permissions", claim.Permissions).
 					Str("method", envelope.Method).
-					Msg("authorization: role not permitted to call method")
+					Msg("authorization: caller lacks a permission for method")
 				jsonrpc.WriteError(w, envelope.ID, jsonrpc.CodeForbidden,
-					fmt.Sprintf("role %q may not call %q", claim.Role, envelope.Method))
+					fmt.Sprintf("not permitted to call %q", envelope.Method))
 				return
 			}
 
-			// Hand the verified claim to downstream handlers.
+			// Hand the verified claim and effective scope to downstream handlers.
 			ctx = authentication.ContextWithLoginClaim(ctx, claim)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

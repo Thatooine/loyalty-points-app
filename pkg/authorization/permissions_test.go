@@ -3,53 +3,90 @@ package authorization
 import (
 	"testing"
 
+	"github.com/Thatooine/loyalty-points-app/pkg/scope"
 	"github.com/Thatooine/loyalty-points-app/pkg/users"
 )
 
-func TestPermissions_Can(t *testing.T) {
-	perms := NewPermissions(map[users.Role]map[string]bool{
-		users.RoleAdmin:  {wildcard: true},
-		users.RoleMember: {"Wallet.GetByID": true},
-	}, nil)
+func TestPolicy_Authorize(t *testing.T) {
+	policy := DefaultPolicy()
 
 	tests := []struct {
-		name   string
-		role   users.Role
-		method string
-		want   bool
+		name      string
+		perms     []string
+		method    string
+		wantOK    bool
+		wantScope scope.Scope
 	}{
-		{"admin wildcard allows anything", users.RoleAdmin, "Wallet.ProcessTransaction", true},
-		{"member allowed listed method", users.RoleMember, "Wallet.GetByID", true},
-		{"member denied unlisted method", users.RoleMember, "Wallet.ProcessTransaction", false},
-		{"unknown role denied", users.Role("ghost"), "Wallet.GetByID", false},
-		{"empty method denied", users.RoleMember, "", false},
+		{
+			name:      "member own-scoped read is allowed with own scope",
+			perms:     []string{PermAccountReadOwn},
+			method:    getAccountMethod,
+			wantOK:    true,
+			wantScope: scope.Own,
+		},
+		{
+			name:      "admin all-scoped read is allowed with all scope",
+			perms:     []string{PermAccountReadAll},
+			method:    getAccountMethod,
+			wantOK:    true,
+			wantScope: scope.All,
+		},
+		{
+			name:      "holding both own and all yields the broadest scope",
+			perms:     []string{PermAccountReadOwn, PermAccountReadAll},
+			method:    getAccountMethod,
+			wantOK:    true,
+			wantScope: scope.All,
+		},
+		{
+			name:   "member cannot run batch ingestion",
+			perms:  []string{PermWalletTransactOwn, PermAccountReadOwn},
+			method: processTransactionBatchMethod,
+			wantOK: false,
+		},
+		{
+			name:   "no permissions denies a known method",
+			perms:  nil,
+			method: getAccountMethod,
+			wantOK: false,
+		},
+		{
+			name:   "unknown method is denied",
+			perms:  []string{PermAccountReadAll},
+			method: "Nope.AtAll",
+			wantOK: false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := perms.Can(tt.role, tt.method); got != tt.want {
-				t.Fatalf("Can(%q, %q) = %v, want %v", tt.role, tt.method, got, tt.want)
+			if gotOK := policy.Authorize(tt.perms, tt.method); gotOK != tt.wantOK {
+				t.Fatalf("Authorize(%v, %q) = %v, want %v", tt.perms, tt.method, gotOK, tt.wantOK)
+			}
+			if tt.wantOK {
+				if gotScope := policy.EffectiveScope(tt.perms, tt.method); gotScope != tt.wantScope {
+					t.Fatalf("EffectiveScope(%v, %q) = %q, want %q", tt.perms, tt.method, gotScope, tt.wantScope)
+				}
 			}
 		})
 	}
 }
 
-func TestDefaultPermissions_AdminIsPermissive(t *testing.T) {
-	perms := DefaultPermissions()
-	if !perms.Can(users.RoleAdmin, "Anything.AtAll") {
-		t.Fatalf("admin should be able to call any method")
+func TestDefaultPolicy_PublicMethods(t *testing.T) {
+	policy := DefaultPolicy()
+	if !policy.IsPublic(loginMethod) {
+		t.Fatalf("%q should be public", loginMethod)
 	}
-	if perms.Can(users.RoleMember, "Anything.AtAll") {
-		t.Fatalf("member should not be able to call an unlisted method")
+	if policy.IsPublic(getAccountMethod) {
+		t.Fatalf("%q should not be public", getAccountMethod)
 	}
 }
 
-func TestDefaultPermissions_LoginIsPublic(t *testing.T) {
-	perms := DefaultPermissions()
-	if !perms.IsPublic(loginMethod) {
-		t.Fatalf("%q should be public", loginMethod)
+func TestPermissionsForRole(t *testing.T) {
+	if got := PermissionsForRole(users.RoleMember); len(got) == 0 {
+		t.Fatal("member should be granted permissions")
 	}
-	if perms.IsPublic("Wallet.GetByID") {
-		t.Fatalf("a protected method should not be public")
+	if got := PermissionsForRole(users.Role("ghost")); got != nil {
+		t.Fatalf("unknown role should have no permissions, got %v", got)
 	}
 }

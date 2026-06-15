@@ -11,6 +11,7 @@ import (
 
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 	pkgAuth "github.com/Thatooine/loyalty-points-app/pkg/authentication"
+	"github.com/Thatooine/loyalty-points-app/pkg/authorization"
 	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 )
@@ -111,6 +112,7 @@ func (s *UserRegistrationServiceImpl) Register(ctx context.Context, request pkgU
 			UserID:         user.ID,
 			Email:          user.Email,
 			Role:           user.Role,
+			Permissions:    authorization.PermissionsForRole(user.Role),
 			ExpirationTime: time.Now().Add(registrationTokenTTL).Unix(),
 		},
 	})

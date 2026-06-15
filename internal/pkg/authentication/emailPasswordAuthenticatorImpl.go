@@ -10,6 +10,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	pkgAuth "github.com/Thatooine/loyalty-points-app/pkg/authentication"
+	"github.com/Thatooine/loyalty-points-app/pkg/authorization"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 )
@@ -65,6 +66,7 @@ func (s *EmailPasswordAuthenticatorImpl) Authenticate(ctx context.Context, reque
 				UserID:         user.ID,
 				Email:          user.Email,
 				Role:           user.Role,
+				Permissions:    authorization.PermissionsForRole(user.Role),
 				ExpirationTime: time.Now().Add(accessTokenTTL).Unix(),
 			},
 		})
