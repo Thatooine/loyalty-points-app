@@ -21,13 +21,13 @@ func (r *CreateTransactionRequest) Validate() error {
 	}
 
 	switch r.Transaction.Kind {
-	case KindEarn, KindSpend, KindAdjust:
+	case KindEarn, KindSpend:
 	default:
-		reasons = append(reasons, "Kind must be 'earn', 'spend' or 'adjust'")
+		reasons = append(reasons, "Kind must be 'earn' or 'spend'")
 	}
 
-	// Points is the signed delta as applied, so it may be negative (spend /
-	// adjust) but never zero.
+	// Points is the signed delta as applied, so it may be negative (spend) but
+	// never zero.
 	if r.Transaction.Points == 0 {
 		reasons = append(reasons, "Points must be non-zero")
 	}

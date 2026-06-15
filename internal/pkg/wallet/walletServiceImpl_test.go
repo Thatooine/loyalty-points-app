@@ -199,35 +199,6 @@ func TestProcessTransaction_Overdraft(t *testing.T) {
 	}
 }
 
-func TestProcessTransaction_Adjust(t *testing.T) {
-	ctx := context.Background()
-	db := newTestDB(t)
-	createTestAccount(t, db, "member-123")
-	service, _ := newWalletService(db)
-
-	if _, err := service.ProcessTransaction(ctx, processRequest("tx-001", "member-123", pkgWallet.KindEarn, 100)); err != nil {
-		t.Fatalf("earn error = %v", err)
-	}
-
-	// negative adjustment
-	down, err := service.ProcessTransaction(ctx, processRequest("adj-001", "member-123", pkgWallet.KindAdjust, -30))
-	if err != nil {
-		t.Fatalf("negative adjust error = %v", err)
-	}
-	if down.Balance != 70 || down.Transaction.Points != -30 {
-		t.Fatalf("after -30 adjust: balance=%d points=%d, want 70 / -30", down.Balance, down.Transaction.Points)
-	}
-
-	// positive adjustment
-	up, err := service.ProcessTransaction(ctx, processRequest("adj-002", "member-123", pkgWallet.KindAdjust, 50))
-	if err != nil {
-		t.Fatalf("positive adjust error = %v", err)
-	}
-	if up.Balance != 120 || up.Transaction.Points != 50 {
-		t.Fatalf("after +50 adjust: balance=%d points=%d, want 120 / 50", up.Balance, up.Transaction.Points)
-	}
-}
-
 func TestProcessTransaction_NotOwnerRejected(t *testing.T) {
 	ctx := context.Background()
 	db := newTestDB(t)

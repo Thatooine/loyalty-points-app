@@ -12,6 +12,8 @@ type AccountRepository interface {
 	GetAccountBalance(ctx context.Context, request GetAccountBalanceRequest) (*GetAccountBalanceResponse, error)
 
 	UpdateAccountBalance(ctx context.Context, request UpdateAccountBalanceRequest) (*UpdateAccountBalanceResponse, error)
+
+	UpdateAccountName(ctx context.Context, request UpdateAccountNameRequest) (*UpdateAccountNameResponse, error)
 }
 
 // CreateAccountRequest is the request for Create.
@@ -84,4 +86,24 @@ type UpdateAccountBalanceRequest struct {
 type UpdateAccountBalanceResponse struct {
 	// Balance is the account balance after the delta was applied.
 	Balance int64
+}
+
+// UpdateAccountNameRequest is the request for UpdateAccountName.
+type UpdateAccountNameRequest struct {
+	AccountID string
+
+	// Name is the new display name for the account.
+	Name string
+
+	// UserID, when non-empty, scopes the update to the owning user so the name
+	// is only mutated on an account that user owns (see
+	// GetAccountByIDRequest.UserID). Leave empty for internal/admin updates that
+	// must act on any account.
+	UserID string
+}
+
+// UpdateAccountNameResponse is the response for UpdateAccountName.
+type UpdateAccountNameResponse struct {
+	// Account is the account after the rename.
+	Account Account
 }

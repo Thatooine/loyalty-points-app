@@ -64,18 +64,109 @@ func (a *WalletServiceJSONRPCAdaptor) ProcessTransaction(r *http.Request, params
 	})
 	if err != nil {
 		log.Ctx(ctx).Warn().Err(err).Str("accountID", params.AccountID).Msg("wallet: process transaction failed")
-		switch {
-		case errors.Is(err, errs.ErrForbidden):
-			return errors.New("forbidden: you do not own this account")
-		case errors.Is(err, errs.ErrInsufficientBalance):
-			return errors.New("insufficient balance")
-		case errors.Is(err, errs.ErrNotFound):
-			return errors.New("account not found")
-		default:
-			return errors.New("could not process transaction")
-		}
+		return mapProcessError(err)
 	}
 
+	fillProcessResult(result, resp)
+	return nil
+}
+
+// EarnPointsJSONRPCRequest is the wire request for the earn convenience method.
+// The Kind is implied by the method, so it is absent here.
+type EarnPointsJSONRPCRequest struct {
+	Ref       string `json:"ref"`
+	AccountID string `json:"account_id"`
+	Points    int64  `json:"points"`
+	// OccurredAt is optional; when omitted the server stamps it at processing time.
+	OccurredAt time.Time `json:"occurred_at,omitempty"`
+}
+
+// EarnPoints credits points to the caller's account. Like ProcessTransaction
+// the Actor is taken from the verified claim, never from the client; the Kind
+// is fixed to earn by the method.
+func (a *WalletServiceJSONRPCAdaptor) EarnPoints(r *http.Request, params *EarnPointsJSONRPCRequest, result *ProcessTransactionJSONRPCResponse) error {
+	ctx := r.Context()
+
+	claim, ok := authentication.LoginClaimFromContext(ctx)
+	if !ok {
+		log.Ctx(ctx).Error().Msg("wallet: no login claim in context for protected method")
+		return errors.New("unauthorized")
+	}
+
+	resp, err := a.walletService.EarnPoints(ctx, EarnPointsRequest{
+		Ref:        params.Ref,
+		AccountID:  params.AccountID,
+		Points:     params.Points,
+		OccurredAt: params.OccurredAt,
+		UserID:     claim.UserID,
+	})
+	if err != nil {
+		log.Ctx(ctx).Warn().Err(err).Str("accountID", params.AccountID).Msg("wallet: earn points failed")
+		return mapProcessError(err)
+	}
+
+	fillProcessResult(result, resp)
+	return nil
+}
+
+// SpendPointsJSONRPCRequest is the wire request for the spend convenience
+// method. As with earn, the Kind is implied by the method.
+type SpendPointsJSONRPCRequest struct {
+	Ref       string `json:"ref"`
+	AccountID string `json:"account_id"`
+	Points    int64  `json:"points"`
+	// OccurredAt is optional; when omitted the server stamps it at processing time.
+	OccurredAt time.Time `json:"occurred_at,omitempty"`
+}
+
+// SpendPoints debits points from the caller's account. The Actor is taken from
+// the verified claim and the Kind is fixed to spend by the method; the debit is
+// subject to the balance floor enforced downstream.
+func (a *WalletServiceJSONRPCAdaptor) SpendPoints(r *http.Request, params *SpendPointsJSONRPCRequest, result *ProcessTransactionJSONRPCResponse) error {
+	ctx := r.Context()
+
+	claim, ok := authentication.LoginClaimFromContext(ctx)
+	if !ok {
+		log.Ctx(ctx).Error().Msg("wallet: no login claim in context for protected method")
+		return errors.New("unauthorized")
+	}
+
+	resp, err := a.walletService.SpendPoints(ctx, SpendPointsRequest{
+		Ref:        params.Ref,
+		AccountID:  params.AccountID,
+		Points:     params.Points,
+		OccurredAt: params.OccurredAt,
+		UserID:     claim.UserID,
+	})
+	if err != nil {
+		log.Ctx(ctx).Warn().Err(err).Str("accountID", params.AccountID).Msg("wallet: spend points failed")
+		return mapProcessError(err)
+	}
+
+	fillProcessResult(result, resp)
+	return nil
+}
+
+// mapProcessError translates a service-layer transaction error into the opaque,
+// client-facing error returned over the wire. Shared by every method that runs
+// through ProcessTransaction so the mapping stays in one place.
+func mapProcessError(err error) error {
+	switch {
+	case errors.Is(err, errs.ErrForbidden):
+		return errors.New("forbidden: you do not own this account")
+	case errors.Is(err, errs.ErrInsufficientBalance):
+		return errors.New("insufficient balance")
+	case errors.Is(err, errs.ErrNotFound):
+		return errors.New("account not found")
+	default:
+		return errors.New("could not process transaction")
+	}
+}
+
+// fillProcessResult copies a service response onto the wire result. Shared by
+// ProcessTransaction, EarnPoints, and SpendPoints, which all return the same
+// shape.
+func fillProcessResult(result *ProcessTransactionJSONRPCResponse, resp *ProcessTransactionResponse) {
 	result.Ref = resp.Transaction.Ref
 	result.AccountID = resp.Transaction.AccountID
 	result.Kind = string(resp.Transaction.Kind)
@@ -84,7 +175,6 @@ func (a *WalletServiceJSONRPCAdaptor) ProcessTransaction(r *http.Request, params
 	result.RecordedAt = resp.Transaction.RecordedAt
 	result.Balance = resp.Balance
 	result.Duplicate = resp.Duplicate
-	return nil
 }
 
 // ProcessTransactionBatchParams is the wire request for the batch ingestion

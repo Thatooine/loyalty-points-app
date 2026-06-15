@@ -168,6 +168,36 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 	return resp, nil
 }
 
+// EarnPoints credits points to an account by constructing an earn transaction
+// and delegating to ProcessTransaction, so it inherits the single write path's
+// idempotency, balance floor, ownership scoping, and audit trail. The only
+// thing it adds is fixing the Kind to KindEarn from the method itself.
+func (s *WalletServiceImpl) EarnPoints(ctx context.Context, request pkgWallet.EarnPointsRequest) (*pkgWallet.ProcessTransactionResponse, error) {
+	return s.ProcessTransaction(ctx, pkgWallet.ProcessTransactionRequest{
+		UserID:     request.UserID,
+		Ref:        request.Ref,
+		AccountID:  request.AccountID,
+		Kind:       pkgWallet.KindEarn,
+		Points:     request.Points,
+		OccurredAt: request.OccurredAt,
+	})
+}
+
+// SpendPoints debits points from an account by constructing a spend transaction
+// and delegating to ProcessTransaction. As with EarnPoints the only addition is
+// fixing the Kind — here KindSpend — so the debit runs through the same guarded
+// write path and is subject to the balance floor.
+func (s *WalletServiceImpl) SpendPoints(ctx context.Context, request pkgWallet.SpendPointsRequest) (*pkgWallet.ProcessTransactionResponse, error) {
+	return s.ProcessTransaction(ctx, pkgWallet.ProcessTransactionRequest{
+		UserID:     request.UserID,
+		Ref:        request.Ref,
+		AccountID:  request.AccountID,
+		Kind:       pkgWallet.KindSpend,
+		Points:     request.Points,
+		OccurredAt: request.OccurredAt,
+	})
+}
+
 // ProcessTransactionBatch applies an ordered batch sequentially. Each element
 // reuses the single-transaction path — inheriting idempotency, the overdraft
 // floor, ownership checks, and the audit trail — so there is no second code
@@ -229,7 +259,7 @@ func (s *WalletServiceImpl) rejectTransaction(ctx context.Context, request pkgWa
 }
 
 // signedDelta converts a request's points into the signed delta as applied:
-// earn credits, spend debits, and adjust is already signed by the caller.
+// earn credits, spend debits.
 func signedDelta(kind pkgWallet.Kind, points int64) int64 {
 	if kind == pkgWallet.KindSpend {
 		return -points

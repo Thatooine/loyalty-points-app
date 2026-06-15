@@ -13,6 +13,8 @@ const registerMethod = "UserRegistrationService.Register"
 const (
 	processTransactionMethod      = "Wallet.ProcessTransaction"
 	processTransactionBatchMethod = "Wallet.ProcessTransactionBatch"
+	earnPointsMethod              = "Wallet.EarnPoints"
+	spendPointsMethod             = "Wallet.SpendPoints"
 	getAccountMethod              = "Account.GetByID"
 	getAccountBalanceMethod       = "Account.GetAccountBalance"
 )
@@ -43,6 +45,8 @@ func DefaultPolicy() *Policy {
 	return NewPolicy(
 		map[string][]string{
 			processTransactionMethod:      {PermWalletTransactOwn, PermWalletTransactAll},
+			earnPointsMethod:              {PermWalletTransactOwn, PermWalletTransactAll},
+			spendPointsMethod:             {PermWalletTransactOwn, PermWalletTransactAll},
 			processTransactionBatchMethod: {PermWalletBatchAll},
 			getAccountMethod:              {PermAccountReadOwn, PermAccountReadAll},
 			getAccountBalanceMethod:       {PermAccountReadOwn, PermAccountReadAll},

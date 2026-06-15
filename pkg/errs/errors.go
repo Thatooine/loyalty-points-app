@@ -14,8 +14,8 @@ var (
 	// failure.
 	ErrDuplicateRef = errors.New("duplicate ref")
 
-	// ErrInsufficientBalance indicates a spend or adjustment would drive an
-	// account balance below zero. The balance is left unchanged.
+	// ErrInsufficientBalance indicates a spend would drive an account balance
+	// below zero. The balance is left unchanged.
 	ErrInsufficientBalance = errors.New("insufficient balance")
 
 	// ErrUnauthorized indicates the caller could not be authenticated — bad

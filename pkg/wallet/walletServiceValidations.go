@@ -20,19 +20,14 @@ func (r *ProcessTransactionRequest) Validate() error {
 		reasons = append(reasons, "UserID is required")
 	}
 
-	// Points is supplied positive for earn/spend (the sign is derived from
-	// Kind); for adjust it is the signed delta and may be negative, never zero.
+	// Points is supplied positive for earn/spend; the sign is derived from Kind.
 	switch r.Kind {
 	case KindEarn, KindSpend:
 		if r.Points <= 0 {
 			reasons = append(reasons, "Points must be greater than 0 for earn and spend")
 		}
-	case KindAdjust:
-		if r.Points == 0 {
-			reasons = append(reasons, "Points must be non-zero for adjust")
-		}
 	default:
-		reasons = append(reasons, "Kind must be 'earn', 'spend' or 'adjust'")
+		reasons = append(reasons, "Kind must be 'earn' or 'spend'")
 	}
 
 	if len(reasons) > 0 {

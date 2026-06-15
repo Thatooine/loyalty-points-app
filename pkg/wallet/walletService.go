@@ -8,13 +8,10 @@ import (
 type WalletService interface {
 	ProcessTransaction(ctx context.Context, request ProcessTransactionRequest) (*ProcessTransactionResponse, error)
 
-	// ProcessTransactionBatch applies an ordered batch as a single, sequential
-	// unit. Because the balance floor makes each write order-dependent, the
-	// transactions are applied strictly in slice order — never concurrently and
-	// never reordered — so the caller's ordering (the CLI sorts by OccurredAt,
-	// then line) is the order they post. Each element is still its own unit of
-	// work: a rejected element does not roll back earlier accepted ones, and a
-	// previously seen ref is reported as a duplicate rather than re-applied.
+	EarnPoints(ctx context.Context, request EarnPointsRequest) (*ProcessTransactionResponse, error)
+
+	SpendPoints(ctx context.Context, request SpendPointsRequest) (*ProcessTransactionResponse, error)
+
 	ProcessTransactionBatch(ctx context.Context, request ProcessTransactionBatchRequest) (*ProcessTransactionBatchResponse, error)
 }
 
@@ -32,13 +29,50 @@ type ProcessTransactionRequest struct {
 
 	Kind Kind
 
-	// Points is positive for earn and spend (the sign is derived from Kind);
-	// for adjust it is the signed delta as supplied by the admin.
+	// Points is the positive amount for earn and spend; the sign is derived
+	// from Kind.
+	Points int64
+
+	// OccurredAt is the business timestamp of the transaction.
+	OccurredAt time.Time
+}
+
+// EarnPointsRequest is the request for EarnPoints. It mirrors
+// ProcessTransactionRequest minus Kind, which the method fixes to KindEarn.
+type EarnPointsRequest struct {
+	// UserID is the acting principal (the user ID submitting the transaction).
+	UserID string
+
+	// Ref is the idempotency key: the same ref never counts twice.
+	Ref string
+
+	AccountID string
+
+	// Points is the positive amount to credit.
 	Points int64
 
 	// OccurredAt is the business timestamp of the transaction. Optional: when it
-	// is the zero value the service stamps it with the processing time, so it is
-	// never persisted empty.
+	// is the zero value the service stamps it with the processing time.
+	OccurredAt time.Time
+}
+
+// SpendPointsRequest is the request for SpendPoints. It mirrors
+// ProcessTransactionRequest minus Kind, which the method fixes to KindSpend.
+type SpendPointsRequest struct {
+	// UserID is the acting principal (the user ID submitting the transaction).
+	UserID string
+
+	// Ref is the idempotency key: the same ref never counts twice.
+	Ref string
+
+	AccountID string
+
+	// Points is the positive amount to debit; the debit is subject to the
+	// balance floor.
+	Points int64
+
+	// OccurredAt is the business timestamp of the transaction. Optional: when it
+	// is the zero value the service stamps it with the processing time.
 	OccurredAt time.Time
 }
 

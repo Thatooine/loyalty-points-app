@@ -234,6 +234,39 @@ func (r *AccountRepositoryImpl) UpdateAccountBalance(ctx context.Context, reques
 
 	return &pkgAccounts.UpdateAccountBalanceResponse{Balance: balance}, nil
 }
+func (r *AccountRepositoryImpl) UpdateAccountName(ctx context.Context, request pkgAccounts.UpdateAccountNameRequest) (*pkgAccounts.UpdateAccountNameResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for UpdateAccountName: %w", err)
+	}
+
+	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
+
+	// Single statement renames and returns the updated row. Ownership scoping
+	// mirrors UpdateAccountBalance: unless the caller holds account:write:all the
+	// WHERE clause pins the row to request.UserID (owner_id), so a non-owner's
+	// update matches no row and reads as ErrNotFound — no existence leak.
+	query := `UPDATE accounts
+		 SET name = $1
+		 WHERE id = $2`
+	args := []any{request.Name, request.AccountID}
+	if !authorization.IsGranted(ctx, authorization.PermAccountWriteAll) {
+		query += ` AND owner_id = $3`
+		args = append(args, request.UserID)
+	}
+	query += ` RETURNING id, owner_id, name, balance, created_at`
+
+	account, err := scanAccount(exec.QueryRowContext(ctx, query, args...).Scan)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("account %s: %w", request.AccountID, errs.ErrNotFound)
+		}
+		return nil, err
+	}
+
+	return &pkgAccounts.UpdateAccountNameResponse{Account: *account}, nil
+}
+
 func scanAccount(scan func(dest ...any) error) (*pkgAccounts.Account, error) {
 	var account pkgAccounts.Account
 	var createdAt string

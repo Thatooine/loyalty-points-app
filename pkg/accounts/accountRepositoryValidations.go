@@ -85,6 +85,28 @@ func (r *UpdateAccountBalanceRequest) Validate() error {
 	return nil
 }
 
+func (r *UpdateAccountNameRequest) Validate() error {
+	var reasons []string
+
+	if r.AccountID == "" {
+		reasons = append(reasons, "AccountID is required")
+	}
+
+	if r.Name == "" {
+		reasons = append(reasons, "Name is required")
+	}
+
+	if r.UserID == "" {
+		reasons = append(reasons, "UserID is required")
+	}
+
+	if len(reasons) > 0 {
+		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
+	}
+
+	return nil
+}
+
 func (r *ListAccountsRequest) Validate() error {
 	var reasons []string
 

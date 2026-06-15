@@ -2,8 +2,7 @@ package wallet
 
 import "time"
 
-// Kind classifies a ledger entry. Earn and spend come from members; adjust is
-// admin-only and the only kind whose API points are signed.
+// Kind classifies a ledger entry: earn credits points, spend debits them.
 type Kind string
 
 const (
@@ -32,8 +31,8 @@ type Transaction struct {
 
 	Kind Kind `json:"kind"`
 
-	// Points is the signed delta as applied (earn=+n, spend=-n, adjust=±n),
-	// so SUM(points) over an account's transactions equals its balance.
+	// Points is the signed delta as applied (earn=+n, spend=-n), so
+	// SUM(points) over an account's transactions equals its balance.
 	Points int64 `json:"points"`
 
 	// OccurredAt is the business timestamp supplied by the caller.
