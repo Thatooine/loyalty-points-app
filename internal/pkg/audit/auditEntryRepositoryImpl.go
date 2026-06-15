@@ -40,14 +40,13 @@ func (r *AuditEntryRepositoryImpl) Create(ctx context.Context, request pkgAudit.
 	// idiom for reading back the generated identity.
 	var id int64
 	err := exec.QueryRowContext(ctx,
-		`INSERT INTO audit_log (ref, account_id, kind, points, source, outcome, reason, actor, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		`INSERT INTO audit_log (ref, account_id, kind, points, outcome, reason, actor, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		 RETURNING id`,
-		entry.Ref,
+		entry.TransactionRef,
 		entry.AccountID,
 		entry.Kind,
 		entry.Points,
-		entry.Source,
 		string(entry.Outcome),
 		entry.Reason,
 		entry.Actor,
@@ -67,19 +66,71 @@ func (r *AuditEntryRepositoryImpl) List(ctx context.Context, request pkgAudit.Li
 		return nil, fmt.Errorf("invalid request for List: %w", err)
 	}
 
-	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
-
-	rows, err := exec.QueryContext(ctx,
-		`SELECT id, ref, account_id, kind, points, source, outcome, reason, actor, created_at
+	entries, err := r.queryEntries(ctx,
+		`SELECT id, ref, account_id, kind, points, outcome, reason, actor, created_at
 		 FROM audit_log
 		 ORDER BY id`,
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pkgAudit.ListAuditEntriesResponse{AuditEntries: entries}, nil
+}
+
+func (r *AuditEntryRepositoryImpl) ListByTransactionRef(ctx context.Context, request pkgAudit.ListAuditEntriesByTransactionRefRequest) (*pkgAudit.ListAuditEntriesByTransactionRefResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for ListByTransactionRef: %w", err)
+	}
+
+	entries, err := r.queryEntries(ctx,
+		`SELECT id, ref, account_id, kind, points, outcome, reason, actor, created_at
+		 FROM audit_log
+		 WHERE ref = $1
+		 ORDER BY id`,
+		request.TransactionRef,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pkgAudit.ListAuditEntriesByTransactionRefResponse{AuditEntries: entries}, nil
+}
+
+func (r *AuditEntryRepositoryImpl) ListByAccountID(ctx context.Context, request pkgAudit.ListAuditEntriesByAccountIDRequest) (*pkgAudit.ListAuditEntriesByAccountIDResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for ListByAccountID: %w", err)
+	}
+
+	entries, err := r.queryEntries(ctx,
+		`SELECT id, ref, account_id, kind, points, outcome, reason, actor, created_at
+		 FROM audit_log
+		 WHERE account_id = $1
+		 ORDER BY id`,
+		request.AccountID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pkgAudit.ListAuditEntriesByAccountIDResponse{AuditEntries: entries}, nil
+}
+
+// queryEntries runs a SELECT returning the standard audit_log column set and
+// scans every row into AuditEntry values. It returns a non-nil empty slice when
+// the query matches nothing.
+func (r *AuditEntryRepositoryImpl) queryEntries(ctx context.Context, query string, args ...any) ([]pkgAudit.AuditEntry, error) {
+	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
+
+	rows, err := exec.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("could not query audit entries: %w", err)
 	}
 	defer rows.Close()
 
-	var entries []pkgAudit.AuditEntry
+	entries := []pkgAudit.AuditEntry{}
 	for rows.Next() {
 		entry, err := scanAuditEntry(rows.Scan)
 		if err != nil {
@@ -91,7 +142,7 @@ func (r *AuditEntryRepositoryImpl) List(ctx context.Context, request pkgAudit.Li
 		return nil, fmt.Errorf("could not iterate audit entries: %w", err)
 	}
 
-	return &pkgAudit.ListAuditEntriesResponse{AuditEntries: entries}, nil
+	return entries, nil
 }
 
 func (r *AuditEntryRepositoryImpl) GetByID(ctx context.Context, request pkgAudit.GetAuditEntryByIDRequest) (*pkgAudit.GetAuditEntryByIDResponse, error) {
@@ -103,7 +154,7 @@ func (r *AuditEntryRepositoryImpl) GetByID(ctx context.Context, request pkgAudit
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
 	row := exec.QueryRowContext(ctx,
-		`SELECT id, ref, account_id, kind, points, source, outcome, reason, actor, created_at
+		`SELECT id, ref, account_id, kind, points, outcome, reason, actor, created_at
 		 FROM audit_log
 		 WHERE id = $1`,
 		request.ID,
@@ -125,11 +176,10 @@ func scanAuditEntry(scan func(dest ...any) error) (*pkgAudit.AuditEntry, error) 
 
 	if err := scan(
 		&entry.ID,
-		&entry.Ref,
+		&entry.TransactionRef,
 		&entry.AccountID,
 		&entry.Kind,
 		&entry.Points,
-		&entry.Source,
 		&outcome,
 		&entry.Reason,
 		&entry.Actor,

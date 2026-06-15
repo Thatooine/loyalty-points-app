@@ -14,13 +14,13 @@ const (
 
 // AuditEntry records one transaction-processing attempt — accepted, rejected,
 // or duplicate — with the reason and a timestamp. Unlike the ledger, the same
-// ref can appear many times here (each reprocessing attempt is logged).
+// transaction ref can appear many times here (each reprocessing attempt is logged).
 type AuditEntry struct {
 	// ID is the autoincrement key; an attempt log has no natural key.
 	ID int64 `json:"id"`
 
-	// Ref is nullable: a malformed CSV row may not have one.
-	Ref *string `json:"ref"`
+	// TransactionRef is nullable: a malformed CSV row may not have one.
+	TransactionRef *string `json:"transactionRef"`
 
 	AccountID *string `json:"accountID"`
 
@@ -28,10 +28,6 @@ type AuditEntry struct {
 	// readable without cross-referencing the ledger.
 	Kind   *string `json:"kind"`
 	Points *int64  `json:"points"`
-
-	// Source is where the attempt came from: 'api', 'batch:<filename>', or
-	// 'admin'.
-	Source string `json:"source"`
 
 	Outcome Outcome `json:"outcome"`
 

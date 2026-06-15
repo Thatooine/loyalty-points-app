@@ -25,7 +25,6 @@ func TestProcessTransactionRequest_Validate(t *testing.T) {
 		{"missing ref", func(r *ProcessTransactionRequest) { r.Ref = "" }, true},
 		{"missing account", func(r *ProcessTransactionRequest) { r.AccountID = "" }, true},
 		{"missing actor", func(r *ProcessTransactionRequest) { r.Actor = "" }, true},
-		{"missing source", func(r *ProcessTransactionRequest) { r.Source = "" }, true},
 		{"earn with zero points", func(r *ProcessTransactionRequest) { r.Points = 0 }, true},
 		{"earn with negative points", func(r *ProcessTransactionRequest) { r.Points = -5 }, true},
 		{"spend with negative points", func(r *ProcessTransactionRequest) { r.Kind = KindSpend; r.Points = -5 }, true},

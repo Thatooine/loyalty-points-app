@@ -8,10 +8,6 @@ import (
 func (r *CreateAuditEntryRequest) Validate() error {
 	var reasons []string
 
-	if r.AuditEntry.Source == "" {
-		reasons = append(reasons, "Source is required")
-	}
-
 	if r.AuditEntry.Reason == "" {
 		reasons = append(reasons, "Reason is required")
 	}
@@ -49,5 +45,33 @@ func (r *GetAuditEntryByIDRequest) Validate() error {
 
 // Validate has no fields to check; defined for a uniform call site.
 func (r *ListAuditEntriesRequest) Validate() error {
+	return nil
+}
+
+func (r *ListAuditEntriesByTransactionRefRequest) Validate() error {
+	var reasons []string
+
+	if r.TransactionRef == "" {
+		reasons = append(reasons, "TransactionRef is required")
+	}
+
+	if len(reasons) > 0 {
+		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
+	}
+
+	return nil
+}
+
+func (r *ListAuditEntriesByAccountIDRequest) Validate() error {
+	var reasons []string
+
+	if r.AccountID == "" {
+		reasons = append(reasons, "AccountID is required")
+	}
+
+	if len(reasons) > 0 {
+		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
+	}
+
 	return nil
 }

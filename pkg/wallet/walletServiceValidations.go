@@ -20,10 +20,6 @@ func (r *ProcessTransactionRequest) Validate() error {
 		reasons = append(reasons, "Actor is required")
 	}
 
-	if r.Source == "" {
-		reasons = append(reasons, "Source is required")
-	}
-
 	// Points is supplied positive for earn/spend (the sign is derived from
 	// Kind); for adjust it is the signed delta and may be negative, never zero.
 	switch r.Kind {

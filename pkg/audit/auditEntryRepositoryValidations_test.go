@@ -5,7 +5,7 @@ import "testing"
 func TestCreateAuditEntryRequest_Validate(t *testing.T) {
 	valid := func() CreateAuditEntryRequest {
 		return CreateAuditEntryRequest{AuditEntry: AuditEntry{
-			Source: "api", Outcome: OutcomeAccepted, Reason: "ok", Actor: "user-1",
+			Outcome: OutcomeAccepted, Reason: "ok", Actor: "user-1",
 		}}
 	}
 
@@ -15,7 +15,6 @@ func TestCreateAuditEntryRequest_Validate(t *testing.T) {
 		wantErr bool
 	}{
 		{"valid", func(r *CreateAuditEntryRequest) {}, false},
-		{"missing source", func(r *CreateAuditEntryRequest) { r.AuditEntry.Source = "" }, true},
 		{"missing reason", func(r *CreateAuditEntryRequest) { r.AuditEntry.Reason = "" }, true},
 		{"missing actor", func(r *CreateAuditEntryRequest) { r.AuditEntry.Actor = "" }, true},
 		{"unknown outcome", func(r *CreateAuditEntryRequest) { r.AuditEntry.Outcome = "pending" }, true},

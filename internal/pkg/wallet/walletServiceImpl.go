@@ -258,15 +258,14 @@ func buildAuditEntry(request pkgWallet.ProcessTransactionRequest, delta int64, o
 
 	return pkgAudit.CreateAuditEntryRequest{
 		AuditEntry: pkgAudit.AuditEntry{
-			Ref:       &ref,
-			AccountID: &accountID,
-			Kind:      &kind,
-			Points:    &points,
-			Source:    request.Source,
-			Outcome:   outcome,
-			Reason:    reason,
-			Actor:     request.Actor,
-			CreatedAt: now,
+			TransactionRef: &ref,
+			AccountID:      &accountID,
+			Kind:           &kind,
+			Points:         &points,
+			Outcome:        outcome,
+			Reason:         reason,
+			Actor:          request.Actor,
+			CreatedAt:      now,
 		},
 	}
 }
