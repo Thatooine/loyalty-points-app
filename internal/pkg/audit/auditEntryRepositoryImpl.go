@@ -8,7 +8,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audit"
+	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audits"
 	"github.com/Thatooine/loyalty-points-app/pkg/authorization"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
@@ -41,7 +41,7 @@ func (r *AuditEntryRepositoryImpl) Create(ctx context.Context, request pkgAudit.
 	// idiom for reading back the generated identity.
 	var id int64
 	err := exec.QueryRowContext(ctx,
-		`INSERT INTO audit_log (ref, account_id, owner_id, kind, points, outcome, reason, user_id, created_at)
+		`INSERT INTO audit_entries (transaction_ref, account_id, owner_id, kind, points, outcome, reason, user_id, created_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		 RETURNING id`,
 		entry.TransactionRef,
@@ -71,8 +71,8 @@ func (r *AuditEntryRepositoryImpl) List(ctx context.Context, request pkgAudit.Li
 	// Ownership scoping mirrors the account repository: holding audit:read:all
 	// lists every owner's entries; otherwise the WHERE clause restricts the
 	// listing to request.UserID.
-	query := `SELECT id, ref, account_id, owner_id, kind, points, outcome, reason, user_id, created_at
-		 FROM audit_log`
+	query := `SELECT id, transaction_ref, account_id, owner_id, kind, points, outcome, reason, user_id, created_at
+		 FROM audit_entries`
 	var args []any
 	if !authorization.IsGranted(ctx, authorization.PermAuditReadAll) {
 		query += ` WHERE owner_id = $1`
@@ -94,9 +94,9 @@ func (r *AuditEntryRepositoryImpl) ListByTransactionRef(ctx context.Context, req
 		return nil, fmt.Errorf("invalid request for ListByTransactionRef: %w", err)
 	}
 
-	query := `SELECT id, ref, account_id, owner_id, kind, points, outcome, reason, user_id, created_at
-		 FROM audit_log
-		 WHERE ref = $1`
+	query := `SELECT id, transaction_ref, account_id, owner_id, kind, points, outcome, reason, user_id, created_at
+		 FROM audit_entries
+		 WHERE transaction_ref = $1`
 	args := []any{request.TransactionRef}
 	if !authorization.IsGranted(ctx, authorization.PermAuditReadAll) {
 		query += ` AND owner_id = $2`
@@ -118,8 +118,8 @@ func (r *AuditEntryRepositoryImpl) ListByAccountID(ctx context.Context, request 
 		return nil, fmt.Errorf("invalid request for ListByAccountID: %w", err)
 	}
 
-	query := `SELECT id, ref, account_id, owner_id, kind, points, outcome, reason, user_id, created_at
-		 FROM audit_log
+	query := `SELECT id, transaction_ref, account_id, owner_id, kind, points, outcome, reason, user_id, created_at
+		 FROM audit_entries
 		 WHERE account_id = $1`
 	args := []any{request.AccountID}
 	if !authorization.IsGranted(ctx, authorization.PermAuditReadAll) {
@@ -136,7 +136,7 @@ func (r *AuditEntryRepositoryImpl) ListByAccountID(ctx context.Context, request 
 	return &pkgAudit.ListAuditEntriesByAccountIDResponse{AuditEntries: entries}, nil
 }
 
-// queryEntries runs a SELECT returning the standard audit_log column set and
+// queryEntries runs a SELECT returning the standard audit_entries column set and
 // scans every row into AuditEntry values. It returns a non-nil empty slice when
 // the query matches nothing.
 func (r *AuditEntryRepositoryImpl) queryEntries(ctx context.Context, query string, args ...any) ([]pkgAudit.AuditEntry, error) {
@@ -171,8 +171,8 @@ func (r *AuditEntryRepositoryImpl) GetByID(ctx context.Context, request pkgAudit
 
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 
-	query := `SELECT id, ref, account_id, owner_id, kind, points, outcome, reason, user_id, created_at
-		 FROM audit_log
+	query := `SELECT id, transaction_ref, account_id, owner_id, kind, points, outcome, reason, user_id, created_at
+		 FROM audit_entries
 		 WHERE id = $1`
 	args := []any{request.ID}
 	if !authorization.IsGranted(ctx, authorization.PermAuditReadAll) {

@@ -1,4 +1,4 @@
-package audit
+package audits
 
 import "github.com/Thatooine/loyalty-points-app/pkg/errs"
 

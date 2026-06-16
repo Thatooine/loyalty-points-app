@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/Thatooine/loyalty-points-app/pkg/accounts"
+	"github.com/Thatooine/loyalty-points-app/pkg/audits"
 	"github.com/Thatooine/loyalty-points-app/pkg/authentication"
 	"github.com/Thatooine/loyalty-points-app/pkg/authorization"
 	"github.com/Thatooine/loyalty-points-app/pkg/jsonrpc"
@@ -37,6 +38,7 @@ func setupRPCServer(providers ServiceProviders) {
 		wallets.NewWalletServiceJSONRPCAdaptor(providers.WalletService),
 		accounts.NewAccountJSONRPCAdaptor(providers.AccountRepository),
 		accounts.NewAccountOpenerJSONRPCAdaptor(providers.AccountOpener),
+		audits.NewAuditEntryRepositoryJSONRPCAdaptor(providers.AuditEntryRepository),
 	}
 
 	apiRouter := router.PathPrefix("/api").Subrouter()

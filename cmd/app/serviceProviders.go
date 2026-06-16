@@ -19,7 +19,7 @@ import (
 	internalUsers "github.com/Thatooine/loyalty-points-app/internal/pkg/users"
 	internalWallet "github.com/Thatooine/loyalty-points-app/internal/pkg/wallets"
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
-	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audit"
+	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audits"
 	pkgAuth "github.com/Thatooine/loyalty-points-app/pkg/authentication"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallets"

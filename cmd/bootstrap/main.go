@@ -48,7 +48,7 @@ const systemUserPassword = "systemUser123"
 // dataTables are the application data tables wiped on bootstrap. schema_migrations
 // is deliberately excluded: the schema itself is preserved so migrations are not
 // re-applied against already-existing tables.
-var dataTables = []string{"transactions", "audit_log", "accounts", "users"}
+var dataTables = []string{"transactions", "audit_entries", "accounts", "users"}
 
 func main() {
 	log.Logger = zerolog.New(
@@ -101,7 +101,7 @@ func run(ctx context.Context) error {
 
 // wipeTables truncates every data table in a single statement. CASCADE follows
 // the foreign keys (transactions/accounts -> users), and RESTART IDENTITY resets
-// audit_log's generated id sequence so a bootstrapped database is byte-for-byte
+// audit_entries' generated id sequence so a bootstrapped database is byte-for-byte
 // reproducible.
 func wipeTables(ctx context.Context, db *sql.DB) error {
 	stmt := fmt.Sprintf("TRUNCATE %s RESTART IDENTITY CASCADE",

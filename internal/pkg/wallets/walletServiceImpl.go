@@ -9,7 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
-	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audit"
+	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audits"
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 	pkgSQL "github.com/Thatooine/loyalty-points-app/pkg/sql"
 	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallets"
