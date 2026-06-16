@@ -65,6 +65,7 @@ func runIngest(cmd *cobra.Command, _ []string) error {
 		}
 		fmt.Fprintln(out, string(encoded))
 		fmt.Fprint(out, ingest.Summarize(name, rows, rowErrors, nil).Format(true))
+		fmt.Fprint(out, ingest.Preview(rows))
 		return nil
 	}
 

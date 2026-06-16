@@ -173,6 +173,33 @@ func TestSummarize_WholeBatchError(t *testing.T) {
 	}
 }
 
+func TestPreview(t *testing.T) {
+	rows := []Row{
+		{Line: 1, Ref: "tx-1", AccountID: "acc-1", Kind: "earn", Points: 200, OccurredAt: time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)},
+		{Line: 2, Ref: "tx-1", AccountID: "acc-1", Kind: "earn", Points: 200, OccurredAt: time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)}, // duplicate ref
+		{Line: 3, Ref: "tx-2", AccountID: "acc-2", Kind: "spend", Points: 75, OccurredAt: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC)},
+		{Line: 4, Ref: "tx-3", AccountID: "acc-3", Kind: "earn", Points: 50}, // blank occurred_at
+	}
+
+	out := Preview(rows)
+
+	for _, want := range []string{
+		"apply order",
+		"+200",             // earn rendered with a plus sign
+		"-75",              // spend rendered with a minus sign
+		"(server-stamped)", // blank occurred_at row
+		"accounts:       3",
+		"earns:          3  (+450 pts)", // includes the duplicate row
+		"spends:         1  (-75 pts)",
+		"server-stamped: 1",
+		"duplicate refs: 1  (tx-1)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("preview missing %q:\n%s", want, out)
+		}
+	}
+}
+
 func TestSummary_FormatDryRun(t *testing.T) {
 	rows := []Row{{Line: 1, Ref: "tx-1"}}
 	out := Summarize("batch.csv", rows, nil, nil).Format(true)
