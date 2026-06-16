@@ -115,18 +115,20 @@ func TestAccountGetByIDEndpoint(t *testing.T) {
 func TestAccountGetAccountBalanceEndpoint(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
+	_, adminToken := registerAdmin(t, c)
 
 	// fresh account reads zero
 	if got := remoteBalance(t, c, member.Token, member.AccountID); got != 0 {
 		t.Errorf("initial balance = %d, want 0", got)
 	}
 
-	// credit through the wallet, then confirm the read reflects it
+	// credit through the wallet (operator-only), then confirm the member's read
+	// reflects it
 	earn := c.call(t, earnPointsMethod, map[string]any{
 		"ref":        uniqueRef(t),
 		"account_id": member.AccountID,
 		"points":     75,
-	}, member.Token)
+	}, adminToken)
 	requireNoError(t, "EarnPoints", earn)
 
 	if got := remoteBalance(t, c, member.Token, member.AccountID); got != 75 {

@@ -44,11 +44,15 @@ const (
 	// PermUserReadAll lets a caller read any user record.
 	PermUserReadAll = "user:read:all"
 
-	// PermWalletTransactOwn lets a caller process a transaction against an
-	// account they own.
+	// PermWalletTransactOwn lets a caller spend points from an account they own.
+	// It does NOT authorize crediting: ProcessTransaction and EarnPoints are
+	// operator-only (see DefaultPolicy), so the only transact method this
+	// permission unlocks is SpendPoints. A member must not be able to mint
+	// points into their own account.
 	PermWalletTransactOwn = "wallet:transact:own"
-	// PermWalletTransactAll lets a caller process a transaction against any
-	// account.
+	// PermWalletTransactAll lets a caller process any transaction — earn, spend,
+	// or the generic ProcessTransaction — against any account. It is an operator
+	// capability: crediting points is an admin action, never self-service.
 	PermWalletTransactAll = "wallet:transact:all"
 
 	// PermWalletBatchAll lets a caller run batch ingestion across any account;

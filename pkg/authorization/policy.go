@@ -41,14 +41,20 @@ func NewPolicy(byMethod map[string][]string, public map[string]bool) *Policy {
 
 // DefaultPolicy is the policy wired into the server. Each protected method
 // lists the permissions that satisfy it: read methods accept the own- or
-// all-scoped read permission, the single transaction method accepts the own- or
-// all-scoped transact permission, and batch ingestion accepts only the operator
-// permission.
+// all-scoped read permission, batch ingestion accepts only the operator
+// permission, and the points-crediting methods are operator-only.
+//
+// Crediting is an operator action, never a self-service one: a member must not
+// be able to mint points into their own account. So the generic
+// ProcessTransaction (the caller chooses the kind) and EarnPoints both require
+// the all-scoped transact permission, which only admins hold. SpendPoints is
+// the one transact method a member may call against their own account, gated by
+// the own-scoped transact permission.
 func DefaultPolicy() *Policy {
 	return NewPolicy(
 		map[string][]string{
-			processTransactionMethod:      {PermWalletTransactOwn, PermWalletTransactAll},
-			earnPointsMethod:              {PermWalletTransactOwn, PermWalletTransactAll},
+			processTransactionMethod:      {PermWalletTransactAll},
+			earnPointsMethod:              {PermWalletTransactAll},
 			spendPointsMethod:             {PermWalletTransactOwn, PermWalletTransactAll},
 			processTransactionBatchMethod: {PermWalletBatchAll},
 			getAccountMethod:              {PermAccountReadOwn, PermAccountReadAll},

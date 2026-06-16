@@ -102,17 +102,20 @@ func dbBalance(t *testing.T, c *apiClient, accountID string) (int64, bool) {
 
 // TestEarnPointsEndpoint credits a member's account through the EarnPoints
 // endpoint and verifies the outcome three ways: the RPC response, a second read
-// through GetAccountBalance, and the persisted ledger + account rows.
+// through GetAccountBalance, and the persisted ledger + account rows. Crediting
+// is operator-only, so the earn is performed by an admin against the member's
+// account; the member observes the result through their own read path.
 func TestEarnPointsEndpoint(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
+	admin, adminToken := registerAdmin(t, c)
 	ref := uniqueRef(t)
 
 	resp := c.call(t, earnPointsMethod, map[string]any{
 		"ref":        ref,
 		"account_id": member.AccountID,
 		"points":     150,
-	}, member.Token)
+	}, adminToken)
 	requireNoError(t, "EarnPoints", resp)
 
 	var earn walletResult
@@ -136,7 +139,8 @@ func TestEarnPointsEndpoint(t *testing.T) {
 	}
 
 	// Direct persistence: the ledger row landed with the signed delta, the right
-	// kind, and ownership/authorship stamped to the acting member.
+	// kind, ownership stamped to the account owner (the member), and authorship
+	// stamped to the acting admin.
 	if c.db == nil {
 		t.Log("LOYALTY_DB_DSN not set; skipping direct DB assertions")
 		return
@@ -158,8 +162,8 @@ func TestEarnPointsEndpoint(t *testing.T) {
 	if owner != member.UserID {
 		t.Errorf("persisted owner_id = %q, want %q", owner, member.UserID)
 	}
-	if author != member.UserID {
-		t.Errorf("persisted created_by = %q, want %q", author, member.UserID)
+	if author != admin.UserID {
+		t.Errorf("persisted created_by = %q, want %q", author, admin.UserID)
 	}
 	if bal, ok := dbBalance(t, c, member.AccountID); ok && bal != 150 {
 		t.Errorf("persisted account balance = %d, want 150", bal)
@@ -171,12 +175,15 @@ func TestEarnPointsEndpoint(t *testing.T) {
 func TestSpendPointsEndpoint(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
+	_, adminToken := registerAdmin(t, c)
 
+	// Crediting is operator-only, so an admin seeds the starting balance the
+	// member then spends from.
 	earn := c.call(t, earnPointsMethod, map[string]any{
 		"ref":        uniqueRef(t),
 		"account_id": member.AccountID,
 		"points":     200,
-	}, member.Token)
+	}, adminToken)
 	requireNoError(t, "EarnPoints", earn)
 
 	spendRef := uniqueRef(t)
@@ -265,8 +272,11 @@ func TestSpendOverdraftRejected(t *testing.T) {
 func TestProcessTransactionDuplicateRef(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
+	_, adminToken := registerAdmin(t, c)
 	ref := uniqueRef(t)
 
+	// ProcessTransaction is operator-only; the admin credits the member's
+	// account and re-submits the same ref.
 	params := map[string]any{
 		"ref":        ref,
 		"account_id": member.AccountID,
@@ -274,7 +284,7 @@ func TestProcessTransactionDuplicateRef(t *testing.T) {
 		"points":     100,
 	}
 
-	first := c.call(t, processTransactionMethod, params, member.Token)
+	first := c.call(t, processTransactionMethod, params, adminToken)
 	requireNoError(t, "ProcessTransaction", first)
 	var firstRes walletResult
 	mustUnmarshal(t, first.Result, &firstRes)
@@ -282,7 +292,7 @@ func TestProcessTransactionDuplicateRef(t *testing.T) {
 		t.Fatal("first ProcessTransaction: Duplicate = true, want false")
 	}
 
-	second := c.call(t, processTransactionMethod, params, member.Token)
+	second := c.call(t, processTransactionMethod, params, adminToken)
 	requireNoError(t, "ProcessTransaction (resubmit)", second)
 	var secondRes walletResult
 	mustUnmarshal(t, second.Result, &secondRes)
@@ -327,22 +337,24 @@ func TestProcessTransactionUnauthenticated(t *testing.T) {
 	}
 }
 
-// TestProcessTransactionForeignAccountRejected confirms ownership scoping over
-// the wire: a member cannot transact against an account they do not own — the
-// scoped lookup makes it indistinguishable from a missing account.
-func TestProcessTransactionForeignAccountRejected(t *testing.T) {
+// TestSpendForeignAccountRejected confirms ownership scoping over the wire: a
+// member cannot transact against an account they do not own — the scoped lookup
+// makes it indistinguishable from a missing account. SpendPoints is the
+// member-callable transact method, so ownership is exercised through it (earn
+// and the generic ProcessTransaction are operator-only).
+func TestSpendForeignAccountRejected(t *testing.T) {
 	c := setup(t)
 	owner := registerMember(t, c)
 	intruder := registerMember(t, c)
 	ref := uniqueRef(t)
 
-	resp := c.call(t, earnPointsMethod, map[string]any{
+	resp := c.call(t, spendPointsMethod, map[string]any{
 		"ref":        ref,
 		"account_id": owner.AccountID, // not the intruder's account
 		"points":     100,
 	}, intruder.Token)
 	if resp.Error == nil {
-		t.Fatal("EarnPoints against a foreign account: expected an error, got none")
+		t.Fatal("SpendPoints against a foreign account: expected an error, got none")
 	}
 
 	// The owner's balance is untouched.
@@ -375,5 +387,61 @@ func TestProcessTransactionBatchMemberForbidden(t *testing.T) {
 	}, member.Token)
 	if resp.Error == nil {
 		t.Fatal("ProcessTransactionBatch as member: expected a forbidden error, got none")
+	}
+}
+
+// TestEarnPointsMemberForbidden confirms crediting is operator-only: a member
+// cannot mint points into their own account through EarnPoints, and the
+// rejection leaves no ledger row and an untouched balance.
+func TestEarnPointsMemberForbidden(t *testing.T) {
+	c := setup(t)
+	member := registerMember(t, c)
+	ref := uniqueRef(t)
+
+	resp := c.call(t, earnPointsMethod, map[string]any{
+		"ref":        ref,
+		"account_id": member.AccountID,
+		"points":     1_000_000,
+	}, member.Token)
+	if resp.Error == nil {
+		t.Fatal("EarnPoints as member: expected a forbidden error, got none")
+	}
+
+	if got := remoteBalance(t, c, member.Token, member.AccountID); got != 0 {
+		t.Errorf("balance after forbidden earn = %d, want 0", got)
+	}
+
+	if c.db == nil {
+		return
+	}
+	var n int
+	if err := c.db.QueryRow("SELECT COUNT(*) FROM transactions WHERE ref = $1", ref).Scan(&n); err != nil {
+		t.Fatalf("count transaction rows: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("ledger rows for forbidden earn = %d, want 0", n)
+	}
+}
+
+// TestProcessTransactionMemberForbidden confirms the generic transaction method
+// is operator-only too: a member cannot reach it to credit their own account by
+// passing kind=earn.
+func TestProcessTransactionMemberForbidden(t *testing.T) {
+	c := setup(t)
+	member := registerMember(t, c)
+	ref := uniqueRef(t)
+
+	resp := c.call(t, processTransactionMethod, map[string]any{
+		"ref":        ref,
+		"account_id": member.AccountID,
+		"kind":       "earn",
+		"points":     1_000_000,
+	}, member.Token)
+	if resp.Error == nil {
+		t.Fatal("ProcessTransaction as member: expected a forbidden error, got none")
+	}
+
+	if got := remoteBalance(t, c, member.Token, member.AccountID); got != 0 {
+		t.Errorf("balance after forbidden transaction = %d, want 0", got)
 	}
 }
