@@ -2,11 +2,10 @@
 // every data table and recreates the single well-known system user.
 //
 // The system user has a predictable, constant id (users.RootUserID) so it is
-// the same on every run, and the email system@mail.com. Its password is
-// randomly generated on each run and printed once at the end — it is never
-// hardcoded — and stored bcrypt-hashed. This is the principal resolved by
-// GetByEmail in the email/password authentication flow
-// (pkg/authentication/emailPasswordAuthenticator.go).
+// the same on every run, and the email system@mail.com. Its password is the
+// fixed, well-known systemUserPassword, stored bcrypt-hashed and printed once at
+// the end. This is the principal resolved by GetByEmail in the email/password
+// authentication flow (pkg/authentication/emailPasswordAuthenticator.go).
 //
 // Usage:
 //
@@ -17,9 +16,7 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/base64"
 	"fmt"
 	"os"
 	"strings"
@@ -40,12 +37,13 @@ const defaultPostgresDSN = "postgres://loyalty:loyalty@localhost:5432/loyalty_po
 
 // systemUserEmail is the fixed login email of the system principal. Its id is
 // likewise fixed (users.RootUserID) so the principal is stable across every
-// bootstrap run; only its password is regenerated each time.
+// bootstrap run.
 const systemUserEmail = "system@mail.com"
 
-// systemUserPasswordBytes is the number of random bytes drawn for the generated
-// system-user password before base64 encoding.
-const systemUserPasswordBytes = 24
+// systemUserPassword is the fixed system-user password. It is stored only as a
+// bcrypt hash; this constant is the cleartext the bootstrap hashes and logs so
+// the principal can be logged in with a known credential after a fresh run.
+const systemUserPassword = "systemUser123"
 
 // dataTables are the application data tables wiped on bootstrap. schema_migrations
 // is deliberately excluded: the schema itself is preserved so migrations are not
@@ -118,15 +116,12 @@ func wipeTables(ctx context.Context, db *sql.DB) error {
 // INSERT rather than going through the user repository: bootstrap is operator
 // tooling that owns the database, so it bypasses the repository's
 // ownership-scoping and validation layers and writes the row itself. The id is
-// the constant users.RootUserID; the password is freshly generated, returned to
-// the caller for display, and bcrypt-hashed before it touches the database;
-// created_at is the RFC3339Nano UTC TEXT the schema expects. The role is admin
-// so the system principal can perform operator actions.
+// the constant users.RootUserID; the password is the fixed systemUserPassword,
+// returned to the caller for display and bcrypt-hashed before it touches the
+// database; created_at is the RFC3339Nano UTC TEXT the schema expects. The role
+// is admin so the system principal can perform operator actions.
 func createSystemUser(ctx context.Context, db *sql.DB) (string, error) {
-	password, err := generatePassword()
-	if err != nil {
-		return "", fmt.Errorf("could not generate password: %w", err)
-	}
+	password := systemUserPassword
 
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -146,14 +141,4 @@ func createSystemUser(ctx context.Context, db *sql.DB) (string, error) {
 		return "", fmt.Errorf("could not insert system user: %w", err)
 	}
 	return password, nil
-}
-
-// generatePassword returns a cryptographically random, URL-safe password drawn
-// from systemUserPasswordBytes bytes of crypto/rand entropy.
-func generatePassword() (string, error) {
-	buf := make([]byte, systemUserPasswordBytes)
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
