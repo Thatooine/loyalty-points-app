@@ -20,6 +20,7 @@ const (
 	updateAccountNameMethod       = "Account.UpdateAccountName"
 	updateAccountBalanceMethod    = "Account.UpdateAccountBalance"
 	openAccountMethod             = "AccountOpener.OpenAccount"
+	logoutMethod                  = "Session.Logout"
 )
 
 // Policy is the access-control entity: it maps each JSON-RPC method to the
@@ -62,6 +63,7 @@ func DefaultPolicy() *Policy {
 			updateAccountNameMethod:       {PermAccountWriteOwn, PermAccountWriteAll},
 			updateAccountBalanceMethod:    {PermAccountWriteAll},
 			openAccountMethod:             {PermAccountWriteOwn, PermAccountWriteAll},
+			logoutMethod:                  {PermAuthLogout},
 		},
 		map[string]bool{
 			loginMethod:    true,

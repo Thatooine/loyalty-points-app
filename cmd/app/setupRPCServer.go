@@ -32,6 +32,7 @@ func setupRPCServer(providers ServiceProviders) {
 	// this list as they are built.
 	services := []jsonrpc.Service{
 		authentication.NewEmailPasswordAuthenticatorJSONRPCAdaptor(providers.EmailPasswordAuthenticator),
+		authentication.NewLogoutServiceJSONRPCAdaptor(providers.LogoutService),
 		users.NewUserRegistrationServiceJSONRPCAdaptor(providers.UserRegistrationService),
 		wallets.NewWalletServiceJSONRPCAdaptor(providers.WalletService),
 		accounts.NewAccountJSONRPCAdaptor(providers.AccountRepository),

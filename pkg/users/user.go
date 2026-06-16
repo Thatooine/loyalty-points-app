@@ -26,4 +26,10 @@ type User struct {
 	Role Role `json:"role"`
 
 	CreatedAt time.Time `json:"createdAt"`
+
+	// TokenVersion is the user's session epoch. It is stamped into every access
+	// token issued for the user and re-checked on each protected request;
+	// incrementing it (on logout) invalidates all of that user's outstanding
+	// tokens at once. Never serialised into an RPC response.
+	TokenVersion int64 `json:"-"`
 }

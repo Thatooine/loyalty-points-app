@@ -11,22 +11,26 @@ import (
 	"github.com/rs/zerolog/log"
 
 	pkgAuth "github.com/Thatooine/loyalty-points-app/pkg/authentication"
+	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 )
 
 // AccessTokenServiceImpl issues and validates signed JWT access tokens using
 // go-jose.
 type AccessTokenServiceImpl struct {
-	tokenSigner jose.Signer
-	publicKey   *rsa.PublicKey
+	tokenSigner    jose.Signer
+	publicKey      *rsa.PublicKey
+	userRepository pkgUsers.UserRepository
 }
 
 // NewAccessTokenServiceImpl returns a new AccessTokenServiceImpl with the
-// provided jose.Signer for signing tokens and RSA public key for verifying
-// token signatures.
-func NewAccessTokenServiceImpl(tokenSigner jose.Signer, publicKey *rsa.PublicKey) *AccessTokenServiceImpl {
+// provided jose.Signer for signing tokens, RSA public key for verifying token
+// signatures, and user repository for checking the per-user token_version
+// (session epoch) on validation so revoked tokens are rejected.
+func NewAccessTokenServiceImpl(tokenSigner jose.Signer, publicKey *rsa.PublicKey, userRepository pkgUsers.UserRepository) *AccessTokenServiceImpl {
 	return &AccessTokenServiceImpl{
-		tokenSigner: tokenSigner,
-		publicKey:   publicKey,
+		tokenSigner:    tokenSigner,
+		publicKey:      publicKey,
+		userRepository: userRepository,
 	}
 }
 
@@ -87,6 +91,23 @@ func (a *AccessTokenServiceImpl) ValidateAccessToken(ctx context.Context, reques
 	if time.Now().Unix() > claim.ExpirationTime {
 		log.Ctx(ctx).Warn().Str("userID", claim.UserID).Msg("access token has expired")
 		return nil, fmt.Errorf("ValidateAccessToken failed: token has expired")
+	}
+
+	// Revocation check: the token's stamped session epoch must still match the
+	// user's current token_version. Logout (and any future "log out everywhere")
+	// bumps the version, so every token issued before the bump is rejected here.
+	// The user id comes from the signature-verified claim, so this lookup is a
+	// trusted, unscoped read. This is the one stateful step on the validation
+	// hot path; a short-TTL cache of userID->version would remove the per-request
+	// read if it ever becomes a bottleneck.
+	versionResp, err := a.userRepository.GetTokenVersion(ctx, pkgUsers.GetTokenVersionRequest{UserID: claim.UserID})
+	if err != nil {
+		log.Ctx(ctx).Warn().Err(err).Str("userID", claim.UserID).Msg("could not read token version")
+		return nil, fmt.Errorf("ValidateAccessToken failed: could not read token version: %w", err)
+	}
+	if claim.TokenVersion != versionResp.TokenVersion {
+		log.Ctx(ctx).Warn().Str("userID", claim.UserID).Msg("access token has been revoked (stale token version)")
+		return nil, fmt.Errorf("ValidateAccessToken failed: token has been revoked")
 	}
 
 	return &pkgAuth.ValidateAccessTokenResponse{

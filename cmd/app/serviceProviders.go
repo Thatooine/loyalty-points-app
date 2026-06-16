@@ -40,6 +40,7 @@ type ServiceProviders struct {
 	EmailPasswordAuthenticator pkgAuth.EmailPasswordAuthenticator
 	AccessTokenIssuer          pkgAuth.AccessTokenIssuer
 	AccessTokenValidator       pkgAuth.AccessTokenValidator
+	LogoutService              pkgAuth.LogoutService
 }
 
 // Close releases resources held by the service providers.
@@ -82,7 +83,7 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 	}
 
 	// services that compose the repositories (mirrors the house wiring order)
-	accessTokenService := internalAuth.NewAccessTokenServiceImpl(tokenSigner, &jwtPrivateKey.PublicKey)
+	accessTokenService := internalAuth.NewAccessTokenServiceImpl(tokenSigner, &jwtPrivateKey.PublicKey, userRepository)
 	emailPasswordAuthenticator := internalAuth.NewEmailPasswordAuthenticatorImpl(
 		userRepository,
 		accessTokenService,
@@ -96,6 +97,8 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 	)
 
 	accountOpener := internalAccounts.NewAccountOpenerServiceImpl(accountRepository)
+
+	logoutService := internalAuth.NewLogoutServiceImpl(userRepository)
 
 	userRegistrationService := internalUsers.NewUserRegistrationServiceImpl(
 		transactionManager,
@@ -117,6 +120,7 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 		EmailPasswordAuthenticator: emailPasswordAuthenticator,
 		AccessTokenIssuer:          accessTokenService,
 		AccessTokenValidator:       accessTokenService,
+		LogoutService:              logoutService,
 	}, nil
 }
 

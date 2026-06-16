@@ -27,6 +27,21 @@ type UserRepository interface {
 	// or the RootUserID principal used by login — reads any user, otherwise the
 	// lookup is restricted to the caller's own record.
 	GetByEmail(ctx context.Context, request GetUserByEmailRequest) (*GetUserByEmailResponse, error)
+
+	// GetTokenVersion returns the user's current token_version (their session
+	// epoch), or errs.ErrNotFound. It is the lean read on the token-validation
+	// hot path, so it is NOT ownership-scoped: it is a trusted, server-internal
+	// lookup keyed by the exact user id taken from an already signature-verified
+	// token claim, never from client input.
+	GetTokenVersion(ctx context.Context, request GetTokenVersionRequest) (*GetTokenVersionResponse, error)
+
+	// IncrementTokenVersion atomically bumps the user's token_version by one and
+	// returns the new value, or errs.ErrNotFound when no such user exists. This
+	// is the revocation lever: every access token issued before the bump
+	// carries a now-stale version and is rejected at validation. Like
+	// GetTokenVersion it is a trusted, server-internal operation keyed by an
+	// exact user id, not ownership-scoped.
+	IncrementTokenVersion(ctx context.Context, request IncrementTokenVersionRequest) (*IncrementTokenVersionResponse, error)
 }
 
 // SystemUserID identifies the system principal used for unauthenticated,
@@ -86,4 +101,28 @@ type GetUserByEmailRequest struct {
 // GetUserByEmailResponse is the response for GetByEmail.
 type GetUserByEmailResponse struct {
 	User User
+}
+
+// GetTokenVersionRequest is the request for GetTokenVersion.
+type GetTokenVersionRequest struct {
+	// UserID is the user whose token_version to read. It comes from a verified
+	// token claim, not client input.
+	UserID string
+}
+
+// GetTokenVersionResponse is the response for GetTokenVersion.
+type GetTokenVersionResponse struct {
+	TokenVersion int64
+}
+
+// IncrementTokenVersionRequest is the request for IncrementTokenVersion.
+type IncrementTokenVersionRequest struct {
+	// UserID is the user whose token_version to bump (the principal logging out).
+	UserID string
+}
+
+// IncrementTokenVersionResponse is the response for IncrementTokenVersion.
+type IncrementTokenVersionResponse struct {
+	// TokenVersion is the new, post-increment value.
+	TokenVersion int64
 }

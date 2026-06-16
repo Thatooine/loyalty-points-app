@@ -18,7 +18,7 @@ import (
 
 // registrationTokenTTL is how long the access token issued at registration
 // remains valid (mirrors the email/password auth service).
-const registrationTokenTTL = 24 * time.Hour
+const registrationTokenTTL = 1 * time.Hour
 
 // defaultAccountName is the wallet name used when the request leaves it blank.
 const defaultAccountName = "Primary Wallet"
@@ -114,6 +114,9 @@ func (s *UserRegistrationServiceImpl) Register(ctx context.Context, request pkgU
 			Role:           user.Role,
 			Permissions:    authorization.PermissionsForRole(user.Role),
 			ExpirationTime: time.Now().Add(registrationTokenTTL).Unix(),
+			// A freshly created user starts at token_version 0 (the column
+			// default), so stamp that; the field is here for parity with login.
+			TokenVersion: user.TokenVersion,
 		},
 	})
 	if err != nil {

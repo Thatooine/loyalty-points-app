@@ -58,6 +58,15 @@ const (
 	// PermWalletBatchAll lets a caller run batch ingestion across any account;
 	// it is an operator capability with no "own" form.
 	PermWalletBatchAll = "wallet:batch:all"
+
+	// PermAuthLogout lets a caller revoke their own sessions (log out). Every
+	// authenticated user holds it, so the logout method is reachable by anyone
+	// with a valid token; the acting user is taken from the token, so it only
+	// ever revokes the caller's own tokens. It is deliberately scope-less: logout
+	// carries no own-vs-all data scope (it never reads another user's data), so
+	// it is exempt from the all-scoped invariant that applies to admin's
+	// data-access permissions.
+	PermAuthLogout = "auth:logout"
 )
 
 // RolePermissions is the fixed set of permissions granted by holding a role.
@@ -71,6 +80,7 @@ var RolePermissions = map[users.Role][]string{
 		PermTransactionReadOwn,
 		PermUserReadOwn,
 		PermWalletTransactOwn,
+		PermAuthLogout,
 	},
 	users.RoleAdmin: {
 		PermAccountReadAll,
@@ -80,6 +90,7 @@ var RolePermissions = map[users.Role][]string{
 		PermUserReadAll,
 		PermWalletTransactAll,
 		PermWalletBatchAll,
+		PermAuthLogout,
 	},
 }
 

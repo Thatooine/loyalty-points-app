@@ -61,3 +61,17 @@ func (r *GetUserByEmailRequest) Validate() error {
 func (r *ListUsersRequest) Validate() error {
 	return nil
 }
+
+func (r *GetTokenVersionRequest) Validate() error {
+	if r.UserID == "" {
+		return fmt.Errorf("validation failed: UserID is required")
+	}
+	return nil
+}
+
+func (r *IncrementTokenVersionRequest) Validate() error {
+	if r.UserID == "" {
+		return fmt.Errorf("validation failed: UserID is required")
+	}
+	return nil
+}

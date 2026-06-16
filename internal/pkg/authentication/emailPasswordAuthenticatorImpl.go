@@ -15,8 +15,11 @@ import (
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 )
 
-// accessTokenTTL is how long an issued access token remains valid.
-const accessTokenTTL = 24 * time.Hour
+// accessTokenTTL is how long an issued access token remains valid. Kept short
+// because the token is stateless and cannot be revoked before it expires (no
+// refresh-token mechanism yet), so the TTL bounds the exposure of a leaked or
+// stale token.
+const accessTokenTTL = 1 * time.Hour
 
 type EmailPasswordAuthenticatorImpl struct {
 	userRepository     pkgUsers.UserRepository
@@ -73,6 +76,10 @@ func (s *EmailPasswordAuthenticatorImpl) Authenticate(ctx context.Context, reque
 				Role:           user.Role,
 				Permissions:    authorization.PermissionsForRole(user.Role),
 				ExpirationTime: time.Now().Add(accessTokenTTL).Unix(),
+				// Stamp the current session epoch so logout (which bumps it) can
+				// revoke this token. Login does NOT bump the version, so
+				// concurrent sessions on other devices remain valid (multi-session).
+				TokenVersion: user.TokenVersion,
 			},
 		})
 	if err != nil {

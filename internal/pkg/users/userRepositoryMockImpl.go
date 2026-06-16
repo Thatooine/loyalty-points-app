@@ -18,10 +18,12 @@ var _ pkgUsers.UserRepository = &MockUserRepository{}
 type MockUserRepository struct {
 	T *testing.T
 
-	CreateFunc     func(t *testing.T, m *MockUserRepository, ctx context.Context, request pkgUsers.CreateUserRequest) (*pkgUsers.CreateUserResponse, error)
-	ListFunc       func(t *testing.T, m *MockUserRepository, ctx context.Context, request pkgUsers.ListUsersRequest) (*pkgUsers.ListUsersResponse, error)
-	GetByIDFunc    func(t *testing.T, m *MockUserRepository, ctx context.Context, request pkgUsers.GetUserByIDRequest) (*pkgUsers.GetUserByIDResponse, error)
-	GetByEmailFunc func(t *testing.T, m *MockUserRepository, ctx context.Context, request pkgUsers.GetUserByEmailRequest) (*pkgUsers.GetUserByEmailResponse, error)
+	CreateFunc                func(t *testing.T, m *MockUserRepository, ctx context.Context, request pkgUsers.CreateUserRequest) (*pkgUsers.CreateUserResponse, error)
+	ListFunc                  func(t *testing.T, m *MockUserRepository, ctx context.Context, request pkgUsers.ListUsersRequest) (*pkgUsers.ListUsersResponse, error)
+	GetByIDFunc               func(t *testing.T, m *MockUserRepository, ctx context.Context, request pkgUsers.GetUserByIDRequest) (*pkgUsers.GetUserByIDResponse, error)
+	GetByEmailFunc            func(t *testing.T, m *MockUserRepository, ctx context.Context, request pkgUsers.GetUserByEmailRequest) (*pkgUsers.GetUserByEmailResponse, error)
+	GetTokenVersionFunc       func(t *testing.T, m *MockUserRepository, ctx context.Context, request pkgUsers.GetTokenVersionRequest) (*pkgUsers.GetTokenVersionResponse, error)
+	IncrementTokenVersionFunc func(t *testing.T, m *MockUserRepository, ctx context.Context, request pkgUsers.IncrementTokenVersionRequest) (*pkgUsers.IncrementTokenVersionResponse, error)
 }
 
 func (m *MockUserRepository) Create(ctx context.Context, request pkgUsers.CreateUserRequest) (*pkgUsers.CreateUserResponse, error) {
@@ -50,4 +52,18 @@ func (m *MockUserRepository) GetByEmail(ctx context.Context, request pkgUsers.Ge
 		return nil, nil
 	}
 	return m.GetByEmailFunc(m.T, m, ctx, request)
+}
+
+func (m *MockUserRepository) GetTokenVersion(ctx context.Context, request pkgUsers.GetTokenVersionRequest) (*pkgUsers.GetTokenVersionResponse, error) {
+	if m.GetTokenVersionFunc == nil {
+		return nil, nil
+	}
+	return m.GetTokenVersionFunc(m.T, m, ctx, request)
+}
+
+func (m *MockUserRepository) IncrementTokenVersion(ctx context.Context, request pkgUsers.IncrementTokenVersionRequest) (*pkgUsers.IncrementTokenVersionResponse, error) {
+	if m.IncrementTokenVersionFunc == nil {
+		return nil, nil
+	}
+	return m.IncrementTokenVersionFunc(m.T, m, ctx, request)
 }
