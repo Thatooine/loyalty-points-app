@@ -10,8 +10,6 @@ import (
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 )
 
-// TestLogout_Success confirms Logout bumps the user's token_version through the
-// repository and returns the new value, keyed to the requested user.
 func TestLogout_Success(t *testing.T) {
 	ctx := context.Background()
 
@@ -35,8 +33,6 @@ func TestLogout_Success(t *testing.T) {
 	}
 }
 
-// TestLogout_ValidationError confirms an empty UserID is rejected before any
-// repository call.
 func TestLogout_ValidationError(t *testing.T) {
 	ctx := context.Background()
 
@@ -54,7 +50,6 @@ func TestLogout_ValidationError(t *testing.T) {
 	}
 }
 
-// TestLogout_RepositoryError confirms a repository failure is surfaced.
 func TestLogout_RepositoryError(t *testing.T) {
 	ctx := context.Background()
 

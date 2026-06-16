@@ -16,17 +16,14 @@ type AccountRepository interface {
 	UpdateAccountName(ctx context.Context, request UpdateAccountNameRequest) (*UpdateAccountNameResponse, error)
 }
 
-// CreateAccountRequest is the request for Create.
 type CreateAccountRequest struct {
 	Account Account
 }
 
-// CreateAccountResponse is the response for Create.
 type CreateAccountResponse struct {
 	Account Account
 }
 
-// ListAccountsRequest is the request for List.
 type ListAccountsRequest struct {
 	// UserID, when non-empty, scopes the listing to the owning user so only
 	// that user's accounts are returned (see GetAccountByIDRequest.UserID).
@@ -34,12 +31,10 @@ type ListAccountsRequest struct {
 	UserID string
 }
 
-// ListAccountsResponse is the response for List.
 type ListAccountsResponse struct {
 	Accounts []Account
 }
 
-// GetAccountByIDRequest is the request for GetByID.
 type GetAccountByIDRequest struct {
 	AccountID string
 
@@ -49,12 +44,10 @@ type GetAccountByIDRequest struct {
 	UserID string
 }
 
-// GetAccountByIDResponse is the response for GetByID.
 type GetAccountByIDResponse struct {
 	Account Account
 }
 
-// GetAccountBalanceRequest is the request for GetAccountBalance.
 type GetAccountBalanceRequest struct {
 	AccountID string
 
@@ -63,12 +56,10 @@ type GetAccountBalanceRequest struct {
 	UserID string
 }
 
-// GetAccountBalanceResponse is the response for GetAccountBalance.
 type GetAccountBalanceResponse struct {
 	Balance int64
 }
 
-// UpdateAccountBalanceRequest is the request for UpdateAccountBalance.
 type UpdateAccountBalanceRequest struct {
 	AccountID string
 	// Delta is the signed amount to apply: positive to credit, negative to
@@ -82,13 +73,11 @@ type UpdateAccountBalanceRequest struct {
 	UserID string
 }
 
-// UpdateAccountBalanceResponse is the response for UpdateAccountBalance.
 type UpdateAccountBalanceResponse struct {
 	// Balance is the account balance after the delta was applied.
 	Balance int64
 }
 
-// UpdateAccountNameRequest is the request for UpdateAccountName.
 type UpdateAccountNameRequest struct {
 	AccountID string
 
@@ -102,7 +91,6 @@ type UpdateAccountNameRequest struct {
 	UserID string
 }
 
-// UpdateAccountNameResponse is the response for UpdateAccountName.
 type UpdateAccountNameResponse struct {
 	// Account is the account after the rename.
 	Account Account

@@ -29,17 +29,14 @@ type AuditEntryRepository interface {
 	GetByID(ctx context.Context, request GetAuditEntryByIDRequest) (*GetAuditEntryByIDResponse, error)
 }
 
-// CreateAuditEntryRequest is the request for Create.
 type CreateAuditEntryRequest struct {
 	AuditEntry AuditEntry
 }
 
-// CreateAuditEntryResponse is the response for Create.
 type CreateAuditEntryResponse struct {
 	AuditEntry AuditEntry
 }
 
-// ListAuditEntriesRequest is the request for List.
 type ListAuditEntriesRequest struct {
 	// UserID names the owner the listing is scoped to. A caller granted
 	// audit:read:all reads across owners regardless; otherwise only this user's
@@ -47,12 +44,10 @@ type ListAuditEntriesRequest struct {
 	UserID string
 }
 
-// ListAuditEntriesResponse is the response for List.
 type ListAuditEntriesResponse struct {
 	AuditEntries []AuditEntry
 }
 
-// ListAuditEntriesByTransactionRefRequest is the request for ListByTransactionRef.
 type ListAuditEntriesByTransactionRefRequest struct {
 	TransactionRef string
 
@@ -62,12 +57,10 @@ type ListAuditEntriesByTransactionRefRequest struct {
 	UserID string
 }
 
-// ListAuditEntriesByTransactionRefResponse is the response for ListByTransactionRef.
 type ListAuditEntriesByTransactionRefResponse struct {
 	AuditEntries []AuditEntry
 }
 
-// ListAuditEntriesByAccountIDRequest is the request for ListByAccountID.
 type ListAuditEntriesByAccountIDRequest struct {
 	AccountID string
 
@@ -77,12 +70,10 @@ type ListAuditEntriesByAccountIDRequest struct {
 	UserID string
 }
 
-// ListAuditEntriesByAccountIDResponse is the response for ListByAccountID.
 type ListAuditEntriesByAccountIDResponse struct {
 	AuditEntries []AuditEntry
 }
 
-// GetAuditEntryByIDRequest is the request for GetByID.
 type GetAuditEntryByIDRequest struct {
 	ID int64
 
@@ -92,7 +83,6 @@ type GetAuditEntryByIDRequest struct {
 	UserID string
 }
 
-// GetAuditEntryByIDResponse is the response for GetByID.
 type GetAuditEntryByIDResponse struct {
 	AuditEntry AuditEntry
 }

@@ -8,13 +8,11 @@ type EmailPasswordAuthenticator interface {
 	Authenticate(ctx context.Context, request EmailPasswordAuthenticatorRequest) (*EmailPasswordAuthenticatorResponse, error)
 }
 
-// EmailPasswordAuthenticatorRequest is the request for Authenticate.
 type EmailPasswordAuthenticatorRequest struct {
 	Email    string
 	Password string
 }
 
-// EmailPasswordAuthenticatorResponse is the response for Authenticate.
 type EmailPasswordAuthenticatorResponse struct {
 	Token  string
 	UserID string

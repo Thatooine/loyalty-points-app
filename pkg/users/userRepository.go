@@ -50,29 +50,24 @@ type UserRepository interface {
 // exempt from ownership scoping. It is set only by trusted server code and must
 // never be populated from client input.
 
-// CreateUserRequest is the request for Create.
 type CreateUserRequest struct {
 	User User
 }
 
-// CreateUserResponse is the response for Create.
 type CreateUserResponse struct {
 	User User
 }
 
-// ListUsersRequest is the request for List.
 type ListUsersRequest struct {
 	// UserID is the calling user's id. Unless the caller holds user:read:all the
 	// listing is restricted to this id (their own record).
 	UserID string
 }
 
-// ListUsersResponse is the response for List.
 type ListUsersResponse struct {
 	Users []User
 }
 
-// GetUserByIDRequest is the request for GetByID.
 type GetUserByIDRequest struct {
 	// ID is the user to fetch.
 	ID string
@@ -83,12 +78,10 @@ type GetUserByIDRequest struct {
 	UserID string
 }
 
-// GetUserByIDResponse is the response for GetByID.
 type GetUserByIDResponse struct {
 	User User
 }
 
-// GetUserByEmailRequest is the request for GetByEmail.
 type GetUserByEmailRequest struct {
 	Email string
 
@@ -98,31 +91,25 @@ type GetUserByEmailRequest struct {
 	UserID string
 }
 
-// GetUserByEmailResponse is the response for GetByEmail.
 type GetUserByEmailResponse struct {
 	User User
 }
 
-// GetTokenVersionRequest is the request for GetTokenVersion.
 type GetTokenVersionRequest struct {
 	// UserID is the user whose token_version to read. It comes from a verified
 	// token claim, not client input.
 	UserID string
 }
 
-// GetTokenVersionResponse is the response for GetTokenVersion.
 type GetTokenVersionResponse struct {
 	TokenVersion int64
 }
 
-// IncrementTokenVersionRequest is the request for IncrementTokenVersion.
 type IncrementTokenVersionRequest struct {
 	// UserID is the user whose token_version to bump (the principal logging out).
 	UserID string
 }
 
-// IncrementTokenVersionResponse is the response for IncrementTokenVersion.
 type IncrementTokenVersionResponse struct {
-	// TokenVersion is the new, post-increment value.
 	TokenVersion int64
 }

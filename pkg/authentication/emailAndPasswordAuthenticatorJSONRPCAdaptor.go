@@ -12,7 +12,6 @@ type EmailAndPasswordAuthenticatorRESTAdaptor struct {
 	authenticator EmailAndPasswordAuthenticatorService
 }
 
-// NewEmailAndPasswordAuthenticatorRESTAdaptor returns a new EmailAndPasswordAuthenticatorRESTAdaptor.
 func NewEmailAndPasswordAuthenticatorRESTAdaptor(
 	authenticator EmailAndPasswordAuthenticatorService,
 ) *EmailAndPasswordAuthenticatorRESTAdaptor {

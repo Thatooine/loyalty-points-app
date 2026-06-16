@@ -15,7 +15,6 @@ type WalletService interface {
 	ProcessTransactionBatch(ctx context.Context, request ProcessTransactionBatchRequest) (*ProcessTransactionBatchResponse, error)
 }
 
-// ProcessTransactionRequest is the request for ProcessTransaction.
 type ProcessTransactionRequest struct {
 	// UserID is the acting principal (the user ID submitting the transaction).
 	// Ownership is enforced by scoping every account read/update to this user,
@@ -37,8 +36,7 @@ type ProcessTransactionRequest struct {
 	OccurredAt time.Time
 }
 
-// EarnPointsRequest is the request for EarnPoints. It mirrors
-// ProcessTransactionRequest minus Kind, which the method fixes to KindEarn.
+// Mirrors ProcessTransactionRequest minus Kind, which the method fixes to KindEarn.
 type EarnPointsRequest struct {
 	// UserID is the acting principal (the user ID submitting the transaction).
 	UserID string
@@ -56,8 +54,7 @@ type EarnPointsRequest struct {
 	OccurredAt time.Time
 }
 
-// SpendPointsRequest is the request for SpendPoints. It mirrors
-// ProcessTransactionRequest minus Kind, which the method fixes to KindSpend.
+// Mirrors ProcessTransactionRequest minus Kind, which the method fixes to KindSpend.
 type SpendPointsRequest struct {
 	// UserID is the acting principal (the user ID submitting the transaction).
 	UserID string
@@ -76,7 +73,6 @@ type SpendPointsRequest struct {
 	OccurredAt time.Time
 }
 
-// ProcessTransactionResponse is the response for ProcessTransaction.
 type ProcessTransactionResponse struct {
 	// Transaction is the ledger entry — the newly recorded one, or the
 	// original when Duplicate is true.

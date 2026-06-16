@@ -11,7 +11,6 @@ type AccountOpener interface {
 	OpenAccount(ctx context.Context, request OpenAccountRequest) (*OpenAccountResponse, error)
 }
 
-// OpenAccountRequest is the request for OpenAccount.
 type OpenAccountRequest struct {
 	// UserID is the owner of the new account. It is always the calling
 	// principal — the adaptor fills it from the verified login claim, never
@@ -23,7 +22,6 @@ type OpenAccountRequest struct {
 	Name string
 }
 
-// OpenAccountResponse is the response for OpenAccount.
 type OpenAccountResponse struct {
 	// Account is the freshly opened account, including its assigned ID and a
 	// starting balance of zero.

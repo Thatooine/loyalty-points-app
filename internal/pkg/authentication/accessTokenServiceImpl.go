@@ -22,10 +22,8 @@ type AccessTokenServiceImpl struct {
 	userRepository pkgUsers.UserRepository
 }
 
-// NewAccessTokenServiceImpl returns a new AccessTokenServiceImpl with the
-// provided jose.Signer for signing tokens, RSA public key for verifying token
-// signatures, and user repository for checking the per-user token_version
-// (session epoch) on validation so revoked tokens are rejected.
+// userRepository is needed to re-check the per-user token_version on
+// validation, so revoked tokens are rejected.
 func NewAccessTokenServiceImpl(tokenSigner jose.Signer, publicKey *rsa.PublicKey, userRepository pkgUsers.UserRepository) *AccessTokenServiceImpl {
 	return &AccessTokenServiceImpl{
 		tokenSigner:    tokenSigner,

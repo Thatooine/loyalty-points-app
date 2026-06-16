@@ -12,7 +12,6 @@ type UserRegistrationService interface {
 	Register(ctx context.Context, request RegisterRequest) (*RegisterResponse, error)
 }
 
-// RegisterRequest is the request for Register.
 type RegisterRequest struct {
 	Email    string
 	Password string
@@ -23,7 +22,6 @@ type RegisterRequest struct {
 	AccountName string
 }
 
-// RegisterResponse is the response for Register.
 type RegisterResponse struct {
 	Token     string
 	UserID    string

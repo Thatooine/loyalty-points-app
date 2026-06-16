@@ -10,19 +10,16 @@ type TransactionRepository interface {
 	GetByID(ctx context.Context, request GetTransactionByIDRequest) (*GetTransactionByIDResponse, error)
 }
 
-// CreateTransactionRequest is the request for Create.
 type CreateTransactionRequest struct {
 	Transaction Transaction
 }
 
-// CreateTransactionResponse is the response for Create.
 type CreateTransactionResponse struct {
 	Transaction Transaction
 }
 
-// ListTransactionsRequest is the request for List. Listing is keyset-paginated:
-// rows come back newest-first and the caller walks pages by echoing the
-// previous response's NextCursor.
+// Listing is keyset-paginated: rows come back newest-first and the caller walks
+// pages by echoing the previous response's NextCursor.
 type ListTransactionsRequest struct {
 	UserID string
 
@@ -35,7 +32,6 @@ type ListTransactionsRequest struct {
 	Cursor string
 }
 
-// ListTransactionsResponse is the response for List.
 type ListTransactionsResponse struct {
 	Transactions []Transaction
 
@@ -44,14 +40,12 @@ type ListTransactionsResponse struct {
 	NextCursor string
 }
 
-// GetTransactionByIDRequest is the request for GetByID.
 type GetTransactionByIDRequest struct {
 	UserID string
 
 	Ref string
 }
 
-// GetTransactionByIDResponse is the response for GetByID.
 type GetTransactionByIDResponse struct {
 	Transaction Transaction
 }

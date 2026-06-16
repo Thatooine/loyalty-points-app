@@ -78,3 +78,8 @@ DB-backed tests call `testsupport.NewPostgresDB(t)`, which provisions a **fresh 
 ### CLI
 
 `cmd/cli` (`loyalty-cli`) is a thin cobra client over the same JSON-RPC endpoint — notably `ingest` for batch transaction loading. It holds no business logic; the server is authoritative. It sorts batches by `OccurredAt` before sending because the server applies them in slice order.
+
+### Code Formatting Rules
+- Do NOT add explanatory comments for obvious or self-documenting code.
+- Only add comments if highly complex algorithmic logic is used, and focus on "why", not "what".
+- Do not generate block-level docstrings for every single function or class unless explicitly requested.

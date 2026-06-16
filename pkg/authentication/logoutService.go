@@ -16,17 +16,13 @@ type LogoutService interface {
 	Logout(ctx context.Context, request LogoutRequest) (*LogoutResponse, error)
 }
 
-// LogoutRequest is the request for Logout.
 type LogoutRequest struct {
-	// UserID is the principal logging out. It is taken from the verified login
-	// claim by the adaptor, never from client input, so a caller can only log
-	// themselves out.
+	// Taken from the verified login claim by the adaptor, never from client
+	// input, so a caller can only log themselves out.
 	UserID string
 }
 
-// LogoutResponse is the response for Logout.
 type LogoutResponse struct {
-	// TokenVersion is the user's new session epoch after the bump.
 	TokenVersion int64
 }
 

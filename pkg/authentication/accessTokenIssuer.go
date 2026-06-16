@@ -8,12 +8,10 @@ type AccessTokenIssuer interface {
 	IssueAccessToken(ctx context.Context, request IssueAccessTokenRequest) (*IssueAccessTokenResponse, error)
 }
 
-// IssueAccessTokenRequest is the request for IssueAccessToken.
 type IssueAccessTokenRequest struct {
 	LoginClaim LoginClaim
 }
 
-// IssueAccessTokenResponse is the response for IssueAccessToken.
 type IssueAccessTokenResponse struct {
 	AccessToken string
 }

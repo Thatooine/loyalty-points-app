@@ -24,14 +24,11 @@ func (a *LogoutServiceJSONRPCAdaptor) Name() string {
 	return "Session"
 }
 
-// LogoutJSONRPCRequest is the wire request. It carries no fields: the principal
-// is resolved from the token, so the client sends nothing.
+// Carries no fields: the principal is resolved from the token.
 type LogoutJSONRPCRequest struct{}
 
-// LogoutJSONRPCResponse is the wire response.
 type LogoutJSONRPCResponse struct {
-	// OK is always true on success; it gives the client a non-empty body to
-	// assert against.
+	// Always true on success; gives the client a non-empty body to assert against.
 	OK bool `json:"ok"`
 }
 

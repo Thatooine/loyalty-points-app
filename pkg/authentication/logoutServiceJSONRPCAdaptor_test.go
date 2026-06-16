@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-// stubLogout is a minimal LogoutService double for the adaptor tests.
 type stubLogout struct {
 	called  bool
 	gotUser string
@@ -23,8 +22,7 @@ func (s *stubLogout) Logout(ctx context.Context, request LogoutRequest) (*Logout
 	return &LogoutResponse{TokenVersion: 1}, nil
 }
 
-// TestLogoutAdaptor_UsesClaimUserID confirms the adaptor takes the acting user
-// from the verified login claim (never the request body) and reports success.
+// The acting user must come from the verified login claim, never the request body.
 func TestLogoutAdaptor_UsesClaimUserID(t *testing.T) {
 	stub := &stubLogout{}
 	adaptor := NewLogoutServiceJSONRPCAdaptor(stub)
@@ -47,8 +45,6 @@ func TestLogoutAdaptor_UsesClaimUserID(t *testing.T) {
 	}
 }
 
-// TestLogoutAdaptor_NoClaim confirms the adaptor rejects a request with no login
-// claim on the context and never reaches the service.
 func TestLogoutAdaptor_NoClaim(t *testing.T) {
 	stub := &stubLogout{}
 	adaptor := NewLogoutServiceJSONRPCAdaptor(stub)
@@ -64,8 +60,6 @@ func TestLogoutAdaptor_NoClaim(t *testing.T) {
 	}
 }
 
-// TestLogoutAdaptor_ServiceError confirms a service error surfaces as a wire
-// error rather than a false success.
 func TestLogoutAdaptor_ServiceError(t *testing.T) {
 	stub := &stubLogout{err: errors.New("boom")}
 	adaptor := NewLogoutServiceJSONRPCAdaptor(stub)

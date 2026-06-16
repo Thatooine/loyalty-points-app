@@ -14,12 +14,10 @@ type AccessTokenServiceMock struct {
 	ValidateAccessTokenFn func(ctx context.Context, request pkgAuth.ValidateAccessTokenRequest) (*pkgAuth.ValidateAccessTokenResponse, error)
 }
 
-// IssueAccessToken delegates to IssueAccessTokenFn.
 func (m *AccessTokenServiceMock) IssueAccessToken(ctx context.Context, request pkgAuth.IssueAccessTokenRequest) (*pkgAuth.IssueAccessTokenResponse, error) {
 	return m.IssueAccessTokenFn(ctx, request)
 }
 
-// ValidateAccessToken delegates to ValidateAccessTokenFn.
 func (m *AccessTokenServiceMock) ValidateAccessToken(ctx context.Context, request pkgAuth.ValidateAccessTokenRequest) (*pkgAuth.ValidateAccessTokenResponse, error) {
 	return m.ValidateAccessTokenFn(ctx, request)
 }

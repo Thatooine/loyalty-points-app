@@ -10,9 +10,6 @@ import (
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 )
 
-// LogoutServiceImpl implements authentication.LogoutService by bumping the
-// user's token_version through the user repository. One increment invalidates
-// every access token the user currently holds (see LogoutService docs).
 type LogoutServiceImpl struct {
 	userRepository pkgUsers.UserRepository
 }
