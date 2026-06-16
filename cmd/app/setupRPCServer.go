@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -47,15 +48,23 @@ func setupRPCServer(providers ServiceProviders) {
 	apiRouter.Handle("", newJSONRPCServer(services))
 
 	// start the http server
-	log.Info().Msg(fmt.Sprintf("Starting JSON-RPC server on: 0.0.0.0:%d", port))
+	addr := fmt.Sprintf("0.0.0.0:%d", port)
+	log.Info().Msg(fmt.Sprintf("Starting JSON-RPC server on: %s", addr))
 	go func() {
 		server := &http.Server{
 			Handler:      router,
-			Addr:         fmt.Sprintf("0.0.0.0:%d", port),
+			Addr:         addr,
 			WriteTimeout: 150 * time.Second,
 			ReadTimeout:  150 * time.Second,
 		}
-		if err := server.ListenAndServe(); err != nil {
+		// Bind the listener up front so "ready to serve" is logged only once the
+		// port is actually accepting connections (a bind failure logs and exits).
+		listener, err := net.Listen("tcp", addr)
+		if err != nil {
+			log.Fatal().Err(err).Msg("error starting json rpc server")
+		}
+		log.Info().Msg(fmt.Sprintf("JSON-RPC server ready to serve on: %s", addr))
+		if err := server.Serve(listener); err != nil {
 			log.Fatal().Err(err).Msg("error starting json rpc server")
 		}
 	}()

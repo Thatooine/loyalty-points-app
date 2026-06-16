@@ -17,6 +17,19 @@ file is the operator's guide: how to run it and how to call it.
 
 ## Run it locally
 
+**One-click:** start Postgres, seed an admin, and run the server in one command:
+
+```bash
+./scripts/start-stack.sh
+```
+
+It runs `docker compose up -d`, waits for Postgres, runs `cmd/bootstrap` (which
+**wipes all data tables** and recreates the `system@mail.com` admin — see below),
+then runs the server in the foreground on `:8080`. Press Ctrl-C to stop the
+server; `docker compose down` stops Postgres.
+
+Or do it by hand:
+
 ```bash
 # 1. Start PostgreSQL (credentials match the app's baked-in defaults)
 docker compose up -d

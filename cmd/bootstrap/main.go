@@ -3,8 +3,8 @@
 //
 // The system user has a predictable, constant id (users.RootUserID) so it is
 // the same on every run, and the email system@mail.com. Its password is the
-// fixed, well-known systemUserPassword, stored bcrypt-hashed and printed once at
-// the end. This is the principal resolved by GetByEmail in the email/password
+// fixed, well-known systemUserPassword, stored only bcrypt-hashed (never
+// printed). This is the principal resolved by GetByEmail in the email/password
 // authentication flow (pkg/authentication/emailPasswordAuthenticator.go).
 //
 // Usage:
@@ -40,9 +40,10 @@ const defaultPostgresDSN = "postgres://loyalty:loyalty@localhost:5432/loyalty_po
 // bootstrap run.
 const systemUserEmail = "system@mail.com"
 
-// systemUserPassword is the fixed system-user password. It is stored only as a
-// bcrypt hash; this constant is the cleartext the bootstrap hashes and logs so
-// the principal can be logged in with a known credential after a fresh run.
+// systemUserPassword is the fixed, well-known system-user password. It is stored
+// only as a bcrypt hash; this constant is the cleartext the bootstrap hashes.
+// Being a constant it is the known credential for logging in as the system
+// principal after a fresh run, so it is never printed.
 const systemUserPassword = "systemUser123"
 
 // dataTables are the application data tables wiped on bootstrap. schema_migrations
@@ -84,16 +85,14 @@ func run(ctx context.Context) error {
 	}
 	log.Info().Strs("tables", dataTables).Msg("wiped all data tables")
 
-	password, err := createSystemUser(ctx, db)
-	if err != nil {
+	if err := createSystemUser(ctx, db); err != nil {
 		return fmt.Errorf("could not create system user: %w", err)
 	}
-	// The password is generated here and stored only as a bcrypt hash, so this
-	// log line is the single chance to capture it. Print it explicitly.
+	// The password is the fixed, well-known systemUserPassword constant, so it is
+	// deliberately not logged.
 	log.Info().
 		Str("id", pkgUsers.RootUserID).
 		Str("email", systemUserEmail).
-		Str("password", password).
 		Msg("created system user")
 
 	return nil
@@ -117,18 +116,16 @@ func wipeTables(ctx context.Context, db *sql.DB) error {
 // tooling that owns the database, so it bypasses the repository's
 // ownership-scoping and validation layers and writes the row itself. The id is
 // the constant users.RootUserID; the password is the fixed systemUserPassword,
-// returned to the caller for display and bcrypt-hashed before it touches the
-// database; created_at is the RFC3339Nano UTC TEXT the schema expects. The role
-// is admin so the system principal can perform operator actions.
-func createSystemUser(ctx context.Context, db *sql.DB) (string, error) {
-	password := systemUserPassword
-
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+// bcrypt-hashed before it touches the database; created_at is the RFC3339Nano
+// UTC TEXT the schema expects. The role is admin so the system principal can
+// perform operator actions.
+func createSystemUser(ctx context.Context, db *sql.DB) error {
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(systemUserPassword), bcrypt.DefaultCost)
 	if err != nil {
-		return "", fmt.Errorf("could not hash password: %w", err)
+		return fmt.Errorf("could not hash password: %w", err)
 	}
 
-	_, err = db.ExecContext(ctx,
+	if _, err := db.ExecContext(ctx,
 		`INSERT INTO users (id, email, password_hash, role, created_at)
 		 VALUES ($1, $2, $3, $4, $5)`,
 		pkgUsers.RootUserID,
@@ -136,9 +133,8 @@ func createSystemUser(ctx context.Context, db *sql.DB) (string, error) {
 		string(passwordHash),
 		string(pkgUsers.RoleAdmin),
 		pkgTime.FormatTime(time.Now().UTC()),
-	)
-	if err != nil {
-		return "", fmt.Errorf("could not insert system user: %w", err)
+	); err != nil {
+		return fmt.Errorf("could not insert system user: %w", err)
 	}
-	return password, nil
+	return nil
 }

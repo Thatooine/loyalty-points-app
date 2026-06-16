@@ -365,6 +365,69 @@
             },
             "description": "ADMIN-ONLY (account:write:all). Applies a raw signed delta to the balance — positive to credit, negative to debit — bypassing the wallet's idempotency/audit unit of work; intended for operator corrections, not normal earns/spends. The overdraft floor is still enforced (a debit past zero returns 'insufficient balance'). A non-admin token is rejected with 'forbidden: balance adjustment is admin-only'. Returns { result: { account_id, balance } } with the balance after the delta. Sends Authorization: Bearer {{token}}."
           }
+        },
+        {
+          "name": "Audit.ListByTransactionRef",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api",
+              "host": ["{{baseUrl}}"],
+              "path": ["api"]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"Audit.ListByTransactionRef\",\n  \"params\": [\n    {\n      \"transaction_ref\": \"tx-1\"\n    }\n  ],\n  \"id\": 1\n}"
+            },
+            "description": "Returns every audit entry recorded for a transaction ref, oldest first — including accepted, duplicate, and rejected attempts. Scoped to the caller: a member (audit:read:own) sees only entries against accounts they own, so querying a ref recorded against another owner's account simply returns an empty trail (no existence leak); an admin (audit:read:all) sees every owner's. Returns { result: { transaction_ref, entries: [{ id, user_id, transaction_ref, account_id, owner_id, kind, points, outcome, reason, created_at }] } }. An empty entries slice is a valid result, not an error. Use the same ref you sent to Wallet.ProcessTransaction/EarnPoints/SpendPoints. Sends Authorization: Bearer {{token}}."
+          }
+        },
+        {
+          "name": "Session.Logout",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api",
+              "host": ["{{baseUrl}}"],
+              "path": ["api"]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"Session.Logout\",\n  \"params\": [\n    {}\n  ],\n  \"id\": 1\n}"
+            },
+            "description": "Revokes the caller's outstanding access tokens by bumping their token_version (session epoch). The principal is taken from the token, never the wire — params is an empty object — so a caller can only log themselves out. Because the version is a single per-user value this is 'log out everywhere': every token issued before the bump is rejected by subsequent calls. Returns { result: { ok: true } }. After running this, the captured {{token}} is stale — re-run Login to get a fresh one. Sends Authorization: Bearer {{token}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('no JSON-RPC error', () => pm.expect(body.error, JSON.stringify(body.error)).to.be.undefined);",
+                  "pm.test('ok returned', () => pm.expect(body.result.ok).to.eql(true));",
+                  "pm.collectionVariables.set('token', '');",
+                  "console.log('cleared {{token}} — it is now revoked; re-run Login');"
+                ]
+              }
+            }
+          ]
         }
       ]
     }
