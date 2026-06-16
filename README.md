@@ -37,6 +37,23 @@ can be overridden by environment variable:
 > The baked-in key is for local development only. Provide your own
 > `JWT_PRIVATE_KEY_PEM` for any real deployment.
 
+### Get an admin token
+
+New registrations are always members, and crediting points / batch ingestion are
+admin-only. For local development, bootstrap a well-known **admin** system user:
+
+```bash
+go run ./cmd/bootstrap   # resets the DB and (re)creates system@mail.com / systemUser123 as an admin
+```
+
+Then `EmailPasswordAuthenticator.Login` with those credentials to get an admin
+token. (For an existing user, the production path is an operator promotion —
+`UPDATE users SET role = 'admin' WHERE email = '...'` — see
+[SOLUTION.md](./SOLUTION.md#access-control).)
+
+> `go run ./cmd/bootstrap` **wipes every data table** before recreating the
+> system user — it is a clean-slate dev tool, not for production.
+
 ## Build, vet, test
 
 ```bash
@@ -82,8 +99,8 @@ with the message in the body.
 
 ### Roles in one line
 
-- **member** — read and act on *their own* account only (default for every new registration).
-- **admin** — read/adjust *any* account, and run batch ingestion.
+- **member** — read their own account and **spend** from it (default for every new registration). Members cannot credit points.
+- **admin** — read/adjust *any* account, **credit** points (earn / process), and run batch ingestion.
 
 See [SOLUTION.md](./SOLUTION.md#access-control) for how a user becomes an admin.
 
@@ -149,11 +166,40 @@ curl -s http://localhost:8080/api -H 'Content-Type: application/json' -d '{
 { "jsonrpc": "2.0", "result": { "token": "eyJhbGci...", "userID": "0c5f...", "email": "rina@example.com" }, "id": 1 }
 ```
 
-### `Wallet.EarnPoints` — member (own account) / admin (any)
+Tokens expire after **1 hour**. There is no refresh flow — log in again for a
+fresh token.
 
-Credits points. `ref` is the idempotency key — re-submitting the same `ref`
-returns the original outcome with `"duplicate": true` and applies no new effect.
-`occurred_at` is optional; the server stamps it when omitted.
+### `Session.Logout` — any authenticated user
+
+Revokes the caller's tokens. The acting user is taken from the token, never the
+body, so an empty params object is fine. Logout bumps the user's session epoch,
+which invalidates **every** token they currently hold — including other devices
+("log out everywhere"). The same token used after logout is rejected as
+unauthorized.
+
+**Request**
+
+```bash
+curl -s http://localhost:8080/api \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $TOKEN" -d '{
+  "jsonrpc": "2.0", "method": "Session.Logout", "params": [{}], "id": 1
+}'
+```
+
+**Response**
+
+```json
+{ "jsonrpc": "2.0", "result": { "ok": true }, "id": 1 }
+```
+
+### `Wallet.EarnPoints` — admin only
+
+Credits points. Crediting is an operator action — a member token is rejected, so
+a member cannot mint points into their own account. `ref` is the idempotency
+key — re-submitting the same `ref` returns the original outcome with
+`"duplicate": true` and applies no new effect. `occurred_at` is optional; the
+server stamps it when omitted.
 
 **Request**
 
@@ -221,11 +267,12 @@ curl -s http://localhost:8080/api \
 { "jsonrpc": "2.0", "error": { "code": -32000, "message": "insufficient balance" }, "id": 1 }
 ```
 
-### `Wallet.ProcessTransaction` — member (own) / admin (any)
+### `Wallet.ProcessTransaction` — admin only
 
 The general earn/spend method; `kind` is `"earn"` or `"spend"`. `EarnPoints` and
-`SpendPoints` are thin wrappers that fix `kind` for you. Same request/response
-shape as above plus a `"kind"` field in params.
+`SpendPoints` are thin wrappers that fix `kind` for you. Because it can credit,
+it is operator-only — members spend via `Wallet.SpendPoints`. Same
+request/response shape as above plus a `"kind"` field in params.
 
 ### `Account.GetByID` — member (own) / admin (any)
 

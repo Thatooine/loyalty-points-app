@@ -14,7 +14,11 @@ A loyalty-points ledger exposed as a JSON-RPC 2.0 API, backed by PostgreSQL:
 - **Earn / spend** — recorded against an account, with current balance tracked.
 - **Idempotency** — the same transaction `ref` never counts twice.
 - **Overdraft floor** — a spend can never drive a balance below zero.
-- **Access control** — `member` and `admin` roles, enforced in two layers.
+- **Access control** — `member` and `admin` roles, enforced in two layers;
+  crediting points is operator-only, members may only spend from their own
+  account.
+- **Sessions** — short-lived (1h) JWTs with server-side revocation: logout
+  invalidates every token the user holds.
 - **Batch ingestion** — a CLI ingests a CSV of transactions safely and reports a
   summary; every attempt is recorded in an audit trail.
 
@@ -107,21 +111,38 @@ Access is carried by a **signed JWT** (JWS, RS256, compact serialization via
   "role": "member",
   "permissions": ["account:read:own", "wallet:transact:own", "..."],
   "expirationTime": 1718534400,
+  "tokenVersion": 0,
   "lastName": ""
 }
 ```
 
-- **Issued** at register and at login, with a 24h expiry. The permission list is
-  resolved from the user's role *at issue time* and embedded in the claim, so
-  the middleware authorizes without a per-request DB lookup.
-- **Stored** client-side; the server is stateless with respect to sessions. It
-  is presented either as `Authorization: Bearer <token>` or an `access_token`
-  cookie.
+- **Issued** at register and at login, with a **1h expiry**. The permission list
+  is resolved from the user's role *at issue time* and embedded in the claim, so
+  authorization needs no per-request DB lookup for permissions. The user's
+  current `tokenVersion` (session epoch) is stamped in too — see *Session
+  revocation* below.
+- **Stored** client-side; there is no server-side session table. It is presented
+  either as `Authorization: Bearer <token>` or an `access_token` cookie.
 - **Validated** by parsing the JWS, verifying the RS256 signature against the
-  RSA public key, unmarshalling the claim, and checking `expirationTime`. The
-  signing key is configured via `JWT_PRIVATE_KEY_PEM` (a dev key is baked in for
-  local use). Signature verification means the embedded permissions cannot be
-  tampered with client-side.
+  RSA public key, unmarshalling the claim, checking `expirationTime`, and
+  comparing the claim's `tokenVersion` against the user's current value
+  (rejecting a token whose epoch is stale). The signing key is configured via
+  `JWT_PRIVATE_KEY_PEM` (a dev key is baked in for local use). Signature
+  verification means the embedded permissions cannot be tampered with
+  client-side.
+
+### Session revocation (logout)
+
+A signed JWT is otherwise self-contained, so a leaked or stale token would stay
+valid until expiry with no way to cut it off. To close that gap each user row
+carries a `token_version` (a session epoch): it is stamped into every issued
+token and re-checked on every protected request. `Session.Logout` increments
+it, which invalidates **every** token that user currently holds in one step —
+"log out everywhere". Login deliberately does *not* bump the version, so
+concurrent sessions on multiple devices coexist until an explicit logout. The
+cost is one indexed read per protected request (a short-TTL cache would remove
+it if needed); per-device revocation would require per-token tracking, which I
+left out of scope.
 
 ### Layer 1 — method gate (all-or-nothing)
 
@@ -142,9 +163,13 @@ missing, so ownership is enforced without leaking existence.
 
 Permissions are `resource:action:scope` strings (e.g. `account:read:own`,
 `wallet:transact:all`); roles map to a fixed, explicit (no-wildcard) permission
-set in `permissions.go`. Members get all `:own` permissions; admins get the
-`:all` set plus `wallet:batch:all`. The acting principal (`UserID`) is always
-taken from the verified claim, never from the client payload.
+set in `permissions.go`. Crediting points is an operator action, so
+`Wallet.EarnPoints` and the generic `Wallet.ProcessTransaction` require the
+all-scoped `wallet:transact:all` that only admins hold; a member's
+`wallet:transact:own` unlocks `Wallet.SpendPoints` against their own account
+only — a member cannot mint points into their own balance. Both roles hold the
+scope-less `auth:logout`. The acting principal (`UserID`) is always taken from
+the verified claim, never from the client payload.
 
 ### How a user becomes an admin
 
@@ -157,8 +182,14 @@ UPDATE users SET role = 'admin' WHERE email = 'ops@example.com';
 ```
 
 The next login then issues a token carrying the admin permission set. This is a
-deliberate trade-off for a take-home (see §7): no admin-bootstrap RPC, no
-seeding — promotion is an operator action.
+deliberate trade-off for a take-home (see §7): no admin-bootstrap RPC — promotion
+of a normal user is an operator action.
+
+For local development there is a bootstrap command (`go run ./cmd/bootstrap`)
+that resets the database and recreates a single well-known **admin** system user
+(`system@mail.com` / `systemUser123`), so a login yields an admin token to work
+with immediately. It is a dev convenience and a clean-slate reset, not a
+production provisioning path.
 
 ---
 
@@ -205,8 +236,9 @@ filename order on startup and in tests.
   model already supports multiple accounts per user (`accounts.owner_id`), so a
   `CreateAccount` RPC is a small addition — I left it out to stay within scope.
 - **Permissions are snapshotted into the token.** A role change only takes effect
-  on the next login (24h max). Acceptable here; a production system might use
-  short-lived tokens plus refresh, or a revocation list.
+  on the next login (≤1h, the token TTL). Tokens are revocable via the
+  `token_version` epoch (logout-everywhere), but there is no refresh-token flow
+  and no per-device revocation — both would be the next step.
 - **No rate limiting / request size limits** on ingestion. The batch is applied
   in a single unit of work, which is simple and correct but not ideal for very
   large files; chunking would be the next step.
@@ -221,25 +253,43 @@ filename order on startup and in tests.
 I used **Claude Code** as a pair-programmer throughout, with a deliberately
 plan-first, test-backed workflow rather than free-form generation.
 
-**What I asked for, and how I steered it:**
+### Conventions encoded as reusable skills
 
+Rather than re-explain the architecture in every prompt, I captured the
+recurring, error-prone tasks as Claude Code skills in `.claude/skills/`. Each
+skill is a checklist plus a canonical reference the model follows, so generated
+code mirrors the existing patterns instead of drifting, and the steps that fail
+*silently* are never skipped.
 
-1. **Encoded the conventions as reusable skills.** The recurring, error-prone
-   tasks were captured as Claude Code skills in `.claude/skills/`
-   (`add-rpc-method`, `endpoint-integration-test`, `go-unit-tests`). For example,
-   adding an RPC method touches the interface, DTO, `Validate()`, adaptor, SQL
-   impl, *and* the authorization policy — the skill exists so the easy-to-forget
-   policy entry is never missed. This kept generated code consistent with the
-   existing patterns instead of drifting.
+| Skill | What it does | What it deliberately leaves out |
+| --- | --- | --- |
+| `code-structure` | The arbiter: decides what belongs in the adaptor vs service vs repository, and routes any new write path through the single owner of that mechanic (e.g. `ProcessTransaction`) instead of duplicating it. | — |
+| `scaffold-crud-repository` | Given one entity struct, generates the whole persistence layer — port interface + CRUD DTOs, `Validate()`, the Postgres impl (with `ExecutorFromContext` + ownership scoping), the hand-written mock, and table-driven validation tests. | adaptor, policy, wiring |
+| `scaffold-service` | Given a capability interface (`AccountOpener`, `UserRegistration`…), generates the impl that orchestrates repositories in one unit of work, its adaptor, mock, `Validate()`, and impl+adaptor unit tests. Writes **no SQL**. | repository SQL, policy, wiring |
+| `add-rpc-method` | Makes a method callable over the wire end-to-end: interface, DTO, `Validate()`, adaptor, SQL impl, *and* — critically — the `DefaultPolicy()` entry, the one omission that makes a method silently return "method not allowed" regardless of token. | — |
+| `go-unit-tests` | Pure-Go tests (no DB): the mock-first convention, table-driven validations, and the non-negotiable happy-path-**and**-each-error-branch rule. | — |
+| `endpoint-integration-test` | Black-box HTTP/JSON-RPC tests that assert both the wire response **and** the persisted rows, plus the mandatory negative cases (unauthenticated, foreign-account, overdraft). Skips cleanly when no server/DB is reachable. | — |
 
-2. **Invariants pinned with prose, then tests.** I asked it to write design
+**How they compose.** `code-structure` decides the shape; the two `scaffold-*`
+skills generate a layer each (they intentionally stop short of the wire so the
+division stays honest); `add-rpc-method` then exposes it and closes the
+easy-to-forget policy gap; the two test skills cover it at both the unit and
+endpoint level. The scope boundaries are deliberate — each skill's "out of
+scope" list points at the next skill, so the model hands work off rather than
+half-doing a neighbouring layer. This was the single biggest lever on
+consistency: the skills, not me, kept the near-identical files of each domain in
+lockstep.
+
+### How I steered the rest
+
+1. **Invariants pinned with prose, then tests.** I asked it to write design
    notes (`scratch/Notes.md`) explaining the unit-of-work and validation
    patterns in plain language, which doubled as a spec I could check the code
    against. Every business rule (idempotency, overdraft floor, ownership
    scoping) got a happy-path *and* an error-case test; I treated a rule as "not
    done" until both existed.
 
-3. **What I accepted vs. rejected.** I accepted the model's mechanical
+2. **What I accepted vs. rejected.** I accepted the model's mechanical
    scaffolding, SQL boilerplate, and table-driven test stubs readily. I pushed
    back on / edited: the concurrency model (insisted on the single guarded
    `UPDATE` over check-then-insert), the batch transport (one ordered request,
