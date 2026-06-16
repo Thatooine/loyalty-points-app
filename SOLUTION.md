@@ -205,6 +205,14 @@ account — the read, the check, and the write are atomic, so two overlapping
 spends cannot both pass the check against the same starting balance. There is
 also a table-level `CHECK (balance >= 0)` as a backstop.
 
+The approach I rejected here was the obvious one: `SELECT` the balance, compare
+in Go, then `UPDATE`. That reads cleanly but opens a race window between the read
+and the write — two concurrent spends both read the same balance, both pass the
+check, and both write, driving the balance negative. Pushing the check into the
+`WHERE` clause collapses read-check-write into a single atomic statement and lets
+Postgres serialise the contending writers on the row, so the floor holds without
+an explicit lock or a higher isolation level.
+
 **Concurrency safety — a unit of work via context-resolved executor.**
 Repositories never hold a `*sql.Tx`. Each resolves its executor from the context
 (`pkgSQL.ExecutorFromContext`): if `TxManager.RunInTx` placed a transaction on
@@ -213,11 +221,27 @@ decides what is atomic, and the same repository code works standalone or
 composed. `ProcessTransaction` wraps the ledger insert, the balance update, and
 the audit write in one `RunInTx` so they commit or roll back together.
 
+The implementation choice worth calling out is *how* the transaction reaches the
+repositories. The alternative is to thread a `*sql.Tx` (or a `Querier`
+interface) through every repository method signature. I rejected that because it
+forces every method to exist in two flavours — one on the pool, one on a tx — or
+to leak the transaction into its signature even when it runs standalone. Stashing
+the executor on the context instead means each repository writes one query path
+against a small `Executor` interface (the common subset of `*sql.DB` and
+`*sql.Tx`), and `RunInTx` decides atomicity from the outside. The cost I accepted
+is that the transaction travels *implicitly* on the context rather than visibly in
+the signature — slightly more magic — but it keeps the repository layer free of
+transaction bookkeeping, which was the trade I wanted.
+
 **Audit trail — survives rollback when it must.** Accepted and duplicate
 attempts are audited *inside* the unit of work (they commit with the ledger
 row). Rejected attempts are audited on the *plain* context (the pool), so the
 audit row survives the rolled-back transaction — a rejection is still recorded
-even though nothing else was written.
+even though nothing else was written. The naive approach — write every audit row
+inside the same transaction — was wrong precisely for rejections: rolling back the
+overdraft means rolling back its own audit record, so the trail would silently
+lose every failed attempt. Splitting the rejected write onto the pool is what
+keeps "someone tried to overspend" durable.
 
 ---
 
@@ -279,6 +303,15 @@ through; everything else requires a valid token whose permissions satisfy the
 method. **New protected methods must be added to `DefaultPolicy()` or they are
 rejected** — fail-closed by default.
 
+The fail-closed behaviour is a deliberate implementation choice, not an accident:
+a method absent from the policy map falls through to "deny", never to "allow". I
+preferred this over the easy alternative of guarding each handler individually
+(`if !authorized { … }`) because a per-handler check is something you can *forget*
+to add when you write a new method, and the failure mode of forgetting is an open
+endpoint. Here the failure mode of forgetting is a *closed* endpoint — the new
+method simply returns "method not allowed" until it is listed — so the unsafe
+mistake is structurally impossible and the safe mistake is loud and immediate.
+
 ### Layer 2 — ownership scope (own vs all)
 
 The method gate resolves no scope. Breadth is enforced in the data layer, on
@@ -322,8 +355,10 @@ production provisioning path.
 ## 5. Batch ingestion and ordering
 
 The CLI (`cmd/cli`, `loyalty-cli ingest`) is a thin client; all business rules
-live on the server. It parses the CSV, **sorts rows by `occurred_at` then line**,
-and sends the whole batch as **one ordered JSON-RPC request** to the admin-only
+live on the server. It parses the CSV, **sorts rows by `occurred_at` then line**
+(`ingest.SortRows`, a stable sort with the 1-based data line as the deterministic
+tiebreaker; a blank `occurred_at` sorts first), and sends the whole batch as
+**one ordered JSON-RPC request** to the admin-only
 `Wallet.ProcessTransactionBatch`.
 
 Why one ordered request rather than a JSON-RPC 2.0 batch array: the JSON-RPC
@@ -331,8 +366,25 @@ spec lets a server process a batch in any order and concurrently, and the
 gorilla json2 codec does not decode batch arrays at all. Because the overdraft
 floor makes each write order-dependent (an earn must be applied before the spend
 it funds), ordering has to be guaranteed — so the batch travels as a single
-ordered payload and the server is a faithful sequential executor of that order.
-Ordering *policy* lives in the CLI; ordering *guarantee* lives in the server.
+ordered payload and the server applies it sequentially.
+
+**Ordering is enforced on the server, not just the client.** Sorting in the CLI
+alone would leave the invariant at the mercy of whichever client sent the
+batch — a direct RPC caller could submit rows out of order and silently trip the
+overdraft floor. So `ProcessTransactionBatch` re-sorts by `occurred_at` itself,
+making correct chronology a property of the server. Two implementation details
+there were deliberate. It sorts a *copy* of the input slice rather than in place,
+so the caller's slice is never mutated under it and the per-element results can
+still be reported against the order the client actually sent. And the sort is
+*stable* with submission order as the implicit tiebreaker, so two transactions
+with equal or absent timestamps keep their original relative order — without
+stability, equal-timestamped rows could reorder run-to-run and an earn could land
+after the spend it funds purely by sort nondeterminism. The CLI's own sort is
+still useful — it lets the `--dry-run` preview show the true application order
+before anything is sent — but it is now belt-and-braces, not the only line of
+defence. Because the server may reorder, per-element results come back in
+*applied* order and callers correlate them by `ref`, not by position (the CLI
+keys its summary off `ref`).
 
 Reprocessing the same file is safe by construction: idempotency dedupes on `ref`,
 so re-ingestion yields duplicates, not double counts. The server returns
@@ -356,18 +408,32 @@ filename order on startup and in tests.
 
 ## 7. Trade-offs and what I'd do next
 
-- **Admin provisioning is manual** (SQL promotion). Fine for a take-home; a real
-  system needs an admin-bootstrap path or an invite flow.
+This is the single inventory of what I *deliberately did not build* — the
+out-of-scope notes scattered above all resolve here. Each was a conscious cut to
+keep the take-home focused on the correctness-critical core, not an oversight, and
+each has a clear next step.
+
+- **Admin provisioning is manual** (SQL promotion — §4). Fine for a take-home; a
+  real system needs an admin-bootstrap path or an invite flow. I chose manual
+  promotion over an admin-creates-admin RPC specifically to avoid shipping a
+  privilege-escalation surface I couldn't fully harden in scope.
 - **One wallet per user.** Registration opens a single default account. The data
   model already supports multiple accounts per user (`accounts.owner_id`), so a
   `CreateAccount` RPC is a small addition — I left it out to stay within scope.
 - **Permissions are snapshotted into the token.** A role change only takes effect
   on the next login (≤1h, the token TTL). Tokens are revocable via the
-  `token_version` epoch (logout-everywhere), but there is no refresh-token flow
-  and no per-device revocation — both would be the next step.
+  `token_version` epoch (logout-everywhere — §4), but there is no refresh-token
+  flow and no per-device revocation. I chose not to build per-device revocation
+  because it needs per-token tracking (a server-side token table), which trades
+  away the stateless-JWT property the whole auth model is built on; the epoch
+  counter buys "log out everywhere" for one indexed read instead.
 - **No rate limiting / request size limits** on ingestion. The batch is applied
   in a single unit of work, which is simple and correct but not ideal for very
   large files; chunking would be the next step.
+- **Forward-only migrations** (§2). No down-migrations, checksums, or dirty-state
+  tracking. I decided against pulling in `golang-migrate`/`goose` because the
+  embedded-and-applied-on-startup approach has zero operational moving parts and
+  is enough for a forward-only take-home; a long-lived service would outgrow it.
 
 ---
 
@@ -408,22 +474,11 @@ lockstep.
 
 ### How I steered the rest
 
-1. **Invariants pinned with prose, then tests.** I asked it to write design
-   notes (`scratch/Notes.md`) explaining the unit-of-work and validation
-   patterns in plain language, which doubled as a spec I could check the code
-   against. Every business rule (idempotency, overdraft floor, ownership
-   scoping) got a happy-path *and* an error-case test; I treated a rule as "not
-   done" until both existed.
-
-2. **What I accepted vs. rejected.** I accepted the model's mechanical
-   scaffolding, SQL boilerplate, and table-driven test stubs readily. I pushed
-   back on / edited: the concurrency model (insisted on the single guarded
-   `UPDATE` over check-then-insert), the batch transport (one ordered request,
-   not a JSON-RPC batch array, because ordering must be guaranteed), and the
-   audit-on-rollback behaviour (rejected attempts must survive). These are the
-   correctness-critical decisions, so I owned them and used the model to
-   implement and test them rather than to decide them.
-
-The net effect: AI accelerated the breadth (lots of small, consistent files and
-tests) while the load-bearing decisions stayed human-reviewed and are documented
-above.
+I accepted the model's mechanical scaffolding, SQL boilerplate, and table-driven
+test stubs readily. I pushed back on / edited the correctness-critical calls: the
+concurrency model (insisted on the single guarded `UPDATE` over check-then-insert),
+the batch transport (one ordered request, not a JSON-RPC batch array, because
+ordering must be guaranteed), and the audit-on-rollback behaviour (rejected
+attempts must survive). I owned those decisions and used the model to implement
+and test them rather than to decide them — so AI accelerated the breadth while the
+load-bearing decisions stayed human-reviewed.

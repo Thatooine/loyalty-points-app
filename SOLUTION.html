@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loyalty Points Wallet — Solution</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-slide: #131a24;
+    --bg-card: #1a2230;
+    --bg-code: #0a0e14;
+    --accent: #5e8bf;
+    --accent-2: #7c9cff;
+    --accent-grad: linear-gradient(135deg, #5eb8bf 0%, #7c9cff 100%);
+    --gain: #4ade80;
+    --cost: #fbbf24;
+    --text: #e6edf3;
+    --text-dim: #9aa7b5;
+    --text-faint: #6b7787;
+    --border: #2a3441;
+    --code-text: #c9d6e3;
+    --shadow: 0 12px 40px rgba(0,0,0,0.45);
+    --mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Progress bar */
+  #progress {
+    position: fixed; top: 0; left: 0; height: 3px; width: 0%;
+    background: var(--accent-grad); z-index: 200;
+    transition: width 0.1s linear;
+  }
+
+  /* Side navigation dots */
+  #nav {
+    position: fixed; right: 26px; top: 50%; transform: translateY(-50%);
+    z-index: 100; display: flex; flex-direction: column; gap: 14px;
+  }
+  #nav a {
+    width: 11px; height: 11px; border-radius: 50%;
+    background: var(--border); border: 1px solid var(--text-faint);
+    transition: all 0.25s; position: relative; cursor: pointer;
+  }
+  #nav a:hover, #nav a.active { background: var(--accent); border-color: var(--accent); transform: scale(1.35); }
+  #nav a::after {
+    content: attr(data-label);
+    position: absolute; right: 22px; top: 50%; transform: translateY(-50%);
+    white-space: nowrap; font-size: 12px; color: var(--text-dim);
+    background: var(--bg-card); padding: 3px 10px; border-radius: 6px;
+    border: 1px solid var(--border);
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  #nav a:hover::after { opacity: 1; }
+
+  @media (max-width: 900px) { #nav { display: none; } }
+
+  /* Slides */
+  .slide {
+    min-height: 100vh; padding: 90px 7vw; display: flex;
+    flex-direction: column; justify-content: center;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .slide.compact { min-height: auto; padding: 80px 7vw; }
+
+  .slide-inner { max-width: 1000px; margin: 0 auto; width: 100%; }
+
+  .kicker {
+    display: inline-block; font-family: var(--mono); font-size: 13px;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--accent);
+    margin-bottom: 18px; font-weight: 600;
+  }
+
+  h1 {
+    font-size: clamp(2.4rem, 6vw, 4.2rem); line-height: 1.05;
+    font-weight: 800; letter-spacing: -0.02em; margin-bottom: 22px;
+    background: var(--accent-grad); -webkit-background-clip: text;
+    background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  h2 {
+    font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 750;
+    letter-spacing: -0.02em; margin-bottom: 28px; line-height: 1.1;
+  }
+  h3 { font-size: 1.3rem; font-weight: 700; margin: 28px 0 14px; color: var(--text); }
+  h4 { font-size: 1.05rem; font-weight: 700; margin: 18px 0 10px; color: var(--accent-2); }
+
+  p { color: var(--text-dim); margin-bottom: 14px; font-size: 1.05rem; }
+  .lead { font-size: 1.35rem; color: var(--text); max-width: 760px; }
+
+  strong { color: var(--text); font-weight: 650; }
+  code:not(pre code) {
+    font-family: var(--mono); font-size: 0.86em; background: rgba(124,156,255,0.12);
+    color: var(--accent-2); padding: 2px 7px; border-radius: 5px;
+    border: 1px solid rgba(124,156,255,0.15);
+  }
+
+  /* Title slide */
+  #title { text-align: center; align-items: center; }
+  #title .slide-inner { display: flex; flex-direction: column; align-items: center; }
+  #title .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 13px; color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 7px 16px; margin-bottom: 30px; background: var(--bg-card);
+  }
+  #title .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gain); box-shadow: 0 0 10px var(--gain); }
+  #title p.lead { margin: 8px auto 0; color: var(--text-dim); }
+  .scroll-hint {
+    margin-top: 60px; font-size: 13px; color: var(--text-faint);
+    font-family: var(--mono); letter-spacing: 1px; animation: bob 2s ease-in-out infinite;
+  }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(8px); } }
+
+  /* Feature grid */
+  .grid { display: grid; gap: 18px; margin-top: 10px; }
+  .grid.cols-2 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .grid.cols-3 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 22px 24px; transition: transform 0.2s, border-color 0.2s;
+  }
+  .card:hover { transform: translateY(-3px); border-color: var(--accent); }
+  .card h4 { margin-top: 0; display: flex; align-items: center; gap: 10px; }
+  .card .ico { font-size: 1.3rem; }
+  .card p { font-size: 0.98rem; margin-bottom: 0; }
+
+  /* Gain / cost blocks */
+  .tech { margin-bottom: 18px; }
+  .tech-head {
+    font-size: 1.15rem; font-weight: 700; color: var(--text); margin-bottom: 6px;
+  }
+  .gc { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
+  @media (max-width: 700px) { .gc { grid-template-columns: 1fr; } }
+  .gc > div { border-radius: 12px; padding: 16px 18px; font-size: 0.96rem; }
+  .gain {
+    background: rgba(74,222,128,0.07); border: 1px solid rgba(74,222,128,0.25);
+  }
+  .cost {
+    background: rgba(251,191,36,0.07); border: 1px solid rgba(251,191,36,0.25);
+  }
+  .gain .tag, .cost .tag {
+    display: inline-block; font-family: var(--mono); font-size: 11px;
+    letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .gain .tag { color: var(--gain); }
+  .cost .tag { color: var(--cost); }
+  .gain p, .cost p { color: var(--text-dim); margin: 0; }
+
+  /* Accordion for tech choices */
+  details.acc {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; margin-bottom: 12px; overflow: hidden;
+  }
+  details.acc[open] { border-color: var(--accent); }
+  details.acc summary {
+    cursor: pointer; padding: 18px 22px; font-weight: 700; font-size: 1.1rem;
+    list-style: none; display: flex; align-items: center; justify-content: space-between;
+    color: var(--text);
+  }
+  details.acc summary::-webkit-details-marker { display: none; }
+  details.acc summary .chev { color: var(--accent); transition: transform 0.25s; font-size: 1.3rem; }
+  details.acc[open] summary .chev { transform: rotate(45deg); }
+  details.acc summary:hover { background: rgba(124,156,255,0.05); }
+  .acc-body { padding: 0 22px 20px; }
+
+  /* Code blocks */
+  pre {
+    background: var(--bg-code); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px 22px; overflow-x: auto;
+    margin: 16px 0; font-family: var(--mono); font-size: 0.9rem;
+    line-height: 1.55; position: relative;
+  }
+  pre code { font-family: var(--mono); color: var(--code-text); }
+  pre::before {
+    content: attr(data-lang); position: absolute; top: 10px; right: 14px;
+    font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--text-faint); font-family: var(--mono);
+  }
+  .k { color: #ff7b9c; }
+  .s { color: #9ece6a; }
+  .c { color: #5c6773; font-style: italic; }
+  .n { color: #ff9e64; }
+  .p { color: #7dcfff; }
+
+  /* Invariant cards */
+  .invariant {
+    border-left: 3px solid var(--accent); background: var(--bg-card);
+    border-radius: 0 12px 12px 0; padding: 18px 24px; margin-bottom: 16px;
+  }
+  .invariant h4 { margin-top: 0; color: var(--text); }
+  .invariant .label {
+    font-family: var(--mono); font-size: 12px; color: var(--accent);
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+
+  /* Two-layer auth */
+  .layer {
+    display: flex; gap: 18px; align-items: flex-start; margin-bottom: 18px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 22px;
+  }
+  .layer .num {
+    flex-shrink: 0; width: 46px; height: 46px; border-radius: 12px;
+    background: var(--accent-grad); display: flex; align-items: center;
+    justify-content: center; font-weight: 800; font-size: 1.3rem; color: #0d1117;
+  }
+  .layer .body h4 { margin-top: 0; }
+  .layer .body p { margin-bottom: 0; }
+
+  /* Table */
+  .tablewrap { overflow-x: auto; margin-top: 8px; }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 0.92rem;
+    background: var(--bg-card); border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  th, td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: rgba(124,156,255,0.08); color: var(--accent-2); font-weight: 700; font-size: 0.82rem; letter-spacing: 0.5px; text-transform: uppercase; }
+  td { color: var(--text-dim); }
+  tr:last-child td { border-bottom: none; }
+  td code { font-size: 0.82em; }
+
+  /* Bullet lists */
+  ul.clean { list-style: none; margin: 8px 0; }
+  ul.clean li {
+    position: relative; padding-left: 26px; margin-bottom: 12px;
+    color: var(--text-dim); font-size: 1.02rem;
+  }
+  ul.clean li::before {
+    content: "▸"; position: absolute; left: 4px; color: var(--accent); font-weight: bold;
+  }
+  ul.clean li strong { color: var(--text); }
+
+  /* Next-steps list */
+  .next-item {
+    display: flex; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--border);
+  }
+  .next-item:last-child { border-bottom: none; }
+  .next-item .badge2 {
+    flex-shrink: 0; font-family: var(--mono); font-size: 11px; font-weight: 700;
+    padding: 4px 10px; border-radius: 6px; height: fit-content;
+    background: rgba(251,191,36,0.12); color: var(--cost); border: 1px solid rgba(251,191,36,0.25);
+  }
+  .next-item p { margin: 0; }
+
+  blockquote {
+    border-left: 3px solid var(--accent-2); padding: 12px 20px; margin: 16px 0;
+    background: rgba(124,156,255,0.06); border-radius: 0 10px 10px 0;
+    color: var(--text-dim); font-style: italic;
+  }
+
+  .footer {
+    text-align: center; padding: 50px 20px; color: var(--text-faint);
+    font-size: 13px; font-family: var(--mono); border-top: 1px solid var(--border);
+  }
+  .footer a { color: var(--accent); text-decoration: none; }
+
+  .section-num {
+    font-family: var(--mono); color: var(--accent); font-size: 0.95rem;
+    opacity: 0.7; margin-bottom: 6px; display: block;
+  }
+
+  /* reveal on scroll */
+  .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<nav id="nav">
+  <a href="#title" data-label="Overview"></a>
+  <a href="#built" data-label="What I built"></a>
+  <a href="#tech" data-label="Tech choices"></a>
+  <a href="#invariants" data-label="Invariants"></a>
+  <a href="#access" data-label="Access control"></a>
+  <a href="#batch" data-label="Batch ingestion"></a>
+  <a href="#data" data-label="Data model"></a>
+  <a href="#next" data-label="Trade-offs & next"></a>
+  <a href="#ai" data-label="AI workflow"></a>
+</nav>
+
+<!-- ============ TITLE ============ -->
+<section class="slide" id="title">
+  <div class="slide-inner">
+    <span class="badge"><span class="dot"></span> JSON-RPC 2.0 · PostgreSQL · Go</span>
+    <h1>Loyalty Points<br>Wallet</h1>
+    <p class="lead">A correctness-first loyalty-points ledger — design notes and the trade-offs I'd defend in review.</p>
+    <div class="scroll-hint">↓ scroll to explore</div>
+  </div>
+</section>
+
+<!-- ============ 1. WHAT I BUILT ============ -->
+<section class="slide" id="built">
+  <div class="slide-inner">
+    <span class="kicker">Section 01</span>
+    <h2>What I built</h2>
+    <p class="lead reveal">A loyalty-points ledger exposed as a JSON-RPC 2.0 API, backed by PostgreSQL.</p>
+    <div class="grid cols-3" style="margin-top:30px">
+      <div class="card reveal"><h4><span class="ico">👤</span>Accounts</h4><p>Opened for a user at registration; readable, renameable, and — for admins — adjustable.</p></div>
+      <div class="card reveal"><h4><span class="ico">💰</span>Earn / Spend</h4><p>Recorded against an account, with the current balance tracked at all times.</p></div>
+      <div class="card reveal"><h4><span class="ico">🔁</span>Idempotency</h4><p>The same transaction <code>ref</code> never counts twice — the constraint <em>is</em> the dedupe.</p></div>
+      <div class="card reveal"><h4><span class="ico">🛡️</span>Overdraft floor</h4><p>A spend can never drive a balance below zero — enforced atomically.</p></div>
+      <div class="card reveal"><h4><span class="ico">🔑</span>Access control</h4><p><code>member</code> and <code>admin</code> roles in two layers; crediting is operator-only.</p></div>
+      <div class="card reveal"><h4><span class="ico">⏱️</span>Sessions</h4><p>Short-lived (1h) JWTs with server-side revocation — logout invalidates every token.</p></div>
+      <div class="card reveal"><h4><span class="ico">📦</span>Batch ingestion</h4><p>A CLI ingests a CSV of transactions safely and reports a summary.</p></div>
+      <div class="card reveal"><h4><span class="ico">📋</span>Audit trail</h4><p>Every attempt — accepted, duplicate, or rejected — is recorded.</p></div>
+      <div class="card reveal"><h4><span class="ico">✅</span>Fully tested</h4><p>Unit, adaptor, validation, and black-box HTTP integration coverage.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2. TECH CHOICES ============ -->
+<section class="slide" id="tech">
+  <div class="slide-inner">
+    <span class="kicker">Section 02</span>
+    <h2>Key technology choices</h2>
+    <p class="lead reveal">Every choice is framed the same way: what it <span style="color:var(--gain)">buys</span> and what it <span style="color:var(--cost)">costs</span>. Nothing here is free.</p>
+
+    <div style="margin-top:30px">
+      <details class="acc reveal" open>
+        <summary>PostgreSQL, not SQLite <span class="chev">+</span></summary>
+        <div class="acc-body">
+          <p>The assignment recommends SQLite and allows Postgres. The correctness story for concurrent writes is the interesting part of this problem.</p>
+          <div class="gc">
+            <div class="gain"><span class="tag">Gain</span><p>Real row-level locking and a guarded-<code>UPDATE</code> concurrency model without SQLite's single-writer caveats. Two overlapping spends serialise on the row, not on a process-wide lock. Plus <code>CHECK</code> constraints, composite indexes for keyset pagination, and <code>GENERATED ALWAYS AS IDENTITY</code>.</p></div>
+            <div class="cost"><span class="tag">Trade-off</span><p>A real network dependency and a container to run. Bought back with <code>docker compose up</code> + baked-in defaults — but a reviewer wanting plain <code>go run</code> pays a small tax SQLite wouldn't charge.</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details class="acc reveal">
+        <summary>JSON-RPC 2.0 over gorilla/rpc/v2 <span class="chev">+</span></summary>
+        <div class="acc-body">
+          <p>A loyalty ledger is a set of <strong>verbs</strong>, not resources: <code>EarnPoints</code>, <code>SpendPoints</code>, <code>Logout</code>. These are commands that map cleanly onto named methods — REST would mean inventing resource nouns and arguing over whether "spend" is a POST or a PATCH.</p>
+          <div class="gc">
+            <div class="gain"><span class="tag">Gain</span><p>Declarative wire layer (methods auto-register by signature); one choke point for auth + logging; the policy table is a literal, auditable attack surface that fails <em>closed</em>; transport-agnostic uniform error shape; batches are first-class.</p></div>
+            <div class="cost"><span class="tag">Trade-off</span><p>Gives up HTTP-native semantics — everything is POST, errors come back as HTTP 200. But this ledger has almost no cacheable reads, so HTTP caching buys little. The one papercut: the codec won't decode JSON-RPC batch arrays — which pushed batch ingestion toward the single ordered payload I preferred anyway.</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details class="acc reveal">
+        <summary>Ports and adapters <span class="chev">+</span></summary>
+        <div class="acc-body">
+          <p><code>pkg/&lt;domain&gt;</code> holds interfaces, DTOs, <code>Validate()</code>, and adaptors; <code>internal/pkg/&lt;domain&gt;</code> holds the Postgres implementations. Production code depends only on the <code>pkg</code> interfaces.</p>
+          <div class="gc">
+            <div class="gain"><span class="tag">Gain</span><p>Testable with mocks at the port boundary (most of the suite needs no DB), SQL isolated to one layer, swapping an implementation is a one-line wiring change. The <code>internal/</code> boundary stops accidental concrete imports.</p></div>
+            <div class="cost"><span class="tag">Trade-off</span><p>More files and indirection (interface + DTO + impl + mock) per capability. Real ceremony at this size — leaned on <code>.claude/skills/</code> scaffolds to keep boilerplate consistent.</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details class="acc reveal">
+        <summary>pgx/v5 via the database/sql stdlib interface <span class="chev">+</span></summary>
+        <div class="acc-body">
+          <p>The driver is registered through pgx's <code>stdlib</code> shim rather than its native API.</p>
+          <div class="gc">
+            <div class="gain"><span class="tag">Gain</span><p>Keeps the standard <code>*sql.DB</code>/<code>*sql.Tx</code> abstractions — what the context-resolved executor and <code>TxManager</code> are built on — while getting pgx's well-maintained driver and pool. Repositories aren't coupled to pgx types.</p></div>
+            <div class="cost"><span class="tag">Trade-off</span><p>Forgoes pgx's native niceties (richer type mapping, <code>COPY</code>, batch pipelining). None needed here; stdlib portability was worth more.</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details class="acc reveal">
+        <summary>JWS / RS256 via go-jose, not symmetric HS256 <span class="chev">+</span></summary>
+        <div class="acc-body">
+          <p>Access tokens are asymmetrically signed.</p>
+          <div class="gc">
+            <div class="gain"><span class="tag">Gain</span><p>Only the private-key holder can mint tokens; any service verifies with the <em>public</em> key. The right shape for later splitting issuer from verifier — a leaked verification key can't forge tokens. go-jose is mature and audited.</p></div>
+            <div class="cost"><span class="tag">Trade-off</span><p>Heavier than HMAC and brings asymmetric-key management. For a single-process deployment HS256 would be simpler — paid for the verification model deliberately, anticipating split trust domains.</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details class="acc reveal">
+        <summary>bcrypt for password storage <span class="chev">+</span></summary>
+        <div class="acc-body">
+          <div class="gc">
+            <div class="gain"><span class="tag">Gain</span><p>Adaptive, salted hashing with the salt embedded in the digest — no separate salt column, and the work factor can be raised over time. The conservative, well-understood default.</p></div>
+            <div class="cost"><span class="tag">Trade-off</span><p>Deliberately slow and caps input at 72 bytes; a memory-hard KDF (argon2/scrypt) resists GPUs better. bcrypt was the lower-risk, battle-tested pick for a take-home.</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details class="acc reveal">
+        <summary>zerolog for structured logging <span class="chev">+</span></summary>
+        <div class="acc-body">
+          <div class="gc">
+            <div class="gain"><span class="tag">Gain</span><p>Zero-allocation JSON logs plus a context-bound logger: the middleware mints a <code>request_id</code> and binds it so every downstream <code>log.Ctx(ctx)</code> line is correlated for free.</p></div>
+            <div class="cost"><span class="tag">Trade-off</span><p>A specific logging dependency threaded through the code. <code>slog</code> would cover much of this now — the choice I hold most loosely — but context-bound correlation was the deciding feature.</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details class="acc reveal">
+        <summary>cobra + viper for the CLI and config <span class="chev">+</span></summary>
+        <div class="acc-body">
+          <div class="gc">
+            <div class="gain"><span class="tag">Gain</span><p>cobra gives a real command tree, flags, and help with little code; viper gives layered config (env-var over baked-in defaults) so the server runs out of the box yet every secret is overridable.</p></div>
+            <div class="cost"><span class="tag">Trade-off</span><p>Heavy for one subcommand and two config keys. Took the headroom because ingestion grows subcommands, and viper's env binding is the 12-factor seam a real deployment wants.</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details class="acc reveal">
+        <summary>Hand-rolled embedded migrations, no library <span class="chev">+</span></summary>
+        <div class="acc-body">
+          <p>Numbered <code>*.sql</code> files are <code>go:embed</code>-ed and applied in lexical order on startup and in tests.</p>
+          <div class="gc">
+            <div class="gain"><span class="tag">Gain</span><p>Schema travels <em>inside</em> the binary, the same code path runs in production and the per-test fresh-schema harness, and evolving the schema is "add the next numbered file." Zero operational moving parts.</p></div>
+            <div class="cost"><span class="tag">Trade-off</span><p>No down-migrations, checksums, or out-of-order detection. Fine for a forward-only take-home; a long-lived service would want <code>golang-migrate</code>/<code>goose</code>.</p></div>
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3. INVARIANTS ============ -->
+<section class="slide" id="invariants">
+  <div class="slide-inner">
+    <span class="kicker">Section 03</span>
+    <h2>The invariants, and where they live</h2>
+    <p class="lead reveal">Every ledger write flows through <strong>one</strong> method — <code>WalletServiceImpl.ProcessTransaction</code> — so the invariants are enforced and tested in exactly one place. <code>EarnPoints</code>, <code>SpendPoints</code>, and <code>ProcessTransactionBatch</code> are thin wrappers.</p>
+
+    <div style="margin-top:30px">
+      <div class="invariant reveal">
+        <span class="label">Idempotency</span>
+        <h4>The constraint <em>is</em> the dedupe</h4>
+        <p>The ledger insert is attempted first; <code>transactions.ref</code> carries a <code>UNIQUE</code> constraint. A duplicate fails on the constraint and the original outcome returns with <code>duplicate = true</code>. Deliberately <em>not</em> check-then-insert — that has a race window; the unique index does not.</p>
+      </div>
+
+      <div class="invariant reveal">
+        <span class="label">Overdraft floor</span>
+        <h4>Read-check-write in one statement</h4>
+        <p>Balance is mutated with a single guarded statement, so two overlapping spends cannot both pass the check against the same starting balance. A table-level <code>CHECK (balance >= 0)</code> backstops it.</p>
+        <pre data-lang="sql"><code><span class="k">UPDATE</span> accounts <span class="k">SET</span> balance = balance + <span class="n">$delta</span>
+<span class="k">WHERE</span> id = <span class="n">$id</span> <span class="k">AND</span> balance + <span class="n">$delta</span> &gt;= <span class="n">0</span></code></pre>
+        <p>Zero rows affected means either insufficient balance or a missing/unowned account.</p>
+        <div class="gc" style="margin-top:14px"><div class="cost"><span class="tag">Rejected</span><p>The obvious <code>SELECT</code>-balance → compare-in-Go → <code>UPDATE</code> opens a race window: two concurrent spends read the same balance, both pass, both write — negative. Pushing the check into the <code>WHERE</code> collapses read-check-write into one atomic statement and lets Postgres serialise contenders on the row, no explicit lock or higher isolation level needed.</p></div></div>
+      </div>
+
+      <div class="invariant reveal">
+        <span class="label">Concurrency safety</span>
+        <h4>A unit of work via context-resolved executor</h4>
+        <p>Repositories never hold a <code>*sql.Tx</code>. Each resolves its executor from the context (<code>pkgSQL.ExecutorFromContext</code>): if <code>TxManager.RunInTx</code> placed a transaction on the context, the repository uses it; otherwise the pool. The <em>caller</em> decides what is atomic, and the same repository code works standalone or composed.</p>
+        <div class="gc" style="margin-top:14px"><div class="cost"><span class="tag">Rejected</span><p>Threading a <code>*sql.Tx</code> through every method signature — that forces each method into two flavours (pool vs tx) or leaks the transaction into the signature even when it runs standalone. Stashing the executor on the context lets each repository write one query path against a small <code>Executor</code> interface, with <code>RunInTx</code> deciding atomicity from outside. The cost: the transaction travels <em>implicitly</em> on the context — slightly more magic — but the repository layer stays free of transaction bookkeeping.</p></div></div>
+      </div>
+
+      <div class="invariant reveal">
+        <span class="label">Audit trail</span>
+        <h4>Survives rollback when it must</h4>
+        <p>Accepted and duplicate attempts are audited <em>inside</em> the unit of work (committing with the ledger row). Rejected attempts are audited on the <em>plain</em> context (the pool), so the audit row survives the rolled-back transaction — a rejection is still recorded even though nothing else was written.</p>
+        <div class="gc" style="margin-top:14px"><div class="cost"><span class="tag">Rejected</span><p>Writing every audit row inside the same transaction was wrong precisely for rejections: rolling back the overdraft would roll back its own audit record, silently losing every failed attempt. Splitting the rejected write onto the pool is what keeps "someone tried to overspend" durable.</p></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4. ACCESS CONTROL ============ -->
+<section class="slide" id="access">
+  <div class="slide-inner">
+    <span class="kicker">Section 04</span>
+    <h2>Access control</h2>
+    <p class="lead reveal">Two roles, enforced in two independent layers.</p>
+
+    <h3 class="reveal">Token shape, storage, and validation</h3>
+    <p class="reveal">Access is carried by a <strong>signed JWT</strong> (JWS, RS256, compact serialization via go-jose). The payload is the <code>LoginClaim</code>:</p>
+    <pre class="reveal" data-lang="json"><code>{
+  <span class="p">"userID"</span>: <span class="s">"0c5f..."</span>,
+  <span class="p">"email"</span>: <span class="s">"rina@example.com"</span>,
+  <span class="p">"role"</span>: <span class="s">"member"</span>,
+  <span class="p">"permissions"</span>: [<span class="s">"account:read:own"</span>, <span class="s">"wallet:transact:own"</span>],
+  <span class="p">"expirationTime"</span>: <span class="n">1718534400</span>,
+  <span class="p">"tokenVersion"</span>: <span class="n">0</span>,
+  <span class="p">"lastName"</span>: <span class="s">""</span>
+}</code></pre>
+    <ul class="clean reveal">
+      <li><strong>Issued</strong> at register and login, 1h expiry. Permissions resolved from role <em>at issue time</em> and embedded — no per-request DB lookup for permissions.</li>
+      <li><strong>Stored</strong> client-side; no server-side session table. Presented as <code>Authorization: Bearer</code> or an <code>access_token</code> cookie.</li>
+      <li><strong>Validated</strong> by verifying the RS256 signature, checking <code>expirationTime</code>, and comparing the claim's <code>tokenVersion</code> against the user's current value. Signature verification means embedded permissions can't be tampered with.</li>
+    </ul>
+
+    <h3 class="reveal">Session revocation (logout)</h3>
+    <p class="reveal">A signed JWT is self-contained, so a leaked token would stay valid until expiry. Each user row carries a <code>token_version</code> (session epoch), stamped into every token and re-checked on every protected request. <code>Session.Logout</code> increments it — invalidating <strong>every</strong> token in one step ("log out everywhere"). Login deliberately does <em>not</em> bump it, so concurrent device sessions coexist. Cost: one indexed read per protected request.</p>
+
+    <div class="layer reveal" style="margin-top:30px">
+      <div class="num">1</div>
+      <div class="body">
+        <h4>Method gate — all-or-nothing</h4>
+        <p><code>authorizationMiddleware</code> reads the JSON-RPC method out of the request body and consults a <code>Policy</code> mapping method → permissions, plus a public-method set. Public methods (register, login) pass through. <strong>New protected methods must be added to <code>DefaultPolicy()</code> or they're rejected</strong> — fail-closed by default.</p>
+        <p style="margin-top:10px">This is deliberate over the easy alternative of guarding each handler individually (<code>if !authorized { … }</code>): a per-handler check is something you can <em>forget</em> when writing a new method, and the failure mode of forgetting is an <em>open</em> endpoint. Here the failure mode is a <em>closed</em> one — the method returns "method not allowed" until it's listed — so the unsafe mistake is structurally impossible and the safe mistake is loud.</p>
+      </div>
+    </div>
+    <div class="layer reveal">
+      <div class="num">2</div>
+      <div class="body">
+        <h4>Ownership scope — own vs all</h4>
+        <p>Breadth is enforced in the data layer, on demand: a repository calls <code>authorization.IsGranted(ctx, Perm…All)</code>, and without the <code>:all</code> permission the SQL is scoped to <code>owner_id = $UserID</code>. A non-owner gets <code>ErrNotFound</code> — indistinguishable from genuinely missing, so ownership is enforced without leaking existence.</p>
+      </div>
+    </div>
+    <p class="reveal">Permissions are <code>resource:action:scope</code> strings; roles map to a fixed, no-wildcard set. Crediting points needs the all-scoped <code>wallet:transact:all</code> that only admins hold; a member's <code>wallet:transact:own</code> unlocks <code>SpendPoints</code> against their own account only — a member cannot mint points. The acting <code>UserID</code> is always taken from the verified claim, never the client payload.</p>
+
+    <h3 class="reveal">How a user becomes an admin</h3>
+    <p class="reveal">Registration always creates a <strong>member</strong> — no self-service path to admin. An admin is provisioned out-of-band:</p>
+    <pre class="reveal" data-lang="sql"><code><span class="k">UPDATE</span> users <span class="k">SET</span> role = <span class="s">'admin'</span> <span class="k">WHERE</span> email = <span class="s">'ops@example.com'</span>;</code></pre>
+    <p class="reveal">For local dev, <code>go run ./cmd/bootstrap</code> resets the DB and recreates a well-known admin (<code>system@mail.com</code>) — a dev convenience and clean-slate reset, not a production path.</p>
+  </div>
+</section>
+
+<!-- ============ 5. BATCH INGESTION ============ -->
+<section class="slide" id="batch">
+  <div class="slide-inner">
+    <span class="kicker">Section 05</span>
+    <h2>Batch ingestion and ordering</h2>
+    <p class="lead reveal">The CLI (<code>loyalty-cli ingest</code>) is a thin client; all business rules live on the server.</p>
+    <p class="reveal">It parses the CSV, <strong>sorts rows by <code>occurred_at</code> then line</strong> (a stable sort with the 1-based data line as tiebreaker; a blank <code>occurred_at</code> sorts first), and sends the whole batch as <strong>one ordered JSON-RPC request</strong> to the admin-only <code>Wallet.ProcessTransactionBatch</code>.</p>
+
+    <div class="grid cols-2" style="margin-top:24px">
+      <div class="card reveal">
+        <h4>Why one ordered request</h4>
+        <p>The JSON-RPC spec lets a server process a batch in any order and concurrently, and the gorilla json2 codec doesn't decode batch arrays at all. Because the overdraft floor makes each write order-dependent (an earn must precede the spend it funds), ordering must be guaranteed — so the batch travels as a single ordered payload applied sequentially.</p>
+      </div>
+      <div class="card reveal">
+        <h4>Ordering enforced server-side</h4>
+        <p>Sorting in the CLI alone would leave the invariant at the mercy of the client. So <code>ProcessTransactionBatch</code> re-sorts by <code>occurred_at</code> itself, making correct chronology a server property. Two details were deliberate: it sorts a <em>copy</em> so the caller's slice isn't mutated and results can still map to the sent order; and the sort is <em>stable</em> (submission order as tiebreaker) so equal-timestamped rows can't reorder run-to-run and strand an earn after the spend it funds. The CLI's sort is now belt-and-braces — it still powers the <code>--dry-run</code> preview.</p>
+      </div>
+    </div>
+
+    <p class="reveal" style="margin-top:24px">Because the server may reorder, per-element results come back in <em>applied</em> order and callers correlate them by <code>ref</code>, not position. Reprocessing the same file is safe by construction: idempotency dedupes on <code>ref</code>, so re-ingestion yields duplicates, not double counts. The server returns per-element outcomes (<code>accepted</code> / <code>duplicate</code> / <code>rejected</code> with a reason) plus summary tallies; the CLI prints <code>processed / accepted / duplicates / rejected</code>.</p>
+  </div>
+</section>
+
+<!-- ============ 6. DATA MODEL ============ -->
+<section class="slide compact" id="data">
+  <div class="slide-inner">
+    <span class="kicker">Section 06</span>
+    <h2>Data model</h2>
+    <div class="grid cols-2" style="margin-top:10px">
+      <div class="card reveal">
+        <h4>⏱️ Timestamps</h4>
+        <p>Stored as <strong>RFC3339Nano UTC TEXT</strong> — human-readable and lexicographically sortable, so ordering and keyset pagination rely on plain string comparison.</p>
+      </div>
+      <div class="card reveal">
+        <h4>🔗 OwnerID</h4>
+        <p>A foreign key to <code>users.id</code>, denormalized onto <code>transactions</code> and <code>audit_log</code> so entries are attributable without a join. The DTO field is <code>UserID</code>; the SQL column is <code>owner_id</code>.</p>
+      </div>
+      <div class="card reveal">
+        <h4>📜 Schema</h4>
+        <p>Lives in <code>pkg/postgres/migrations/*.sql</code>, embedded and applied in lexical filename order on startup and in tests.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 7. TRADE-OFFS / NEXT ============ -->
+<section class="slide" id="next">
+  <div class="slide-inner">
+    <span class="kicker">Section 07</span>
+    <h2>Trade-offs and what I'd do next</h2>
+    <p class="lead reveal">The single inventory of what I <em>deliberately did not build</em> — the out-of-scope notes scattered above all resolve here. Each was a conscious cut to keep the focus on the correctness-critical core, not an oversight.</p>
+    <div style="margin-top:20px">
+      <div class="next-item reveal">
+        <span class="badge2">ADMIN</span>
+        <p><strong>Admin provisioning is manual</strong> (SQL promotion). Fine for a take-home; a real system needs an admin-bootstrap path or invite flow. I chose manual promotion over an admin-creates-admin RPC specifically to avoid shipping a privilege-escalation surface I couldn't fully harden in scope.</p>
+      </div>
+      <div class="next-item reveal">
+        <span class="badge2">WALLETS</span>
+        <p><strong>One wallet per user.</strong> Registration opens a single default account. The data model already supports multiple (<code>accounts.owner_id</code>), so a <code>CreateAccount</code> RPC is a small addition — left out to stay in scope.</p>
+      </div>
+      <div class="next-item reveal">
+        <span class="badge2">TOKENS</span>
+        <p><strong>Permissions are snapshotted into the token.</strong> A role change takes effect on next login (≤1h). Tokens are revocable via <code>token_version</code> (logout-everywhere). I chose not to build per-device revocation because it needs per-token tracking (a server-side token table), trading away the stateless-JWT property the auth model is built on; the epoch counter buys "log out everywhere" for one indexed read instead.</p>
+      </div>
+      <div class="next-item reveal">
+        <span class="badge2">SCALE</span>
+        <p><strong>No rate limiting / request size limits</strong> on ingestion. The batch applies in a single unit of work — simple and correct, but not ideal for very large files; chunking would be next.</p>
+      </div>
+      <div class="next-item reveal">
+        <span class="badge2">MIGRATIONS</span>
+        <p><strong>Forward-only migrations.</strong> No down-migrations, checksums, or dirty-state tracking. I decided against <code>golang-migrate</code>/<code>goose</code> because embed-and-apply-on-startup has zero operational moving parts and suffices for a forward-only take-home; a long-lived service would outgrow it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 8. AI WORKFLOW ============ -->
+<section class="slide" id="ai">
+  <div class="slide-inner">
+    <span class="kicker">Section 08</span>
+    <h2>AI workflow</h2>
+    <blockquote class="reveal">This section documents how AI tooling was used, per the assignment.</blockquote>
+    <p class="lead reveal">I used <strong>Claude Code</strong> as a pair-programmer throughout, with a deliberately plan-first, test-backed workflow rather than free-form generation.</p>
+
+    <h3 class="reveal">Conventions encoded as reusable skills</h3>
+    <p class="reveal">Rather than re-explain the architecture in every prompt, I captured the recurring, error-prone tasks as Claude Code skills in <code>.claude/skills/</code> — each a checklist plus canonical reference, so generated code mirrors the existing patterns instead of drifting.</p>
+
+    <div class="tablewrap reveal">
+      <table>
+        <thead><tr><th>Skill</th><th>What it does</th><th>Leaves out</th></tr></thead>
+        <tbody>
+          <tr><td><code>code-structure</code></td><td>The arbiter: decides what belongs in adaptor vs service vs repository, and routes any new write path through the single owner of that mechanic.</td><td>—</td></tr>
+          <tr><td><code>scaffold-crud-repository</code></td><td>From one entity struct, generates the whole persistence layer — interface + DTOs, <code>Validate()</code>, the Postgres impl, the mock, and validation tests.</td><td>adaptor, policy, wiring</td></tr>
+          <tr><td><code>scaffold-service</code></td><td>From a capability interface, generates the impl orchestrating repositories in one unit of work, its adaptor, mock, <code>Validate()</code>, and unit tests. <strong>Writes no SQL.</strong></td><td>repository SQL, policy, wiring</td></tr>
+          <tr><td><code>add-rpc-method</code></td><td>Makes a method callable end-to-end: interface, DTO, adaptor, SQL impl, <em>and</em> the <code>DefaultPolicy()</code> entry — the one omission that silently breaks a method.</td><td>—</td></tr>
+          <tr><td><code>go-unit-tests</code></td><td>Pure-Go tests: mock-first convention, table-driven validations, and the non-negotiable happy-path-<em>and</em>-each-error-branch rule.</td><td>—</td></tr>
+          <tr><td><code>endpoint-integration-test</code></td><td>Black-box HTTP/JSON-RPC tests asserting both wire response <em>and</em> persisted rows, plus mandatory negative cases.</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4 class="reveal">How they compose</h4>
+    <p class="reveal"><code>code-structure</code> decides the shape; the two <code>scaffold-*</code> skills generate a layer each (stopping short of the wire so the division stays honest); <code>add-rpc-method</code> exposes it and closes the policy gap; the two test skills cover it at unit and endpoint level. Each skill's "out of scope" list points at the next — so the model hands work off rather than half-doing a neighbouring layer.</p>
+
+    <h3 class="reveal">How I steered the rest</h3>
+    <p class="reveal">I accepted the model's mechanical scaffolding, SQL boilerplate, and table-driven test stubs readily. I pushed back on / edited the correctness-critical calls: the concurrency model (single guarded <code>UPDATE</code> over check-then-insert), the batch transport (one ordered request, not a JSON-RPC batch array, because ordering must be guaranteed), and audit-on-rollback (rejected attempts must survive). I owned those decisions and used the model to implement and test them rather than to decide them — so AI accelerated the breadth while the load-bearing decisions stayed human-reviewed.</p>
+  </div>
+</section>
+
+<div class="footer">
+  Loyalty Points Wallet · Design notes &amp; trade-offs · Generated from <a href="./SOLUTION.md">SOLUTION.md</a>
+</div>
+
+<script>
+  // Progress bar
+  const progress = document.getElementById('progress');
+  window.addEventListener('scroll', () => {
+    const h = document.documentElement;
+    const scrolled = (h.scrollTop) / (h.scrollHeight - h.clientHeight) * 100;
+    progress.style.width = scrolled + '%';
+  });
+
+  // Reveal on scroll
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+  // Active nav dot
+  const sections = [...document.querySelectorAll('.slide')];
+  const dots = [...document.querySelectorAll('#nav a')];
+  const navIo = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const id = e.target.id;
+        dots.forEach(d => d.classList.toggle('active', d.getAttribute('href') === '#' + id));
+      }
+    });
+  }, { threshold: 0.5 });
+  sections.forEach(s => navIo.observe(s));
+</script>
+</body>
+</html>

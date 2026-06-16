@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -198,18 +199,32 @@ func (s *WalletServiceImpl) SpendPoints(ctx context.Context, request pkgWallet.S
 	})
 }
 
-// ProcessTransactionBatch applies an ordered batch sequentially. Each element
-// reuses the single-transaction path — inheriting idempotency, the overdraft
-// floor, ownership checks, and the audit trail — so there is no second code
-// path to keep in sync. Elements are processed strictly in slice order and a
-// per-element rejection is captured in the result rather than aborting the
-// batch, so one bad row never sinks the rest.
+// ProcessTransactionBatch applies a batch sequentially in chronological order.
+// Each element reuses the single-transaction path — inheriting idempotency, the
+// overdraft floor, ownership checks, and the audit trail — so there is no second
+// code path to keep in sync. A per-element rejection is captured in the result
+// rather than aborting the batch, so one bad row never sinks the rest.
+//
+// The overdraft floor is order-dependent (an earn must land before the spend it
+// funds), so the server sorts by OccurredAt itself rather than trusting the
+// caller's order. The CLI also pre-sorts (so its dry-run preview shows the true
+// order), but this makes ordering a server guarantee for any client. Results are
+// returned in this applied order; callers correlate by Ref, not position.
 func (s *WalletServiceImpl) ProcessTransactionBatch(ctx context.Context, request pkgWallet.ProcessTransactionBatchRequest) (*pkgWallet.ProcessTransactionBatchResponse, error) {
 	resp := &pkgWallet.ProcessTransactionBatchResponse{
 		Results: make([]pkgWallet.BatchElementResult, 0, len(request.Transactions)),
 	}
 
-	for _, txRequest := range request.Transactions {
+	// Stable sort on a copy: submission order is the tiebreaker for equal or
+	// absent timestamps (a zero OccurredAt sorts first), and the caller's slice
+	// is left untouched.
+	ordered := make([]pkgWallet.ProcessTransactionRequest, len(request.Transactions))
+	copy(ordered, request.Transactions)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		return ordered[i].OccurredAt.Before(ordered[j].OccurredAt)
+	})
+
+	for _, txRequest := range ordered {
 		result, err := s.ProcessTransaction(ctx, txRequest)
 		switch {
 		case err != nil:

@@ -46,6 +46,7 @@ can be overridden by environment variable:
 | --------------------- | --------------------------------------------------------------------------- | -------------------------------- |
 | `POSTGRES_DSN`        | `postgres://loyalty:loyalty@localhost:5432/loyalty_points?sslmode=disable`  | Database connection string       |
 | `JWT_PRIVATE_KEY_PEM` | a dev RSA key (PKCS#8 PEM)                                                   | Signs/verifies access tokens     |
+| `PORT`                | `8080`                                                                      | HTTP listen port                 |
 
 > The baked-in key is for local development only. Provide your own
 > `JWT_PRIVATE_KEY_PEM` for any real deployment.

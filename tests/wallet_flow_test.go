@@ -390,6 +390,40 @@ func TestProcessTransactionBatchMemberForbidden(t *testing.T) {
 	}
 }
 
+// TestProcessTransactionBatchServerOrders confirms ordering is a server
+// guarantee, not a client courtesy: a spend submitted BEFORE the earn that funds
+// it — i.e. out of chronological order in the slice — is still accepted, because
+// the server sorts the batch by occurred_at itself before applying it. Slice
+// order alone would trip the overdraft floor on the spend.
+func TestProcessTransactionBatchServerOrders(t *testing.T) {
+	c := setup(t)
+	member := registerMember(t, c)
+	_, adminToken := registerAdmin(t, c)
+
+	earnRef := uniqueRef(t)
+	spendRef := uniqueRef(t)
+
+	// Submitted out of order on purpose: the later spend is first in the slice,
+	// the earlier earn that funds it is second.
+	resp := c.call(t, processTransactionBatchMethod, map[string]any{
+		"transactions": []map[string]any{
+			{"ref": spendRef, "account_id": member.AccountID, "kind": "spend", "points": 100, "occurred_at": "2024-01-01T11:00:00Z"},
+			{"ref": earnRef, "account_id": member.AccountID, "kind": "earn", "points": 100, "occurred_at": "2024-01-01T10:00:00Z"},
+		},
+	}, adminToken)
+	requireNoError(t, "ProcessTransactionBatch", resp)
+
+	var batch batchResult
+	mustUnmarshal(t, resp.Result, &batch)
+	if batch.Summary.Accepted != 2 || batch.Summary.Rejected != 0 {
+		t.Fatalf("accepted=%d rejected=%d, want accepted=2 rejected=0 (server should apply earn before spend)", batch.Summary.Accepted, batch.Summary.Rejected)
+	}
+
+	if got := remoteBalance(t, c, adminToken, member.AccountID); got != 0 {
+		t.Errorf("balance after earn(100) then spend(100) = %d, want 0", got)
+	}
+}
+
 // TestEarnPointsMemberForbidden confirms crediting is operator-only: a member
 // cannot mint points into their own account through EarnPoints, and the
 // rejection leaves no ledger row and an untouched balance.

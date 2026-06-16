@@ -86,9 +86,9 @@ type ProcessTransactionResponse struct {
 	Duplicate bool
 }
 
-// ProcessTransactionBatchRequest is an ordered batch of transactions. They are
-// applied in slice order; the caller is responsible for sorting them into the
-// intended chronology before submitting.
+// ProcessTransactionBatchRequest is a batch of transactions. The server applies
+// them in chronological order (by OccurredAt), so the caller need not pre-sort;
+// submission order is the stable tiebreaker for equal or absent timestamps.
 type ProcessTransactionBatchRequest struct {
 	Transactions []ProcessTransactionRequest
 }
@@ -121,7 +121,8 @@ type BatchElementResult struct {
 }
 
 // ProcessTransactionBatchResponse is the per-element outcome of a batch, in the
-// same order as the request, with summary tallies.
+// order the server applied them (chronological by OccurredAt), with summary
+// tallies. Correlate elements back to inputs by Ref, not position.
 type ProcessTransactionBatchResponse struct {
 	Results   []BatchElementResult
 	Accepted  int
