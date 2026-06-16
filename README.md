@@ -104,12 +104,39 @@ Protected methods require an access token in the `Authorization` header:
 Authorization: Bearer <token>
 ```
 
+### The error model
+
 JSON-RPC errors are returned with **HTTP 200**; the error lives in the response
-body (`{"jsonrpc":"2.0","error":{"code":...,"message":...},"id":...}`). Codes:
-`-32700` parse error, `-32001` unauthorized, and `-32002` forbidden come from the
-auth middleware; business errors raised by a method (e.g. insufficient balance,
-account not found) come back as `-32000` (the gorilla json2 server-error code)
-with the message in the body.
+body. Every error envelope — whether written by the auth middleware before a
+handler runs, or mapped from a domain error a handler returned — has the same
+shape: a numeric `code`, a human-readable `message`, and a stable
+machine-readable token under `data.reason` that clients should branch on instead
+of the message.
+
+```json
+{ "jsonrpc": "2.0", "error": { "code": -32005, "message": "insufficient balance", "data": { "reason": "insufficient_balance" } }, "id": 1 }
+```
+
+Codes are defined once in `pkg/jsonrpc/error.go` and shared by both the codec
+mapper (`MapError`) and the middleware, so the same condition always yields the
+same code:
+
+| Code     | `data.reason`        | Meaning                                                              |
+| -------- | -------------------- | -------------------------------------------------------------------- |
+| `-32700` | —                    | Parse error (malformed JSON)                                         |
+| `-32602` | `invalid_argument`   | Validation failed; per-field reasons under `data.fields`             |
+| `-32603` | `internal`           | Internal error (the unmapped default hides the underlying message)   |
+| `-32001` | `unauthorized`       | Missing/invalid/expired token, or token revoked by logout            |
+| `-32002` | `forbidden`          | Authenticated but the role lacks permission for the method           |
+| `-32003` | `not_found`          | Resource missing — also returned for a foreign resource (no leak)    |
+| `-32004` | `already_exists`     | Uniqueness conflict (e.g. duplicate email on register)               |
+| `-32005` | `insufficient_balance` | A spend/adjustment would drive the balance below zero              |
+
+Validation failures (`-32602`) additionally carry the offending fields:
+
+```json
+{ "jsonrpc": "2.0", "error": { "code": -32602, "message": "...", "data": { "reason": "invalid_argument", "fields": { "points": "must be positive" } } }, "id": 1 }
+```
 
 ### Roles in one line
 
@@ -121,6 +148,24 @@ See [SOLUTION.md](./SOLUTION.md#access-control) for how a user becomes an admin.
 ---
 
 ## Endpoints
+
+The full method surface at a glance (detail follows):
+
+| Method                          | Access                       | Purpose                                     |
+| ------------------------------- | ---------------------------- | ------------------------------------------- |
+| `UserRegistrationService.Register` | public                    | Create user + first account, return a token |
+| `EmailPasswordAuthenticator.Login` | public                    | Exchange credentials for a token            |
+| `Session.Logout`                | any authenticated            | Revoke all of the caller's tokens           |
+| `AccountOpener.OpenAccount`     | any authenticated            | Open an additional wallet for the caller    |
+| `Account.GetByID`               | member (own) / admin (any)   | Read an account                             |
+| `Account.GetAccountBalance`     | member (own) / admin (any)   | Read a balance                              |
+| `Account.UpdateAccountName`     | member (own) / admin (any)   | Rename an account                           |
+| `Account.UpdateAccountBalance`  | admin only                   | Raw signed-delta correction (off-ledger)    |
+| `Wallet.SpendPoints`            | member (own) / admin (any)   | Debit points                                |
+| `Wallet.EarnPoints`             | admin only                   | Credit points                               |
+| `Wallet.ProcessTransaction`     | admin only                   | Generic earn/spend (caller picks `kind`)    |
+| `Wallet.ProcessTransactionBatch`| admin only                   | Apply an ordered batch                      |
+| `Audit.ListByTransactionRef`    | member (own) / admin (any)   | List processing attempts for a `ref`        |
 
 ### `UserRegistrationService.Register` — public
 
@@ -278,7 +323,7 @@ curl -s http://localhost:8080/api \
 **Response (overdraft rejected)**
 
 ```json
-{ "jsonrpc": "2.0", "error": { "code": -32000, "message": "insufficient balance" }, "id": 1 }
+{ "jsonrpc": "2.0", "error": { "code": -32005, "message": "insufficient balance", "data": { "reason": "insufficient_balance" } }, "id": 1 }
 ```
 
 ### `Wallet.ProcessTransaction` — admin only
@@ -330,11 +375,92 @@ The overdraft floor still applies. A member token is rejected.
 // result: { "account_id": "a91b...", "balance": 85 }
 ```
 
+### `AccountOpener.OpenAccount` — any authenticated user
+
+Opens an additional wallet account for the calling user. The owner is **never on
+the wire** — it is pinned to the user in the token, so a caller can only open an
+account for themselves. `name` is optional; the service defaults it when blank.
+
+```bash
+curl -s http://localhost:8080/api \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $TOKEN" -d '{
+  "jsonrpc": "2.0", "method": "AccountOpener.OpenAccount",
+  "params": [{ "name": "Holiday Wallet" }], "id": 1
+}'
+```
+
+```json
+{ "jsonrpc": "2.0", "result": { "account_id": "b72c...", "name": "Holiday Wallet", "owner_id": "0c5f...", "balance": 0, "created_at": "..." }, "id": 1 }
+```
+
 ### `Wallet.ProcessTransactionBatch` — admin only
 
 Applies an ordered batch in one request and returns per-element outcomes plus
-summary tallies. This is the method the CLI's `ingest` command calls — see
-below.
+summary tallies. The server applies the transactions in slice order, so the
+overdraft floor sees them in the order given. This is the method the CLI's
+`ingest` command calls — see below.
+
+```json
+// params: [{ "transactions": [
+//   { "ref": "tx-001", "account_id": "a91b...", "kind": "earn",  "points": 150 },
+//   { "ref": "tx-002", "account_id": "a91b...", "kind": "spend", "points": 40 }
+// ] }]
+// result:
+// {
+//   "results": [
+//     { "ref": "tx-001", "status": "accepted", "balance": 150 },
+//     { "ref": "tx-002", "status": "accepted", "balance": 110 }
+//   ],
+//   "summary": { "accepted": 2, "duplicate": 0, "rejected": 0 }
+// }
+```
+
+A rejected element carries its `status` (`"rejected"`) and a `reason`; the rest
+of the batch still applies. Every attempt — accepted, duplicate, or rejected — is
+written to the `audit_entries` table.
+
+### `Audit.ListByTransactionRef` — member (own) / admin (any)
+
+Returns every recorded processing attempt for a transaction `ref`, oldest first.
+Unlike the ledger, the same `ref` can appear multiple times here — one row per
+attempt (accepted, duplicate, or rejected), each with its `reason`. The listing
+is scoped to the caller: a member sees only attempts against their own accounts;
+an admin holding `audit:read:all` sees every owner's. A `ref` the caller may not
+see returns an **empty `entries` array**, not an error.
+
+```bash
+curl -s http://localhost:8080/api \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $TOKEN" -d '{
+  "jsonrpc": "2.0", "method": "Audit.ListByTransactionRef",
+  "params": [{ "transaction_ref": "tx-001" }], "id": 1
+}'
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "transaction_ref": "tx-001",
+    "entries": [
+      {
+        "id": 42,
+        "user_id": "0c5f...",
+        "transaction_ref": "tx-001",
+        "account_id": "a91b...",
+        "owner_id": "0c5f...",
+        "kind": "earn",
+        "points": 150,
+        "outcome": "accepted",
+        "reason": "ok",
+        "created_at": "..."
+      }
+    ]
+  },
+  "id": 1
+}
+```
 
 ---
 
@@ -380,7 +506,8 @@ rejected:     0
 
 Rejected rows (including the reason and the originating line) are listed beneath
 the tallies. Every attempt — accepted, duplicate, or rejected — is also written
-to the server's `audit_log` table with its reason and timestamp.
+to the server's `audit_entries` table with its reason and timestamp, and is
+queryable afterwards via `Audit.ListByTransactionRef`.
 
 ---
 
@@ -390,10 +517,17 @@ to the server's `audit_log` table with its reason and timestamp.
 | -------------------- | --------------------------------------------------------------------------- |
 | `cmd/app`            | Server entrypoint, config, dependency wiring, RPC setup                     |
 | `cmd/cli`            | `loyalty-cli` — thin JSON-RPC client (notably `ingest`)                     |
+| `cmd/bootstrap`      | Clean-slate dev tool: wipes data tables and (re)creates the admin user      |
 | `pkg/<domain>`       | Ports: interfaces, DTOs, `Validate()`, JSON-RPC adaptors                    |
 | `internal/pkg/<domain>` | PostgreSQL implementations of those ports                                |
 | `pkg/postgres/migrations` | Embedded SQL schema, applied in lexical order on startup               |
 | `tests/`             | Black-box HTTP/JSON-RPC integration tests                                   |
+| `api/`               | Postman collection (`loyalty-points.postman_collection.json`)               |
+| `scripts/`           | `start-stack.sh` — one-command local stack                                  |
+
+A ready-to-import **Postman collection** lives at
+[`api/loyalty-points.postman_collection.json`](./api/loyalty-points.postman_collection.json)
+with every method above pre-built.
 
 See [SOLUTION.md](./SOLUTION.md) for the architecture and the reasoning behind
 it.
