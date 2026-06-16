@@ -44,6 +44,11 @@
       "key": "accountID",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "newAccountID",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -154,6 +159,54 @@
           }
         },
         {
+          "name": "Wallet.EarnPoints",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api",
+              "host": ["{{baseUrl}}"],
+              "path": ["api"]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"Wallet.EarnPoints\",\n  \"params\": [\n    {\n      \"ref\": \"earn-1\",\n      \"account_id\": \"{{accountID}}\",\n      \"points\": 100\n    }\n  ],\n  \"id\": 1\n}"
+            },
+            "description": "Credits points. A thin convenience wrapper over ProcessTransaction with kind fixed to 'earn' — same idempotency, ownership, and audit guarantees. Callable by a member on an account they own; admins may act on any account. occurred_at is OPTIONAL (omitted here; the server stamps it). Re-send with the SAME ref to see idempotency: the balance stays put and the response comes back with \"duplicate\": true. Sends Authorization: Bearer {{token}}."
+          }
+        },
+        {
+          "name": "Wallet.SpendPoints",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api",
+              "host": ["{{baseUrl}}"],
+              "path": ["api"]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"Wallet.SpendPoints\",\n  \"params\": [\n    {\n      \"ref\": \"spend-1\",\n      \"account_id\": \"{{accountID}}\",\n      \"points\": 40\n    }\n  ],\n  \"id\": 1\n}"
+            },
+            "description": "Debits points. A thin convenience wrapper over ProcessTransaction with kind fixed to 'spend' — same idempotency, ownership, and audit guarantees. Callable by a member on an account they own; admins may act on any account. The overdraft floor is enforced: a spend that would drive the balance below zero is rejected and the balance is untouched. occurred_at is OPTIONAL. Sends Authorization: Bearer {{token}}."
+          }
+        },
+        {
           "name": "Wallet.ProcessTransactionBatch (admin-only)",
           "request": {
             "auth": {
@@ -175,6 +228,142 @@
               "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"Wallet.ProcessTransactionBatch\",\n  \"params\": [\n    {\n      \"transactions\": [\n        {\n          \"ref\": \"batch-tx-1\",\n          \"account_id\": \"{{accountID}}\",\n          \"kind\": \"earn\",\n          \"points\": 100,\n          \"occurred_at\": \"2026-06-01T10:00:00Z\"\n        },\n        {\n          \"ref\": \"batch-tx-2\",\n          \"account_id\": \"{{accountID}}\",\n          \"kind\": \"spend\",\n          \"points\": 40,\n          \"occurred_at\": \"2026-06-01T11:00:00Z\"\n        }\n      ]\n    }\n  ],\n  \"id\": 1\n}"
             },
             "description": "ADMIN-ONLY. Applies an ordered batch of transactions in a single request. The server processes them strictly in array order (so the overdraft floor sees them in chronology — the CLI sorts by occurred_at before sending). Each element is its own unit of work: a rejected element does not roll back earlier accepted ones, and a repeated ref is reported as a duplicate. Returns { result: { results: [...], summary: { accepted, duplicate, rejected } } }. per-row occurred_at is optional, same as the single method. A member token is rejected with 'forbidden: batch ingestion is admin-only'."
+          }
+        },
+        {
+          "name": "AccountOpener.OpenAccount",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api",
+              "host": ["{{baseUrl}}"],
+              "path": ["api"]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"AccountOpener.OpenAccount\",\n  \"params\": [\n    {\n      \"name\": \"Savings Wallet\"\n    }\n  ],\n  \"id\": 1\n}"
+            },
+            "description": "Opens an additional account for the calling user. The owner is NOT on the wire — it is always the authenticated caller, resolved from the token. name is OPTIONAL; the server defaults it when blank. Returns { result: { account_id, name, owner_id, balance, created_at } }. The test script stores the new account_id into {{newAccountID}} so you can drive transactions against it without clobbering the register-captured {{accountID}}. Sends Authorization: Bearer {{token}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('no JSON-RPC error', () => pm.expect(body.error, JSON.stringify(body.error)).to.be.undefined);",
+                  "if (body.result && body.result.account_id) {",
+                  "  pm.collectionVariables.set('newAccountID', body.result.account_id);",
+                  "  console.log('captured newAccountID', body.result.account_id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Account.GetByID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api",
+              "host": ["{{baseUrl}}"],
+              "path": ["api"]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"Account.GetByID\",\n  \"params\": [\n    {\n      \"account_id\": \"{{accountID}}\"\n    }\n  ],\n  \"id\": 1\n}"
+            },
+            "description": "Reads a full account. Scoped to the caller: a member only sees accounts they own, and requesting another user's account id yields 'account not found' (indistinguishable from genuinely missing — no existence leak). Admins may read any account. Returns { result: { id, user_id, name, balance, created_at } }. Sends Authorization: Bearer {{token}}."
+          }
+        },
+        {
+          "name": "Account.GetAccountBalance",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api",
+              "host": ["{{baseUrl}}"],
+              "path": ["api"]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"Account.GetAccountBalance\",\n  \"params\": [\n    {\n      \"account_id\": \"{{accountID}}\"\n    }\n  ],\n  \"id\": 1\n}"
+            },
+            "description": "Reads just the current balance. Same ownership scoping as GetByID — members see only their own accounts, a non-owned id reads as 'account not found', admins may read any. Returns { result: { account_id, balance } }. Handy to call before/after an earn or spend to show the balance move. Sends Authorization: Bearer {{token}}."
+          }
+        },
+        {
+          "name": "Account.UpdateAccountName",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api",
+              "host": ["{{baseUrl}}"],
+              "path": ["api"]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"Account.UpdateAccountName\",\n  \"params\": [\n    {\n      \"account_id\": \"{{accountID}}\",\n      \"name\": \"Renamed Wallet\"\n    }\n  ],\n  \"id\": 1\n}"
+            },
+            "description": "Renames an account. Callable by a member on an account they own (account:write:own) — the server takes the actor from the token and scopes the rename to that user, so renaming another user's account reads as 'account not found'. Admins (account:write:all) may rename any account. Returns the updated account: { result: { id, user_id, name, balance, created_at } }. Sends Authorization: Bearer {{token}}."
+          }
+        },
+        {
+          "name": "Account.UpdateAccountBalance (admin-only)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api",
+              "host": ["{{baseUrl}}"],
+              "path": ["api"]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"Account.UpdateAccountBalance\",\n  \"params\": [\n    {\n      \"account_id\": \"{{accountID}}\",\n      \"delta\": 50\n    }\n  ],\n  \"id\": 1\n}"
+            },
+            "description": "ADMIN-ONLY (account:write:all). Applies a raw signed delta to the balance — positive to credit, negative to debit — bypassing the wallet's idempotency/audit unit of work; intended for operator corrections, not normal earns/spends. The overdraft floor is still enforced (a debit past zero returns 'insufficient balance'). A non-admin token is rejected with 'forbidden: balance adjustment is admin-only'. Returns { result: { account_id, balance } } with the balance after the delta. Sends Authorization: Bearer {{token}}."
           }
         }
       ]
