@@ -11,6 +11,7 @@ const (
 	getAccountMethod           = "Account.GetByID"
 	updateAccountNameMethod    = "Account.UpdateAccountName"
 	updateAccountBalanceMethod = "Account.UpdateAccountBalance"
+	openAccountMethod          = "AccountOpener.OpenAccount"
 )
 
 // accountResult mirrors accounts.AccountResult.
@@ -19,6 +20,27 @@ type accountResult struct {
 	UserID  string `json:"user_id"`
 	Name    string `json:"name"`
 	Balance int64  `json:"balance"`
+}
+
+// openAccountResult mirrors accounts.OpenAccountResult.
+type openAccountResult struct {
+	AccountID string `json:"account_id"`
+	Name      string `json:"name"`
+	OwnerID   string `json:"owner_id"`
+	Balance   int64  `json:"balance"`
+}
+
+// dbAccountOwner reads accounts.owner_id directly. Returns false when no DB path.
+func dbAccountOwner(t *testing.T, c *apiClient, accountID string) (string, bool) {
+	t.Helper()
+	if c.db == nil {
+		return "", false
+	}
+	var ownerID string
+	if err := c.db.QueryRow("SELECT owner_id FROM accounts WHERE id = $1", accountID).Scan(&ownerID); err != nil {
+		t.Fatalf("query account owner: %v", err)
+	}
+	return ownerID, true
 }
 
 // registerAdmin onboards a fresh member, promotes them to admin directly in the
@@ -116,6 +138,82 @@ func TestAccountGetAccountBalanceEndpoint(t *testing.T) {
 	foreign := c.call(t, getBalanceMethod, map[string]any{"account_id": member.AccountID}, intruder.Token)
 	if foreign.Error == nil {
 		t.Error("GetAccountBalance on a foreign account: expected an error, got none")
+	}
+}
+
+// TestOpenAccountEndpoint confirms a member opens a second wallet for themselves:
+// the new account carries the requested name, is owned by the caller, starts at
+// zero, and is immediately readable through the member's own (ownership-scoped)
+// GetByID — proving it persisted under their ownership.
+func TestOpenAccountEndpoint(t *testing.T) {
+	c := setup(t)
+	member := registerMember(t, c)
+	const name = "Holiday Wallet"
+
+	resp := c.call(t, openAccountMethod, map[string]any{"name": name}, member.Token)
+	requireNoError(t, "OpenAccount", resp)
+
+	var opened openAccountResult
+	mustUnmarshal(t, resp.Result, &opened)
+	if opened.AccountID == "" {
+		t.Fatal("OpenAccount: empty account_id")
+	}
+	if opened.AccountID == member.AccountID {
+		t.Errorf("OpenAccount: account_id %q collides with the registration wallet", opened.AccountID)
+	}
+	if opened.Name != name {
+		t.Errorf("OpenAccount: name = %q, want %q", opened.Name, name)
+	}
+	if opened.OwnerID != member.UserID {
+		t.Errorf("OpenAccount: owner_id = %q, want caller %q", opened.OwnerID, member.UserID)
+	}
+	if opened.Balance != 0 {
+		t.Errorf("OpenAccount: balance = %d, want 0", opened.Balance)
+	}
+
+	// The owner can read the freshly opened account back through GetByID,
+	// confirming it persisted under their ownership scope.
+	read := c.call(t, getAccountMethod, map[string]any{"account_id": opened.AccountID}, member.Token)
+	requireNoError(t, "GetByID after open", read)
+	var acc accountResult
+	mustUnmarshal(t, read.Result, &acc)
+	if acc.Name != name || acc.UserID != member.UserID || acc.Balance != 0 {
+		t.Errorf("GetByID after open = %+v, want name=%q owner=%q balance=0", acc, name, member.UserID)
+	}
+
+	if owner, ok := dbAccountOwner(t, c, opened.AccountID); ok && owner != member.UserID {
+		t.Errorf("persisted owner_id = %q, want %q", owner, member.UserID)
+	}
+}
+
+// TestOpenAccountDefaultName confirms a blank name falls back to the service
+// default rather than persisting an empty name.
+func TestOpenAccountDefaultName(t *testing.T) {
+	c := setup(t)
+	member := registerMember(t, c)
+
+	resp := c.call(t, openAccountMethod, map[string]any{}, member.Token)
+	requireNoError(t, "OpenAccount (default name)", resp)
+
+	var opened openAccountResult
+	mustUnmarshal(t, resp.Result, &opened)
+	if opened.Name != "Primary Wallet" {
+		t.Errorf("OpenAccount default name = %q, want %q", opened.Name, "Primary Wallet")
+	}
+
+	if name, ok := dbAccountName(t, c, opened.AccountID); ok && name != "Primary Wallet" {
+		t.Errorf("persisted default name = %q, want %q", name, "Primary Wallet")
+	}
+}
+
+// TestOpenAccountUnauthenticated confirms the method is protected: without a
+// token the request is rejected.
+func TestOpenAccountUnauthenticated(t *testing.T) {
+	c := setup(t)
+
+	resp := c.call(t, openAccountMethod, map[string]any{"name": "No Token"}, "")
+	if resp.Error == nil {
+		t.Fatal("OpenAccount without a token: expected an error, got none")
 	}
 }
 
