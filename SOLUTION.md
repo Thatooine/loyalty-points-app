@@ -29,26 +29,152 @@ validation, and black-box HTTP integration tests.
 
 ## 2. Key technology choices
 
-**PostgreSQL, not SQLite.** The assignment recommends SQLite and allows
-Postgres. I chose Postgres because the correctness story for concurrent writes
-is the interesting part of this problem, and Postgres gives real row-level
-locking and a guarded-`UPDATE` concurrency model without SQLite's single-writer
-caveats. Durability across restarts is satisfied either way; the migration
-machinery and the `pgx` stdlib driver keep local setup to one `docker compose
-up`.
+Every choice below is framed the same way: what it *buys* (the gain) and what it
+*costs* (the trade-off I accepted). Nothing here is free; these are the calls I'd
+defend in review.
+
+**PostgreSQL, not SQLite.** The assignment recommends SQLite and allows Postgres.
+
+- *Gain.* The correctness story for concurrent writes is the interesting part of
+  this problem, and Postgres gives real row-level locking and a guarded-`UPDATE`
+  concurrency model without SQLite's single-writer caveats. The overdraft floor
+  (§3) leans directly on this — two overlapping spends serialise on the row, not
+  on a process-wide write lock. It also has the richer toolbox I actually used:
+  `CHECK` constraints as backstops, partial/composite indexes for keyset
+  pagination, `GENERATED ALWAYS AS IDENTITY`.
+- *Trade-off.* A real network dependency and a container to run, versus SQLite's
+  zero-setup single file. I bought that back with `docker compose up` +
+  baked-in defaults so local setup is still one command, but a reviewer who just
+  wants `go run` with no Docker pays a small tax SQLite wouldn't have charged.
 
 **JSON-RPC 2.0 over `gorilla/rpc/v2`.** A single `/api` endpoint hosts every
-service. Adaptor methods with the signature
+service; adaptor methods with the signature
 `func(r *http.Request, params *T, result *T2) error` auto-register as
-`<ServiceName>.<Method>`. This keeps the wire layer declarative — no hand-rolled
-dispatcher — and means authorization can be a single middleware in front of one
-endpoint.
+`<ServiceName>.<Method>`.
+
+- *Why it's the right fit.* A loyalty ledger is a set of **verbs**, not a set of
+  resources: `EarnPoints`, `SpendPoints`, `Logout`, `ProcessTransactionBatch`.
+  These are commands with side effects, and they map cleanly onto named methods —
+  whereas forcing them into REST means inventing resource nouns and arguing over
+  whether "spend" is a `POST /accounts/{id}/debits` or a `PATCH` on the balance.
+  JSON-RPC sidesteps that impedance mismatch entirely: the method *is* the
+  operation, so the API reads the way the domain is actually spoken.
+- *Gain.* Several things fall out of that for free:
+  - **Declarative wire layer.** Adaptor methods auto-register by signature — no
+    hand-rolled dispatcher, no per-route table, no verb/path bikeshedding. Adding
+    a method is adding a function.
+  - **One choke point for cross-cutting concerns.** Because every call lands on a
+    single endpoint, authorization is *one* middleware in front of *one* mux
+    route (§4), and logging/request-id correlation is likewise mounted once.
+    Per-handler guards that are easy to forget simply don't exist — the gate is
+    structural, not per-route discipline.
+  - **The policy table is the attack surface.** Method-name dispatch makes
+    `method → permissions` (`DefaultPolicy()`) a literal, auditable map of every
+    callable operation. A method missing from the policy fails *closed*. You can
+    read the whole authorization model in one file.
+  - **Transport-agnostic and uniform.** One envelope, one content type, one error
+    shape (sentinel → code, mapped in exactly one place — §6/error handling).
+    Clients — including the CLI — share a single request/response codec instead
+    of bespoke handling per route. The contract is symmetric and trivial to mock.
+  - **Batches are first-class.** The domain genuinely needs an *ordered* batch
+    (the overdraft floor makes writes order-dependent — §5); a single method
+    taking an ordered slice expresses that far more naturally than orchestrating
+    N REST calls and hoping they serialise.
+- *Trade-off (and why it's cheap here).* JSON-RPC gives up HTTP-native semantics:
+  everything is `POST`, errors come back as **HTTP 200** with the error in the
+  body, and there's no resource-level caching or status-code tooling. But this
+  ledger has almost no cacheable reads — calls are commands — so HTTP caching
+  buys little, and the uniform in-body error shape is actually an *advantage* for
+  a typed client over decoding meaning from status codes. The one real papercut
+  is that the gorilla json2 codec won't decode JSON-RPC *batch arrays*, which is
+  partly why batch ingestion travels as one ordered payload (§5) — and since I
+  wanted a guaranteed order anyway, that constraint pushed me toward the design I
+  already preferred.
 
 **Ports and adapters.** `pkg/<domain>` holds the interfaces, DTOs, `Validate()`
 methods, and JSON-RPC adaptors; `internal/pkg/<domain>` holds the PostgreSQL
 implementations. Production code depends only on the `pkg` interfaces, and
-`cmd/app/serviceProviders.go` is the single wiring point. This made the system
-testable with mocks at the port boundary and kept the SQL isolated.
+`cmd/app/serviceProviders.go` is the single wiring point.
+
+- *Gain.* The system is testable with mocks at the port boundary (the bulk of the
+  suite needs no DB), the SQL is isolated to one layer, and swapping an
+  implementation is a one-line change in the wiring file. The split also gives a
+  natural home for the `internal/` visibility boundary so nothing imports a
+  concrete repository by accident.
+- *Trade-off.* More files and a layer of indirection (interface + DTO + impl +
+  mock) per capability than a flat handler-hits-DB design. For a service this
+  size that's real ceremony; I leaned on the `.claude/skills/` scaffolds (§8) to
+  keep the per-domain boilerplate consistent rather than hand-written.
+
+**`pgx/v5` via the `database/sql` stdlib interface.** The driver is registered
+through `pgx`'s `stdlib` shim rather than its native API.
+
+- *Gain.* I keep the standard `*sql.DB`/`*sql.Tx` abstractions — which is what
+  the context-resolved executor and `TxManager` (§3) are built on — while still
+  getting pgx's well-maintained Postgres driver and connection pool. Staying on
+  the stdlib interface means the repositories aren't coupled to pgx types.
+- *Trade-off.* I forgo pgx's native niceties (richer type mapping, `COPY`
+  protocol, batch pipelining). None were needed here, and the portability of the
+  stdlib seam was worth more than the raw-throughput features.
+
+**JWS / RS256 via `go-jose`, not symmetric HS256.** Access tokens are
+asymmetrically signed (§4).
+
+- *Gain.* Only the holder of the private key can mint tokens; any service can
+  verify with the *public* key. That's the right shape for a system that might
+  later split issuer from verifier, and it means a leaked verification key can't
+  forge tokens. `go-jose` is a mature, audited JOSE implementation, so I'm not
+  hand-rolling crypto.
+- *Trade-off.* RS256 is heavier than HMAC and brings asymmetric-key management
+  (a PEM to provision; a dev key is baked in for local use only). For a
+  single-process deployment HS256 would have been simpler — I paid for the
+  verification model deliberately, anticipating split trust domains.
+
+**`bcrypt` (`golang.org/x/crypto`) for password storage.**
+
+- *Gain.* Adaptive, salted hashing with the salt embedded in the digest, so
+  there's no separate salt column and the work factor can be raised over time.
+  It's the conservative, well-understood default.
+- *Trade-off.* bcrypt is deliberately slow (that's the point) and caps the input
+  at 72 bytes; a memory-hard function (argon2/scrypt) resists GPU attacks better.
+  bcrypt was the lower-risk, battle-tested pick for a take-home over a more
+  modern but fussier KDF.
+
+**`zerolog` for structured logging.** Mounted as the first middleware on `/api`.
+
+- *Gain.* Zero-allocation structured (JSON) logs that are machine-parseable, plus
+  a context-bound logger: the request middleware mints a `request_id` and binds
+  it so every downstream `log.Ctx(ctx)…` line is correlated for free. Structured
+  fields beat string-formatted logs the moment you need to grep production.
+- *Trade-off.* A specific logging dependency threaded through the code via
+  `log.Ctx(ctx)`, versus the stdlib `log`/`slog`. Given `slog` would cover much
+  of this now, this is the choice I hold most loosely — but the context-bound
+  correlation was the deciding feature.
+
+**`cobra` + `viper` for the CLI and config.**
+
+- *Gain.* `cobra` gives the CLI a real command tree, flag parsing, and help text
+  for `loyalty-cli ingest` with little code; `viper` gives layered config
+  (env-var binding over baked-in defaults) so the server runs out of the box yet
+  every secret is overridable by environment variable.
+- *Trade-off.* Both are heavy dependencies for what is, today, one subcommand and
+  two config keys — arguably more machinery than the surface needs. I took the
+  headroom because batch ingestion is the kind of feature that grows
+  subcommands, and viper's env binding is exactly the 12-factor seam a real
+  deployment wants.
+
+**Hand-rolled embedded migrations, no migration library.** Numbered
+`pkg/postgres/migrations/*.sql` files are `go:embed`-ed and applied in lexical
+order on startup and in tests.
+
+- *Gain.* Schema travels *inside* the binary (no external migration tool to
+  install or version-match), the same code path runs in production and in the
+  per-test fresh-schema harness, and "evolve the schema" is just "add the next
+  numbered file." Zero operational moving parts.
+- *Trade-off.* No down-migrations, no checksum/dirty-state tracking, no
+  out-of-order detection — the safety net a `golang-migrate`/`goose` gives you.
+  For a forward-only take-home that's fine; a long-lived service would outgrow it
+  and want a real migration tool.
 
 ---
 

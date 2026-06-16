@@ -46,7 +46,7 @@ for attempt in $(seq 1 30); do
   sleep 1
 done
 
-log "Bootstrapping admin user (system@mail.com / systemUser123)"
+log "Bootstrapping admin user (system@mail.com)"
 echo "Note: this wipes all data tables before recreating the admin."
 go run ./cmd/bootstrap
 
