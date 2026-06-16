@@ -1,10 +1,11 @@
 package authentication
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/rs/zerolog/log"
+
+	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 )
 
 type EmailPasswordAuthenticatorJSONRPCAdaptor struct {
@@ -41,7 +42,7 @@ func (a *EmailPasswordAuthenticatorJSONRPCAdaptor) Login(r *http.Request, reques
 	})
 	if err != nil {
 		log.Ctx(r.Context()).Error().Err(err).Msg("failed to authenticate with email and password")
-		return errors.New("invalid credentials")
+		return errs.WithMessage(errs.ErrUnauthorized, "invalid credentials")
 	}
 
 	response.Token = authResp.Token

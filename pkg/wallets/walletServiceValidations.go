@@ -1,9 +1,6 @@
 package wallets
 
-import (
-	"fmt"
-	"strings"
-)
+import "github.com/Thatooine/loyalty-points-app/pkg/errs"
 
 func (r *ProcessTransactionRequest) Validate() error {
 	var reasons []string
@@ -30,9 +27,5 @@ func (r *ProcessTransactionRequest) Validate() error {
 		reasons = append(reasons, "Kind must be 'earn' or 'spend'")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }

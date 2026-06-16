@@ -1,9 +1,6 @@
 package audit
 
-import (
-	"fmt"
-	"strings"
-)
+import "github.com/Thatooine/loyalty-points-app/pkg/errs"
 
 func (r *CreateAuditEntryRequest) Validate() error {
 	var reasons []string
@@ -22,11 +19,7 @@ func (r *CreateAuditEntryRequest) Validate() error {
 		reasons = append(reasons, "Outcome must be 'accepted', 'rejected' or 'duplicate'")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }
 
 func (r *GetAuditEntryByIDRequest) Validate() error {
@@ -40,11 +33,7 @@ func (r *GetAuditEntryByIDRequest) Validate() error {
 		reasons = append(reasons, "UserID is required")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }
 
 func (r *ListAuditEntriesRequest) Validate() error {
@@ -54,11 +43,7 @@ func (r *ListAuditEntriesRequest) Validate() error {
 		reasons = append(reasons, "UserID is required")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }
 
 func (r *ListAuditEntriesByTransactionRefRequest) Validate() error {
@@ -72,11 +57,7 @@ func (r *ListAuditEntriesByTransactionRefRequest) Validate() error {
 		reasons = append(reasons, "UserID is required")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }
 
 func (r *ListAuditEntriesByAccountIDRequest) Validate() error {
@@ -90,9 +71,5 @@ func (r *ListAuditEntriesByAccountIDRequest) Validate() error {
 		reasons = append(reasons, "UserID is required")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }

@@ -1,9 +1,6 @@
 package users
 
-import (
-	"fmt"
-	"strings"
-)
+import "github.com/Thatooine/loyalty-points-app/pkg/errs"
 
 func (r *CreateUserRequest) Validate() error {
 	var reasons []string
@@ -22,11 +19,7 @@ func (r *CreateUserRequest) Validate() error {
 		reasons = append(reasons, "Role must be 'member' or 'admin'")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }
 
 func (r *GetUserByIDRequest) Validate() error {
@@ -36,11 +29,7 @@ func (r *GetUserByIDRequest) Validate() error {
 		reasons = append(reasons, "ID is required")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }
 
 func (r *GetUserByEmailRequest) Validate() error {
@@ -50,11 +39,7 @@ func (r *GetUserByEmailRequest) Validate() error {
 		reasons = append(reasons, "Email is required")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }
 
 // Validate has no fields to check; defined for a uniform call site.
@@ -64,14 +49,14 @@ func (r *ListUsersRequest) Validate() error {
 
 func (r *GetTokenVersionRequest) Validate() error {
 	if r.UserID == "" {
-		return fmt.Errorf("validation failed: UserID is required")
+		return errs.NewValidationError([]string{"UserID is required"})
 	}
 	return nil
 }
 
 func (r *IncrementTokenVersionRequest) Validate() error {
 	if r.UserID == "" {
-		return fmt.Errorf("validation failed: UserID is required")
+		return errs.NewValidationError([]string{"UserID is required"})
 	}
 	return nil
 }

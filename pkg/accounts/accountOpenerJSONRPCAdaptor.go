@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/Thatooine/loyalty-points-app/pkg/authentication"
+	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 )
 
 // AccountOpenerJSONRPCAdaptor exposes AccountOpener over JSON-RPC. It is a
@@ -53,7 +54,7 @@ func (a *AccountOpenerJSONRPCAdaptor) OpenAccount(r *http.Request, params *OpenA
 	claim, ok := authentication.LoginClaimFromContext(ctx)
 	if !ok {
 		log.Ctx(ctx).Error().Msg("accountOpener: no login claim in context for protected method")
-		return errors.New("unauthorized")
+		return errs.ErrUnauthorized
 	}
 
 	resp, err := a.opener.OpenAccount(ctx, OpenAccountRequest{
@@ -62,7 +63,10 @@ func (a *AccountOpenerJSONRPCAdaptor) OpenAccount(r *http.Request, params *OpenA
 	})
 	if err != nil {
 		log.Ctx(ctx).Warn().Err(err).Str("userID", claim.UserID).Msg("accountOpener: open account failed")
-		return errors.New("could not open account")
+		if errors.Is(err, errs.ErrInvalidArgument) {
+			return err
+		}
+		return errs.WithMessage(errs.ErrInternal, "could not open account")
 	}
 
 	result.AccountID = resp.Account.ID

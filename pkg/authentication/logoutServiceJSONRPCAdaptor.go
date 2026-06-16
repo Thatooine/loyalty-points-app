@@ -1,10 +1,11 @@
 package authentication
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/rs/zerolog/log"
+
+	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 )
 
 // LogoutServiceJSONRPCAdaptor exposes LogoutService over JSON-RPC as
@@ -38,12 +39,12 @@ func (a *LogoutServiceJSONRPCAdaptor) Logout(r *http.Request, _ *LogoutJSONRPCRe
 	claim, ok := LoginClaimFromContext(ctx)
 	if !ok {
 		log.Ctx(ctx).Error().Msg("session: no login claim in context for protected method")
-		return errors.New("unauthorized")
+		return errs.ErrUnauthorized
 	}
 
 	if _, err := a.logoutService.Logout(ctx, LogoutRequest{UserID: claim.UserID}); err != nil {
 		log.Ctx(ctx).Warn().Err(err).Str("userID", claim.UserID).Msg("session: logout failed")
-		return errors.New("could not log out")
+		return errs.WithMessage(errs.ErrInternal, "could not log out")
 	}
 
 	result.OK = true

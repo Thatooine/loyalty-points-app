@@ -57,7 +57,7 @@ func (a *AccountJSONRPCAdaptor) GetByID(r *http.Request, params *GetByIDParams, 
 	claim, ok := authentication.LoginClaimFromContext(ctx)
 	if !ok {
 		log.Ctx(ctx).Error().Msg("account: no login claim in context for protected method")
-		return errors.New("unauthorized")
+		return errs.ErrUnauthorized
 	}
 
 	resp, err := a.accounts.GetByID(ctx, GetAccountByIDRequest{
@@ -82,7 +82,7 @@ func (a *AccountJSONRPCAdaptor) GetAccountBalance(r *http.Request, params *GetBy
 	claim, ok := authentication.LoginClaimFromContext(ctx)
 	if !ok {
 		log.Ctx(ctx).Error().Msg("account: no login claim in context for protected method")
-		return errors.New("unauthorized")
+		return errs.ErrUnauthorized
 	}
 
 	resp, err := a.accounts.GetAccountBalance(ctx, GetAccountBalanceRequest{
@@ -114,7 +114,7 @@ func (a *AccountJSONRPCAdaptor) UpdateAccountName(r *http.Request, params *Updat
 	claim, ok := authentication.LoginClaimFromContext(ctx)
 	if !ok {
 		log.Ctx(ctx).Error().Msg("account: no login claim in context for protected method")
-		return errors.New("unauthorized")
+		return errs.ErrUnauthorized
 	}
 
 	resp, err := a.accounts.UpdateAccountName(ctx, UpdateAccountNameRequest{
@@ -154,11 +154,11 @@ func (a *AccountJSONRPCAdaptor) UpdateAccountBalance(r *http.Request, params *Up
 	claim, ok := authentication.LoginClaimFromContext(ctx)
 	if !ok {
 		log.Ctx(ctx).Error().Msg("account: no login claim in context for protected method")
-		return errors.New("unauthorized")
+		return errs.ErrUnauthorized
 	}
 	if claim.Role != users.RoleAdmin {
 		log.Ctx(ctx).Warn().Str("userID", claim.UserID).Msg("account: non-admin attempted raw balance update")
-		return errors.New("forbidden: balance adjustment is admin-only")
+		return errs.WithMessage(errs.ErrForbidden, "balance adjustment is admin-only")
 	}
 
 	resp, err := a.accounts.UpdateAccountBalance(ctx, UpdateAccountBalanceRequest{
@@ -168,13 +168,16 @@ func (a *AccountJSONRPCAdaptor) UpdateAccountBalance(r *http.Request, params *Up
 	})
 	if err != nil {
 		log.Ctx(ctx).Warn().Err(err).Str("accountID", params.AccountID).Msg("account: balance update failed")
-		if errors.Is(err, errs.ErrInsufficientBalance) {
-			return errors.New("insufficient balance")
+		switch {
+		case errors.Is(err, errs.ErrInsufficientBalance):
+			return errs.WithMessage(errs.ErrInsufficientBalance, "insufficient balance")
+		case errors.Is(err, errs.ErrNotFound):
+			return errs.WithMessage(errs.ErrNotFound, "account not found")
+		case errors.Is(err, errs.ErrInvalidArgument):
+			return err
+		default:
+			return errs.WithMessage(errs.ErrInternal, "could not update account balance")
 		}
-		if errors.Is(err, errs.ErrNotFound) {
-			return errors.New("account not found")
-		}
-		return errors.New("could not update account balance")
 	}
 
 	result.AccountID = params.AccountID
@@ -184,8 +187,12 @@ func (a *AccountJSONRPCAdaptor) UpdateAccountBalance(r *http.Request, params *Up
 
 func notFoundOrInternal(ctx context.Context, err error, accountID string) error {
 	log.Ctx(ctx).Warn().Err(err).Str("accountID", accountID).Msg("account: lookup failed")
-	if errors.Is(err, errs.ErrNotFound) {
-		return errors.New("account not found")
+	switch {
+	case errors.Is(err, errs.ErrNotFound):
+		return errs.WithMessage(errs.ErrNotFound, "account not found")
+	case errors.Is(err, errs.ErrInvalidArgument):
+		return err
+	default:
+		return errs.WithMessage(errs.ErrInternal, "could not retrieve account")
 	}
-	return errors.New("could not retrieve account")
 }

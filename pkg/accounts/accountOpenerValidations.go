@@ -1,9 +1,6 @@
 package accounts
 
-import (
-	"fmt"
-	"strings"
-)
+import "github.com/Thatooine/loyalty-points-app/pkg/errs"
 
 // Validate checks the OpenAccount request. Only UserID is required: it is the
 // owner the account is opened for and is pinned to the caller upstream. Name is
@@ -15,9 +12,5 @@ func (r *OpenAccountRequest) Validate() error {
 		reasons = append(reasons, "UserID is required")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }

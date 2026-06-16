@@ -1,9 +1,6 @@
 package wallets
 
-import (
-	"fmt"
-	"strings"
-)
+import "github.com/Thatooine/loyalty-points-app/pkg/errs"
 
 func (r *CreateTransactionRequest) Validate() error {
 	var reasons []string
@@ -32,11 +29,7 @@ func (r *CreateTransactionRequest) Validate() error {
 		reasons = append(reasons, "Points must be non-zero")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }
 
 func (r *GetTransactionByIDRequest) Validate() error {
@@ -50,11 +43,7 @@ func (r *GetTransactionByIDRequest) Validate() error {
 		reasons = append(reasons, "UserID is required")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }
 
 func (r *ListTransactionsRequest) Validate() error {
@@ -70,9 +59,5 @@ func (r *ListTransactionsRequest) Validate() error {
 		reasons = append(reasons, "PageSize must be >= 0")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }

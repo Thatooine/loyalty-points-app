@@ -63,7 +63,12 @@ func setupRPCServer(providers ServiceProviders) {
 // the given services mounted under their Name().
 func newJSONRPCServer(services []jsonrpc.Service) *rpc.Server {
 	jsonRPCServer := rpc.NewServer()
-	jsonRPCServer.RegisterCodec(gorillaJSON.NewCodec(), "application/json")
+	// The error mapper is the single place that turns a domain error returned by
+	// any handler into a JSON-RPC error with a stable code and machine-readable
+	// data.reason (see jsonrpc.MapError); without it gorilla collapses every
+	// non-json2 error to -32000.
+	codec := gorillaJSON.NewCustomCodecWithErrorMapper(rpc.DefaultEncoderSelector, jsonrpc.MapError)
+	jsonRPCServer.RegisterCodec(codec, "application/json")
 
 	for _, service := range services {
 		log.Info().Msg("\tRegistering: " + service.Name())

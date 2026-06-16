@@ -1,9 +1,6 @@
 package authentication
 
-import (
-	"fmt"
-	"strings"
-)
+import "github.com/Thatooine/loyalty-points-app/pkg/errs"
 
 func (r *EmailPasswordAuthenticatorRequest) Validate() error {
 	var reasons []string
@@ -16,9 +13,5 @@ func (r *EmailPasswordAuthenticatorRequest) Validate() error {
 		reasons = append(reasons, "Password is required")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }

@@ -51,7 +51,7 @@ func (a *WalletServiceJSONRPCAdaptor) ProcessTransaction(r *http.Request, params
 	claim, ok := authentication.LoginClaimFromContext(ctx)
 	if !ok {
 		log.Ctx(ctx).Error().Msg("wallet: no login claim in context for protected method")
-		return errors.New("unauthorized")
+		return errs.ErrUnauthorized
 	}
 
 	resp, err := a.walletService.ProcessTransaction(ctx, ProcessTransactionRequest{
@@ -90,7 +90,7 @@ func (a *WalletServiceJSONRPCAdaptor) EarnPoints(r *http.Request, params *EarnPo
 	claim, ok := authentication.LoginClaimFromContext(ctx)
 	if !ok {
 		log.Ctx(ctx).Error().Msg("wallet: no login claim in context for protected method")
-		return errors.New("unauthorized")
+		return errs.ErrUnauthorized
 	}
 
 	resp, err := a.walletService.EarnPoints(ctx, EarnPointsRequest{
@@ -128,7 +128,7 @@ func (a *WalletServiceJSONRPCAdaptor) SpendPoints(r *http.Request, params *Spend
 	claim, ok := authentication.LoginClaimFromContext(ctx)
 	if !ok {
 		log.Ctx(ctx).Error().Msg("wallet: no login claim in context for protected method")
-		return errors.New("unauthorized")
+		return errs.ErrUnauthorized
 	}
 
 	resp, err := a.walletService.SpendPoints(ctx, SpendPointsRequest{
@@ -147,19 +147,22 @@ func (a *WalletServiceJSONRPCAdaptor) SpendPoints(r *http.Request, params *Spend
 	return nil
 }
 
-// mapProcessError translates a service-layer transaction error into the opaque,
-// client-facing error returned over the wire. Shared by every method that runs
-// through ProcessTransaction so the mapping stays in one place.
+// mapProcessError attaches client-facing phrasing to a service-layer
+// transaction error while preserving the sentinel that drives the JSON-RPC
+// error code (jsonrpc.MapError reads it). Shared by every method that runs
+// through ProcessTransaction so the phrasing stays in one place.
 func mapProcessError(err error) error {
 	switch {
 	case errors.Is(err, errs.ErrForbidden):
-		return errors.New("forbidden: you do not own this account")
+		return errs.WithMessage(errs.ErrForbidden, "you do not own this account")
 	case errors.Is(err, errs.ErrInsufficientBalance):
-		return errors.New("insufficient balance")
+		return errs.WithMessage(errs.ErrInsufficientBalance, "insufficient balance")
 	case errors.Is(err, errs.ErrNotFound):
-		return errors.New("account not found")
+		return errs.WithMessage(errs.ErrNotFound, "account not found")
+	case errors.Is(err, errs.ErrInvalidArgument):
+		return err
 	default:
-		return errors.New("could not process transaction")
+		return errs.WithMessage(errs.ErrInternal, "could not process transaction")
 	}
 }
 
@@ -218,11 +221,11 @@ func (a *WalletServiceJSONRPCAdaptor) ProcessTransactionBatch(r *http.Request, p
 	claim, ok := authentication.LoginClaimFromContext(ctx)
 	if !ok {
 		log.Ctx(ctx).Error().Msg("wallet: no login claim in context for protected method")
-		return errors.New("unauthorized")
+		return errs.ErrUnauthorized
 	}
 	if claim.Role != users.RoleAdmin {
 		log.Ctx(ctx).Warn().Str("userID", claim.UserID).Msg("wallet: non-admin attempted batch ingestion")
-		return errors.New("forbidden: batch ingestion is admin-only")
+		return errs.WithMessage(errs.ErrForbidden, "batch ingestion is admin-only")
 	}
 
 	batch := ProcessTransactionBatchRequest{
@@ -242,7 +245,7 @@ func (a *WalletServiceJSONRPCAdaptor) ProcessTransactionBatch(r *http.Request, p
 	resp, err := a.walletService.ProcessTransactionBatch(ctx, batch)
 	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Msg("wallet: process transaction batch failed")
-		return errors.New("could not process transaction batch")
+		return errs.WithMessage(errs.ErrInternal, "could not process transaction batch")
 	}
 
 	result.Results = make([]BatchTransactionResult, 0, len(resp.Results))

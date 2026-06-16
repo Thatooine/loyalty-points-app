@@ -1,9 +1,6 @@
 package accounts
 
-import (
-	"fmt"
-	"strings"
-)
+import "github.com/Thatooine/loyalty-points-app/pkg/errs"
 
 func (r *CreateAccountRequest) Validate() error {
 	var reasons []string
@@ -20,11 +17,7 @@ func (r *CreateAccountRequest) Validate() error {
 		reasons = append(reasons, "Balance must be >= 0")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }
 
 func (r *GetAccountByIDRequest) Validate() error {
@@ -38,11 +31,7 @@ func (r *GetAccountByIDRequest) Validate() error {
 		reasons = append(reasons, "UserID is required")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }
 
 func (r *GetAccountBalanceRequest) Validate() error {
@@ -56,11 +45,7 @@ func (r *GetAccountBalanceRequest) Validate() error {
 		reasons = append(reasons, "UserID is required")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }
 
 func (r *UpdateAccountBalanceRequest) Validate() error {
@@ -78,11 +63,7 @@ func (r *UpdateAccountBalanceRequest) Validate() error {
 		reasons = append(reasons, "UserID is required")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }
 
 func (r *UpdateAccountNameRequest) Validate() error {
@@ -100,11 +81,7 @@ func (r *UpdateAccountNameRequest) Validate() error {
 		reasons = append(reasons, "UserID is required")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }
 
 func (r *ListAccountsRequest) Validate() error {
@@ -114,9 +91,5 @@ func (r *ListAccountsRequest) Validate() error {
 		reasons = append(reasons, "UserID is required")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }

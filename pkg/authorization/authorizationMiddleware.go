@@ -36,7 +36,7 @@ func NewAuthorizationMiddleware(accessTokenService authentication.AccessTokenVal
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
 				log.Ctx(ctx).Warn().Err(err).Msg("authorization: could not read request body")
-				jsonrpc.WriteError(w, nil, jsonrpc.CodeParseError, "could not read request body")
+				jsonrpc.WriteError(w, nil, jsonrpc.CodeParseError, "could not read request body", "parse")
 				return
 			}
 			r.Body = io.NopCloser(bytes.NewReader(body))
@@ -44,7 +44,7 @@ func NewAuthorizationMiddleware(accessTokenService authentication.AccessTokenVal
 			var envelope jsonrpc.RequestEnvelope
 			if err := json.Unmarshal(body, &envelope); err != nil || envelope.Method == "" {
 				log.Ctx(ctx).Warn().Err(err).Msg("authorization: could not parse JSON-RPC method")
-				jsonrpc.WriteError(w, envelope.ID, jsonrpc.CodeParseError, "could not parse JSON-RPC request")
+				jsonrpc.WriteError(w, envelope.ID, jsonrpc.CodeParseError, "could not parse JSON-RPC request", "parse")
 				return
 			}
 
@@ -58,13 +58,13 @@ func NewAuthorizationMiddleware(accessTokenService authentication.AccessTokenVal
 			token := authentication.ExtractToken(r)
 			if token == "" {
 				log.Ctx(ctx).Warn().Str("method", envelope.Method).Msg("authorization: no access token")
-				jsonrpc.WriteError(w, envelope.ID, jsonrpc.CodeUnauthorized, "unauthorized")
+				jsonrpc.WriteError(w, envelope.ID, jsonrpc.CodeUnauthorized, "unauthorized", "unauthorized")
 				return
 			}
 			tokenResp, err := accessTokenService.ValidateAccessToken(ctx, authentication.ValidateAccessTokenRequest{AccessToken: token})
 			if err != nil {
 				log.Ctx(ctx).Warn().Err(err).Str("method", envelope.Method).Msg("authorization: token validation failed")
-				jsonrpc.WriteError(w, envelope.ID, jsonrpc.CodeUnauthorized, "unauthorized")
+				jsonrpc.WriteError(w, envelope.ID, jsonrpc.CodeUnauthorized, "unauthorized", "unauthorized")
 				return
 			}
 			claim := tokenResp.LoginClaim
@@ -79,7 +79,7 @@ func NewAuthorizationMiddleware(accessTokenService authentication.AccessTokenVal
 					Str("method", envelope.Method).
 					Msg("authorization: caller lacks a permission for method")
 				jsonrpc.WriteError(w, envelope.ID, jsonrpc.CodeForbidden,
-					fmt.Sprintf("not permitted to call %q", envelope.Method))
+					fmt.Sprintf("not permitted to call %q", envelope.Method), "forbidden")
 				return
 			}
 

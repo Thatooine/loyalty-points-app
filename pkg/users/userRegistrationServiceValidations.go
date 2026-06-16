@@ -3,6 +3,8 @@ package users
 import (
 	"fmt"
 	"strings"
+
+	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 )
 
 // minPasswordLength is the shortest password we accept at registration.
@@ -27,9 +29,5 @@ func (r *RegisterRequest) Validate() error {
 		reasons = append(reasons, "Name is required")
 	}
 
-	if len(reasons) > 0 {
-		return fmt.Errorf("validation failed: %s", strings.Join(reasons, "; "))
-	}
-
-	return nil
+	return errs.NewValidationError(reasons)
 }

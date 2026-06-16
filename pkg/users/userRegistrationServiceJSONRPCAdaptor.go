@@ -5,6 +5,8 @@ import (
 	"net/http"
 
 	"github.com/rs/zerolog/log"
+
+	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 )
 
 // UserRegistrationServiceJSONRPCAdaptor exposes UserRegistrationService over
@@ -49,7 +51,14 @@ func (a *UserRegistrationServiceJSONRPCAdaptor) Register(r *http.Request, reques
 	})
 	if err != nil {
 		log.Ctx(r.Context()).Error().Err(err).Msg("failed to register user")
-		return errors.New("could not register user")
+		switch {
+		case errors.Is(err, errs.ErrAlreadyExists):
+			return errs.WithMessage(errs.ErrAlreadyExists, "an account with this email already exists")
+		case errors.Is(err, errs.ErrInvalidArgument):
+			return err
+		default:
+			return errs.WithMessage(errs.ErrInternal, "could not register user")
+		}
 	}
 
 	response.Token = registerResp.Token
