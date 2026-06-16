@@ -15,7 +15,7 @@ export TEST_POSTGRES_DSN='postgres://loyalty:loyalty@localhost:5432/loyalty_poin
 go test ./...
 
 # Run a single test
-go test ./internal/pkg/wallet/ -run TestProcessTransaction_DuplicateRef
+go test ./internal/pkg/wallets/ -run TestProcessTransaction_DuplicateRef
 
 # Run the server (defaults — DSN and a dev JWT key — are baked into cmd/app/config.go,
 # matching the docker-compose container, so this works out of the box once Postgres is up)
@@ -34,14 +34,15 @@ A loyalty-points ledger exposed as a JSON-RPC 2.0 API. The design is ports-and-a
 
 ### Package layout: ports vs. implementations
 
-- **`pkg/<domain>`** is the *port* side: interfaces, request/response DTOs, `Validate()` methods, and the JSON-RPC adaptors (the wire layer). Domains: `accounts`, `users`, `wallet`, `audit`, `authentication`, `authorization`.
+- **`pkg/<domain>`** is the *port* side: interfaces, request/response DTOs, `Validate()` methods, and the JSON-RPC adaptors (the wire layer). Domains: `accounts`, `users`, `wallets`, `audit`, `authentication`, `authorization`. (`authorization` is policy-only — there is no `internal` impl for it.)
 - **`internal/pkg/<domain>`** holds the Postgres *implementations* of those interfaces. Production code depends only on the `pkg` interfaces; `cmd/app/serviceProviders.go` is the single wiring point that injects the `internal` impls.
+- **Cross-cutting `pkg/` packages** (no domain of their own): `errs` (sentinel errors + the `ValidationError` type and `WithMessage` wrapper), `jsonrpc` (canonical error codes + the `MapError` codec mapper), `logger` (request-scoped logging middleware), `scope` (permission-string parsing), `sql` (the context-resolved executor + `TxManager`), `postgres` (driver, migrations, SQLSTATE helpers), and `time` (the RFC3339Nano text format).
 
 When adding a repository/service method you touch both: the interface + DTOs + validation in `pkg`, the SQL in `internal/pkg`.
 
 ### WalletService is the heart of the system
 
-Every ledger write flows through `WalletServiceImpl.ProcessTransaction` (`internal/pkg/wallet/walletServiceImpl.go`), which composes the account, transaction, and audit repositories inside **one unit of work** so the invariants hold and are tested in exactly one place:
+Every ledger write flows through `WalletServiceImpl.ProcessTransaction` (`internal/pkg/wallets/walletServiceImpl.go`), which composes the account, transaction, and audit repositories inside **one unit of work** so the invariants hold and are tested in exactly one place:
 
 - **Idempotency** — the ledger insert is attempted first; the `UNIQUE(ref)` constraint *is* the dedupe mechanism (never check-then-insert). A duplicate returns the original outcome with `Duplicate=true`.
 - **Overdraft floor** — a single guarded `UPDATE ... WHERE balance + delta >= 0` makes the read-check-write atomic; zero rows affected means insufficient balance or missing/unowned account.
@@ -65,6 +66,20 @@ Repositories never hold a `*sql.Tx`. They call `pkgSQL.ExecutorFromContext(ctx, 
 ### Transport: gorilla/rpc/v2
 
 The RPC server uses `github.com/gorilla/rpc/v2` (not a hand-rolled dispatcher). Adaptor methods with the signature `func(r *http.Request, params *T, result *T2) error` are auto-registered as `<ServiceName>.<Method>` (the service name comes from the adaptor's `Name()`). All services — public and protected — mount on the single `/api` endpoint (`cmd/app/setupRPCServer.go`).
+
+### Error handling: sentinels in, codes out, mapped once
+
+Errors are translated to the wire in exactly one place. Handlers and services **never build JSON-RPC errors themselves** — they return the domain sentinels in `pkg/errs` (`ErrNotFound`, `ErrForbidden`, `ErrUnauthorized`, `ErrAlreadyExists`, `ErrInsufficientBalance`, `ErrInvalidArgument`, `ErrInternal`). The codec is registered with `jsonrpc.MapError` (via gorilla's `NewCustomCodecWithErrorMapper` in `setupRPCServer.go`), which is the single switch from sentinel → JSON-RPC code + machine-readable `data.reason`. Codes are defined once in `pkg/jsonrpc/error.go` and shared by both the codec and the `authorizationMiddleware` (which writes errors before a handler runs).
+
+Conventions when adding/extending an adaptor:
+- To attach a client-facing message while keeping the code, wrap with `errs.WithMessage(errs.ErrX, "friendly message")` — `Error()` is the message, `Unwrap()` is the sentinel that `MapError` matches on. A bare sentinel works too (its own text becomes the message).
+- The default/unmapped branch returns a fixed `"internal server error"` so an unexpected error never leaks internals; use `errs.WithMessage(errs.ErrInternal, …)` when you *want* a safe, specific internal message.
+- Validation: `Validate()` returns `errs.NewValidationError(reasons)` (a `*errs.ValidationError` that unwraps to `ErrInvalidArgument`). `MapError` surfaces it as code `-32602` with the per-field reasons under `data.fields`. Because services wrap with `%w`, `errors.As`/`errors.Is` still reach it at the codec.
+- Keep the existing `log.Ctx(ctx)…` line at the point of failure; logging is separate from the mapping.
+
+### Logging & observability
+
+`logger.Middleware` (`pkg/logger`, mounted first on `/api`) mints a `request_id` (honoring an inbound `X-Request-ID`, else a UUID), binds it into the zerolog context so every downstream `log.Ctx(ctx)…` line is correlated, echoes it back as the `X-Request-ID` response header, and emits one structured access-log line per request (status + duration). Always log through `log.Ctx(r.Context())`, never the global logger, so the request id rides along.
 
 ### Persistence
 
