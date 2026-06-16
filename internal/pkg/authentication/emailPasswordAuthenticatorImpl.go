@@ -44,7 +44,7 @@ func (s *EmailPasswordAuthenticatorImpl) Authenticate(ctx context.Context, reque
 	// SystemUserID from ownership scoping, letting the lookup resolve any email.
 	userResp, err := s.userRepository.GetByEmail(ctx, pkgUsers.GetUserByEmailRequest{
 		Email:  request.Email,
-		UserID: pkgUsers.SystemUserID,
+		UserID: pkgUsers.RootUserID,
 	})
 	if err != nil {
 		if errors.Is(err, errs.ErrNotFound) {

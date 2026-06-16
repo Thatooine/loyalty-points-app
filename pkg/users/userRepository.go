@@ -24,7 +24,7 @@ type UserRepository interface {
 	// GetByEmail returns the user with the given email, or errs.ErrNotFound.
 	// Used by authentication to resolve a login identity to its credentials.
 	// Ownership-scoped on the id like GetByID: a caller holding user:read:all —
-	// or the SystemUserID principal used by login — reads any user, otherwise the
+	// or the RootUserID principal used by login — reads any user, otherwise the
 	// lookup is restricted to the caller's own record.
 	GetByEmail(ctx context.Context, request GetUserByEmailRequest) (*GetUserByEmailResponse, error)
 }
@@ -34,7 +34,6 @@ type UserRepository interface {
 // by email before any login claim exists. The user repository treats it as
 // exempt from ownership scoping. It is set only by trusted server code and must
 // never be populated from client input.
-const SystemUserID = "system"
 
 // CreateUserRequest is the request for Create.
 type CreateUserRequest struct {
@@ -79,8 +78,8 @@ type GetUserByEmailRequest struct {
 	Email string
 
 	// UserID is the calling principal's id. Unless the caller holds user:read:all
-	// or is the SystemUserID, the lookup is restricted to their own record
-	// (id == UserID). The login flow passes SystemUserID.
+	// or is the RootUserID, the lookup is restricted to their own record
+	// (id == UserID). The login flow passes RootUserID.
 	UserID string
 }
 

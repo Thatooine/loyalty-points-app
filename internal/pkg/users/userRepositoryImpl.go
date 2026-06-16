@@ -145,7 +145,7 @@ func (r *UserRepositoryImpl) GetByEmail(ctx context.Context, request pkgUsers.Ge
 		 FROM users
 		 WHERE email = $1`
 	args := []any{request.Email}
-	if !authorization.IsGranted(ctx, authorization.PermUserReadAll) && request.UserID != pkgUsers.SystemUserID {
+	if !authorization.IsGranted(ctx, authorization.PermUserReadAll) && request.UserID != pkgUsers.RootUserID {
 		query += ` AND id = $2`
 		args = append(args, request.UserID)
 	}

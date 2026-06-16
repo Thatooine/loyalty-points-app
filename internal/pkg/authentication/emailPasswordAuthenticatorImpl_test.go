@@ -68,8 +68,8 @@ func TestAuthenticate_Success(t *testing.T) {
 		T: t,
 		GetByEmailFunc: func(t *testing.T, m *internalUsers.MockUserRepository, ctx context.Context, request pkgUsers.GetUserByEmailRequest) (*pkgUsers.GetUserByEmailResponse, error) {
 			// Login acts as the system principal so the lookup is unscoped.
-			if request.UserID != pkgUsers.SystemUserID {
-				t.Errorf("GetByEmail UserID = %q, want SystemUserID %q", request.UserID, pkgUsers.SystemUserID)
+			if request.UserID != pkgUsers.RootUserID {
+				t.Errorf("GetByEmail UserID = %q, want SystemUserID %q", request.UserID, pkgUsers.RootUserID)
 			}
 			if request.Email != "member@example.com" {
 				t.Errorf("GetByEmail Email = %q, want member@example.com", request.Email)
