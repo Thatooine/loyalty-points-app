@@ -165,7 +165,7 @@ The full method surface at a glance (detail follows):
 | `Wallet.EarnPoints`             | admin only                   | Credit points                               |
 | `Wallet.ProcessTransaction`     | admin only                   | Generic earn/spend (caller picks `kind`)    |
 | `Wallet.ProcessTransactionBatch`| admin only                   | Apply an ordered batch                      |
-| `Audit.ListByTransactionRef`    | member (own) / admin (any)   | List processing attempts for a `ref`        |
+| `AuditService.ListByTransactionRef`    | member (own) / admin (any)   | List processing attempts for a `ref`        |
 
 ### `UserRegistrationService.Register` — public
 
@@ -420,7 +420,7 @@ A rejected element carries its `status` (`"rejected"`) and a `reason`; the rest
 of the batch still applies. Every attempt — accepted, duplicate, or rejected — is
 written to the `audit_entries` table.
 
-### `Audit.ListByTransactionRef` — member (own) / admin (any)
+### `AuditService.ListByTransactionRef` — member (own) / admin (any)
 
 Returns every recorded processing attempt for a transaction `ref`, oldest first.
 Unlike the ledger, the same `ref` can appear multiple times here — one row per
@@ -433,7 +433,7 @@ see returns an **empty `entries` array**, not an error.
 curl -s http://localhost:8080/api \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $TOKEN" -d '{
-  "jsonrpc": "2.0", "method": "Audit.ListByTransactionRef",
+  "jsonrpc": "2.0", "method": "AuditService.ListByTransactionRef",
   "params": [{ "transaction_ref": "tx-001" }], "id": 1
 }'
 ```
@@ -507,7 +507,7 @@ rejected:     0
 Rejected rows (including the reason and the originating line) are listed beneath
 the tallies. Every attempt — accepted, duplicate, or rejected — is also written
 to the server's `audit_entries` table with its reason and timestamp, and is
-queryable afterwards via `Audit.ListByTransactionRef`.
+queryable afterwards via `AuditService.ListByTransactionRef`.
 
 ---
 

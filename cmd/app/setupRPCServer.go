@@ -39,7 +39,7 @@ func setupRPCServer(providers ServiceProviders) {
 		wallets.NewWalletServiceJSONRPCAdaptor(providers.WalletService),
 		accounts.NewAccountServiceJSONRPCAdaptor(providers.AccountService),
 		accounts.NewAccountOpenerJSONRPCAdaptor(providers.AccountOpener),
-		audits.NewAuditEntryRepositoryJSONRPCAdaptor(providers.AuditEntryRepository),
+		audits.NewAuditServiceJSONRPCAdaptor(providers.AuditService),
 	}
 
 	apiRouter := router.PathPrefix("/api").Subrouter()

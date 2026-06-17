@@ -21,7 +21,7 @@ const (
 	updateAccountBalanceMethod    = "AccountService.UpdateAccountBalance"
 	openAccountMethod             = "AccountOpener.OpenAccount"
 	logoutMethod                  = "Session.Logout"
-	listAuditByRefMethod          = "Audit.ListByTransactionRef"
+	listAuditByRefMethod          = "AuditService.ListByTransactionRef"
 )
 
 // Policy is the access-control entity: it maps each JSON-RPC method to the

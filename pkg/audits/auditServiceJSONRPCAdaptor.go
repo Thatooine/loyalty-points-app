@@ -11,23 +11,23 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 )
 
-// AuditEntryRepositoryJSONRPCAdaptor exposes the audit trail of a transaction
-// over JSON-RPC. It is a protected service callable by both members and admins:
-// the authorization middleware places the verified login claim in the request
+// AuditServiceJSONRPCAdaptor exposes the audit trail of a transaction over
+// JSON-RPC. It is a protected service callable by both members and admins: the
+// authorization middleware places the verified login claim in the request
 // context, and the listing is scoped to the caller's user id taken from that
 // claim. A member sees only their own attempts; an admin holding audit:read:all
 // sees every owner's. The repository enforces that scope, so a member querying a
 // ref recorded against another owner's account simply gets an empty trail.
-type AuditEntryRepositoryJSONRPCAdaptor struct {
-	auditEntries AuditEntryRepository
+type AuditServiceJSONRPCAdaptor struct {
+	audit AuditService
 }
 
-func NewAuditEntryRepositoryJSONRPCAdaptor(auditEntries AuditEntryRepository) *AuditEntryRepositoryJSONRPCAdaptor {
-	return &AuditEntryRepositoryJSONRPCAdaptor{auditEntries: auditEntries}
+func NewAuditServiceJSONRPCAdaptor(audit AuditService) *AuditServiceJSONRPCAdaptor {
+	return &AuditServiceJSONRPCAdaptor{audit: audit}
 }
 
-func (a *AuditEntryRepositoryJSONRPCAdaptor) Name() string {
-	return "Audit"
+func (a *AuditServiceJSONRPCAdaptor) Name() string {
+	return "AuditService"
 }
 
 // ListByTransactionRefParams is the wire request for ListByTransactionRef.
@@ -63,7 +63,7 @@ type ListByTransactionRefResult struct {
 // scoped to the caller. The UserID is taken from the verified claim — never the
 // wire — so the repository's ownership scoping pins a member to their own
 // entries.
-func (a *AuditEntryRepositoryJSONRPCAdaptor) ListByTransactionRef(r *http.Request, params *ListByTransactionRefParams, result *ListByTransactionRefResult) error {
+func (a *AuditServiceJSONRPCAdaptor) ListByTransactionRef(r *http.Request, params *ListByTransactionRefParams, result *ListByTransactionRefResult) error {
 	ctx := r.Context()
 
 	claim, ok := authentication.LoginClaimFromContext(ctx)
@@ -72,7 +72,7 @@ func (a *AuditEntryRepositoryJSONRPCAdaptor) ListByTransactionRef(r *http.Reques
 		return errs.ErrUnauthorized
 	}
 
-	resp, err := a.auditEntries.ListByTransactionRef(ctx, ListAuditEntriesByTransactionRefRequest{
+	resp, err := a.audit.ListByTransactionRef(ctx, ListAuditByRefRequest{
 		TransactionRef: params.TransactionRef,
 		UserID:         claim.UserID,
 	})

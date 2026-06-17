@@ -5,7 +5,7 @@ import "testing"
 // Audit JSON-RPC method, by the exact "<ServiceName>.<Method>" string the client
 // sends. The audit trail is readable by both members (scoped to their own
 // entries) and admins (every owner's).
-const listAuditByRefMethod = "Audit.ListByTransactionRef"
+const listAuditByRefMethod = "AuditService.ListByTransactionRef"
 
 // auditEntryResult mirrors audit.AuditEntryResult — one recorded attempt.
 type auditEntryResult struct {
@@ -26,7 +26,7 @@ type trailResult struct {
 	Entries        []auditEntryResult `json:"entries"`
 }
 
-// trail calls Audit.ListByTransactionRef for ref with the given token and
+// trail calls AuditService.ListByTransactionRef for ref with the given token and
 // returns the decoded result, asserting no wire error.
 func trail(t *testing.T, c *apiClient, token, ref string) trailResult {
 	t.Helper()
