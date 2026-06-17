@@ -37,7 +37,7 @@ func setupRPCServer(providers ServiceProviders) {
 		authentication.NewLogoutServiceJSONRPCAdaptor(providers.LogoutService),
 		users.NewUserRegistrationServiceJSONRPCAdaptor(providers.UserRegistrationService),
 		wallets.NewWalletServiceJSONRPCAdaptor(providers.WalletService),
-		accounts.NewAccountJSONRPCAdaptor(providers.AccountRepository),
+		accounts.NewAccountServiceJSONRPCAdaptor(providers.AccountService),
 		accounts.NewAccountOpenerJSONRPCAdaptor(providers.AccountOpener),
 		audits.NewAuditEntryRepositoryJSONRPCAdaptor(providers.AuditEntryRepository),
 	}

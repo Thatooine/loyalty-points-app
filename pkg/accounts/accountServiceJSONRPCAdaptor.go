@@ -13,25 +13,25 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/users"
 )
 
-// AccountJSONRPCAdaptor exposes read access to accounts over JSON-RPC. It is a
+// AccountServiceJSONRPCAdaptor exposes AccountService over JSON-RPC. It is a
 // protected service: the authorization middleware places the verified login
 // claim in the request context. Every lookup is scoped to the caller's user id
 // taken from that claim, so a caller can only read their own accounts —
 // requesting another user's account id yields "account not found", with no way
 // to tell it apart from a genuinely missing one.
-type AccountJSONRPCAdaptor struct {
-	accounts AccountRepository
+type AccountServiceJSONRPCAdaptor struct {
+	accounts AccountService
 }
 
-func NewAccountJSONRPCAdaptor(accounts AccountRepository) *AccountJSONRPCAdaptor {
-	return &AccountJSONRPCAdaptor{accounts: accounts}
+func NewAccountServiceJSONRPCAdaptor(accounts AccountService) *AccountServiceJSONRPCAdaptor {
+	return &AccountServiceJSONRPCAdaptor{accounts: accounts}
 }
 
-func (a *AccountJSONRPCAdaptor) Name() string {
-	return "Account"
+func (a *AccountServiceJSONRPCAdaptor) Name() string {
+	return "AccountService"
 }
 
-// GetByIDParams is the wire request for GetByID and GetAccountBalance.
+// GetByIDParams is the wire request for GetAccountByID and GetAccountBalance.
 type GetByIDParams struct {
 	AccountID string `json:"account_id"`
 }
@@ -51,7 +51,7 @@ type BalanceResult struct {
 	Balance   int64  `json:"balance"`
 }
 
-func (a *AccountJSONRPCAdaptor) GetByID(r *http.Request, params *GetByIDParams, result *AccountResult) error {
+func (a *AccountServiceJSONRPCAdaptor) GetAccountByID(r *http.Request, params *GetByIDParams, result *AccountResult) error {
 	ctx := r.Context()
 
 	claim, ok := authentication.LoginClaimFromContext(ctx)
@@ -60,7 +60,7 @@ func (a *AccountJSONRPCAdaptor) GetByID(r *http.Request, params *GetByIDParams, 
 		return errs.ErrUnauthorized
 	}
 
-	resp, err := a.accounts.GetByID(ctx, GetAccountByIDRequest{
+	resp, err := a.accounts.GetAccountByID(ctx, ReadAccountRequest{
 		AccountID: params.AccountID,
 		UserID:    claim.UserID,
 	})
@@ -76,7 +76,7 @@ func (a *AccountJSONRPCAdaptor) GetByID(r *http.Request, params *GetByIDParams, 
 	return nil
 }
 
-func (a *AccountJSONRPCAdaptor) GetAccountBalance(r *http.Request, params *GetByIDParams, result *BalanceResult) error {
+func (a *AccountServiceJSONRPCAdaptor) GetAccountBalance(r *http.Request, params *GetByIDParams, result *BalanceResult) error {
 	ctx := r.Context()
 
 	claim, ok := authentication.LoginClaimFromContext(ctx)
@@ -85,7 +85,7 @@ func (a *AccountJSONRPCAdaptor) GetAccountBalance(r *http.Request, params *GetBy
 		return errs.ErrUnauthorized
 	}
 
-	resp, err := a.accounts.GetAccountBalance(ctx, GetAccountBalanceRequest{
+	resp, err := a.accounts.GetAccountBalance(ctx, ReadAccountBalanceRequest{
 		AccountID: params.AccountID,
 		UserID:    claim.UserID,
 	})
@@ -108,7 +108,7 @@ type UpdateAccountNameParams struct {
 // UserID is taken from the verified claim, so the repository's ownership scoping
 // pins the rename to an account the caller owns — renaming another user's
 // account reads as "account not found".
-func (a *AccountJSONRPCAdaptor) UpdateAccountName(r *http.Request, params *UpdateAccountNameParams, result *AccountResult) error {
+func (a *AccountServiceJSONRPCAdaptor) UpdateAccountName(r *http.Request, params *UpdateAccountNameParams, result *AccountResult) error {
 	ctx := r.Context()
 
 	claim, ok := authentication.LoginClaimFromContext(ctx)
@@ -117,7 +117,7 @@ func (a *AccountJSONRPCAdaptor) UpdateAccountName(r *http.Request, params *Updat
 		return errs.ErrUnauthorized
 	}
 
-	resp, err := a.accounts.UpdateAccountName(ctx, UpdateAccountNameRequest{
+	resp, err := a.accounts.UpdateAccountName(ctx, RenameAccountRequest{
 		AccountID: params.AccountID,
 		Name:      params.Name,
 		UserID:    claim.UserID,
@@ -148,7 +148,7 @@ type UpdateAccountBalanceParams struct {
 // the explicit claim check here is defence in depth so the policy cannot drift
 // if the map changes. The overdraft floor is still enforced by the repository's
 // guarded UPDATE.
-func (a *AccountJSONRPCAdaptor) UpdateAccountBalance(r *http.Request, params *UpdateAccountBalanceParams, result *BalanceResult) error {
+func (a *AccountServiceJSONRPCAdaptor) UpdateAccountBalance(r *http.Request, params *UpdateAccountBalanceParams, result *BalanceResult) error {
 	ctx := r.Context()
 
 	claim, ok := authentication.LoginClaimFromContext(ctx)
@@ -161,7 +161,7 @@ func (a *AccountJSONRPCAdaptor) UpdateAccountBalance(r *http.Request, params *Up
 		return errs.WithMessage(errs.ErrForbidden, "balance adjustment is admin-only")
 	}
 
-	resp, err := a.accounts.UpdateAccountBalance(ctx, UpdateAccountBalanceRequest{
+	resp, err := a.accounts.UpdateAccountBalance(ctx, AdjustAccountBalanceRequest{
 		AccountID: params.AccountID,
 		Delta:     params.Delta,
 		UserID:    claim.UserID,

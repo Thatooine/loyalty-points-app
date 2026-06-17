@@ -271,7 +271,7 @@
           ]
         },
         {
-          "name": "Account.GetByID",
+          "name": "AccountService.GetAccountByID",
           "request": {
             "auth": {
               "type": "bearer",
@@ -289,13 +289,13 @@
             "body": {
               "mode": "raw",
               "options": { "raw": { "language": "json" } },
-              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"Account.GetByID\",\n  \"params\": [\n    {\n      \"account_id\": \"{{accountID}}\"\n    }\n  ],\n  \"id\": 1\n}"
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"AccountService.GetAccountByID\",\n  \"params\": [\n    {\n      \"account_id\": \"{{accountID}}\"\n    }\n  ],\n  \"id\": 1\n}"
             },
             "description": "Reads a full account. Scoped to the caller: a member only sees accounts they own, and requesting another user's account id yields 'account not found' (indistinguishable from genuinely missing — no existence leak). Admins may read any account. Returns { result: { id, user_id, name, balance, created_at } }. Sends Authorization: Bearer {{token}}."
           }
         },
         {
-          "name": "Account.GetAccountBalance",
+          "name": "AccountService.GetAccountBalance",
           "request": {
             "auth": {
               "type": "bearer",
@@ -313,13 +313,13 @@
             "body": {
               "mode": "raw",
               "options": { "raw": { "language": "json" } },
-              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"Account.GetAccountBalance\",\n  \"params\": [\n    {\n      \"account_id\": \"{{accountID}}\"\n    }\n  ],\n  \"id\": 1\n}"
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"AccountService.GetAccountBalance\",\n  \"params\": [\n    {\n      \"account_id\": \"{{accountID}}\"\n    }\n  ],\n  \"id\": 1\n}"
             },
-            "description": "Reads just the current balance. Same ownership scoping as GetByID — members see only their own accounts, a non-owned id reads as 'account not found', admins may read any. Returns { result: { account_id, balance } }. Handy to call before/after an earn or spend to show the balance move. Sends Authorization: Bearer {{token}}."
+            "description": "Reads just the current balance. Same ownership scoping as GetAccountByID — members see only their own accounts, a non-owned id reads as 'account not found', admins may read any. Returns { result: { account_id, balance } }. Handy to call before/after an earn or spend to show the balance move. Sends Authorization: Bearer {{token}}."
           }
         },
         {
-          "name": "Account.UpdateAccountName",
+          "name": "AccountService.UpdateAccountName",
           "request": {
             "auth": {
               "type": "bearer",
@@ -337,13 +337,13 @@
             "body": {
               "mode": "raw",
               "options": { "raw": { "language": "json" } },
-              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"Account.UpdateAccountName\",\n  \"params\": [\n    {\n      \"account_id\": \"{{accountID}}\",\n      \"name\": \"Renamed Wallet\"\n    }\n  ],\n  \"id\": 1\n}"
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"AccountService.UpdateAccountName\",\n  \"params\": [\n    {\n      \"account_id\": \"{{accountID}}\",\n      \"name\": \"Renamed Wallet\"\n    }\n  ],\n  \"id\": 1\n}"
             },
             "description": "Renames an account. Callable by a member on an account they own (account:write:own) — the server takes the actor from the token and scopes the rename to that user, so renaming another user's account reads as 'account not found'. Admins (account:write:all) may rename any account. Returns the updated account: { result: { id, user_id, name, balance, created_at } }. Sends Authorization: Bearer {{token}}."
           }
         },
         {
-          "name": "Account.UpdateAccountBalance (admin-only)",
+          "name": "AccountService.UpdateAccountBalance (admin-only)",
           "request": {
             "auth": {
               "type": "bearer",
@@ -361,7 +361,7 @@
             "body": {
               "mode": "raw",
               "options": { "raw": { "language": "json" } },
-              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"Account.UpdateAccountBalance\",\n  \"params\": [\n    {\n      \"account_id\": \"{{accountID}}\",\n      \"delta\": 50\n    }\n  ],\n  \"id\": 1\n}"
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"AccountService.UpdateAccountBalance\",\n  \"params\": [\n    {\n      \"account_id\": \"{{accountID}}\",\n      \"delta\": 50\n    }\n  ],\n  \"id\": 1\n}"
             },
             "description": "ADMIN-ONLY (account:write:all). Applies a raw signed delta to the balance — positive to credit, negative to debit — bypassing the wallet's idempotency/audit unit of work; intended for operator corrections, not normal earns/spends. The overdraft floor is still enforced (a debit past zero returns 'insufficient balance'). A non-admin token is rejected with 'forbidden: balance adjustment is admin-only'. Returns { result: { account_id, balance } } with the balance after the delta. Sends Authorization: Bearer {{token}}."
           }

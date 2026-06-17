@@ -157,10 +157,10 @@ The full method surface at a glance (detail follows):
 | `EmailPasswordAuthenticator.Login` | public                    | Exchange credentials for a token            |
 | `Session.Logout`                | any authenticated            | Revoke all of the caller's tokens           |
 | `AccountOpener.OpenAccount`     | any authenticated            | Open an additional wallet for the caller    |
-| `Account.GetByID`               | member (own) / admin (any)   | Read an account                             |
-| `Account.GetAccountBalance`     | member (own) / admin (any)   | Read a balance                              |
-| `Account.UpdateAccountName`     | member (own) / admin (any)   | Rename an account                           |
-| `Account.UpdateAccountBalance`  | admin only                   | Raw signed-delta correction (off-ledger)    |
+| `AccountService.GetAccountByID`               | member (own) / admin (any)   | Read an account                             |
+| `AccountService.GetAccountBalance`     | member (own) / admin (any)   | Read a balance                              |
+| `AccountService.UpdateAccountName`     | member (own) / admin (any)   | Rename an account                           |
+| `AccountService.UpdateAccountBalance`  | admin only                   | Raw signed-delta correction (off-ledger)    |
 | `Wallet.SpendPoints`            | member (own) / admin (any)   | Debit points                                |
 | `Wallet.EarnPoints`             | admin only                   | Credit points                               |
 | `Wallet.ProcessTransaction`     | admin only                   | Generic earn/spend (caller picks `kind`)    |
@@ -333,13 +333,13 @@ The general earn/spend method; `kind` is `"earn"` or `"spend"`. `EarnPoints` and
 it is operator-only — members spend via `Wallet.SpendPoints`. Same
 request/response shape as above plus a `"kind"` field in params.
 
-### `Account.GetByID` — member (own) / admin (any)
+### `AccountService.GetAccountByID` — member (own) / admin (any)
 
 ```bash
 curl -s http://localhost:8080/api \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $TOKEN" -d '{
-  "jsonrpc": "2.0", "method": "Account.GetByID",
+  "jsonrpc": "2.0", "method": "AccountService.GetAccountByID",
   "params": [{ "account_id": "a91b..." }], "id": 1
 }'
 ```
@@ -351,21 +351,21 @@ curl -s http://localhost:8080/api \
 A member requesting an account they do not own gets `"account not found"` — a
 non-owner cannot tell a foreign account from a missing one (no existence leak).
 
-### `Account.GetAccountBalance` — member (own) / admin (any)
+### `AccountService.GetAccountBalance` — member (own) / admin (any)
 
 ```json
 // params: [{ "account_id": "a91b..." }]
 // result: { "account_id": "a91b...", "balance": 110 }
 ```
 
-### `Account.UpdateAccountName` — member (own) / admin (any)
+### `AccountService.UpdateAccountName` — member (own) / admin (any)
 
 ```json
 // params: [{ "account_id": "a91b...", "name": "Holiday Wallet" }]
-// result: full account object (as GetByID)
+// result: full account object (as GetAccountByID)
 ```
 
-### `Account.UpdateAccountBalance` — admin only
+### `AccountService.UpdateAccountBalance` — admin only
 
 A raw signed-delta adjustment that bypasses the ledger (operator correction).
 The overdraft floor still applies. A member token is rejected.

@@ -14,7 +14,7 @@ const (
 	processTransactionBatchMethod = "Wallet.ProcessTransactionBatch"
 	earnPointsMethod              = "Wallet.EarnPoints"
 	spendPointsMethod             = "Wallet.SpendPoints"
-	getBalanceMethod              = "Account.GetAccountBalance"
+	getBalanceMethod              = "AccountService.GetAccountBalance"
 )
 
 // walletResult mirrors wallet.ProcessTransactionJSONRPCResponse — the shape
@@ -75,7 +75,7 @@ func registerMember(t *testing.T, c *apiClient) registerResult {
 	return reg
 }
 
-// remoteBalance reads the account balance through the Account.GetAccountBalance
+// remoteBalance reads the account balance through the AccountService.GetAccountBalance
 // endpoint — proving the wallet write is observable through a separate read path.
 func remoteBalance(t *testing.T, c *apiClient, token, accountID string) int64 {
 	t.Helper()

@@ -4,13 +4,13 @@ import (
 	"testing"
 )
 
-// Account JSON-RPC methods. GetByID and GetAccountBalance are read methods;
+// Account JSON-RPC methods. GetAccountByID and GetAccountBalance are read methods;
 // UpdateAccountName is an owner-scoped rename; UpdateAccountBalance is the
 // admin-only raw balance adjustment (the ledger-bypassing write path).
 const (
-	getAccountMethod           = "Account.GetByID"
-	updateAccountNameMethod    = "Account.UpdateAccountName"
-	updateAccountBalanceMethod = "Account.UpdateAccountBalance"
+	getAccountMethod           = "AccountService.GetAccountByID"
+	updateAccountNameMethod    = "AccountService.UpdateAccountName"
+	updateAccountBalanceMethod = "AccountService.UpdateAccountBalance"
 	openAccountMethod          = "AccountOpener.OpenAccount"
 )
 
@@ -78,35 +78,35 @@ func dbAccountName(t *testing.T, c *apiClient, accountID string) (string, bool) 
 	return name, true
 }
 
-// TestAccountGetByIDEndpoint confirms a member reads their own account, and that
+// TestAccountGetAccountByIDEndpoint confirms a member reads their own account, and that
 // the read is ownership-scoped: another user's account id reads as not found.
-func TestAccountGetByIDEndpoint(t *testing.T) {
+func TestAccountGetAccountByIDEndpoint(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
 
 	resp := c.call(t, getAccountMethod, map[string]any{"account_id": member.AccountID}, member.Token)
-	requireNoError(t, "GetByID", resp)
+	requireNoError(t, "GetAccountByID", resp)
 
 	var acc accountResult
 	mustUnmarshal(t, resp.Result, &acc)
 	if acc.ID != member.AccountID {
-		t.Errorf("GetByID: id = %q, want %q", acc.ID, member.AccountID)
+		t.Errorf("GetAccountByID: id = %q, want %q", acc.ID, member.AccountID)
 	}
 	if acc.UserID != member.UserID {
-		t.Errorf("GetByID: user_id = %q, want %q", acc.UserID, member.UserID)
+		t.Errorf("GetAccountByID: user_id = %q, want %q", acc.UserID, member.UserID)
 	}
 	if acc.Name != testAccountName {
-		t.Errorf("GetByID: name = %q, want %q", acc.Name, testAccountName)
+		t.Errorf("GetAccountByID: name = %q, want %q", acc.Name, testAccountName)
 	}
 	if acc.Balance != 0 {
-		t.Errorf("GetByID: balance = %d, want 0", acc.Balance)
+		t.Errorf("GetAccountByID: balance = %d, want 0", acc.Balance)
 	}
 
 	// Ownership scoping: an intruder cannot read the owner's account.
 	intruder := registerMember(t, c)
 	foreign := c.call(t, getAccountMethod, map[string]any{"account_id": member.AccountID}, intruder.Token)
 	if foreign.Error == nil {
-		t.Error("GetByID on a foreign account: expected an error, got none")
+		t.Error("GetAccountByID on a foreign account: expected an error, got none")
 	}
 }
 
@@ -146,7 +146,7 @@ func TestAccountGetAccountBalanceEndpoint(t *testing.T) {
 // TestOpenAccountEndpoint confirms a member opens a second wallet for themselves:
 // the new account carries the requested name, is owned by the caller, starts at
 // zero, and is immediately readable through the member's own (ownership-scoped)
-// GetByID — proving it persisted under their ownership.
+// GetAccountByID — proving it persisted under their ownership.
 func TestOpenAccountEndpoint(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
@@ -173,14 +173,14 @@ func TestOpenAccountEndpoint(t *testing.T) {
 		t.Errorf("OpenAccount: balance = %d, want 0", opened.Balance)
 	}
 
-	// The owner can read the freshly opened account back through GetByID,
+	// The owner can read the freshly opened account back through GetAccountByID,
 	// confirming it persisted under their ownership scope.
 	read := c.call(t, getAccountMethod, map[string]any{"account_id": opened.AccountID}, member.Token)
-	requireNoError(t, "GetByID after open", read)
+	requireNoError(t, "GetAccountByID after open", read)
 	var acc accountResult
 	mustUnmarshal(t, read.Result, &acc)
 	if acc.Name != name || acc.UserID != member.UserID || acc.Balance != 0 {
-		t.Errorf("GetByID after open = %+v, want name=%q owner=%q balance=0", acc, name, member.UserID)
+		t.Errorf("GetAccountByID after open = %+v, want name=%q owner=%q balance=0", acc, name, member.UserID)
 	}
 
 	if owner, ok := dbAccountOwner(t, c, opened.AccountID); ok && owner != member.UserID {
@@ -220,7 +220,7 @@ func TestOpenAccountUnauthenticated(t *testing.T) {
 }
 
 // TestUpdateAccountNameEndpoint confirms an owner renames their account and the
-// change is observable through GetByID and the persisted row.
+// change is observable through GetAccountByID and the persisted row.
 func TestUpdateAccountNameEndpoint(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
@@ -241,13 +241,13 @@ func TestUpdateAccountNameEndpoint(t *testing.T) {
 		t.Errorf("UpdateAccountName: id = %q, want %q", acc.ID, member.AccountID)
 	}
 
-	// Re-read through GetByID confirms the rename persisted.
+	// Re-read through GetAccountByID confirms the rename persisted.
 	read := c.call(t, getAccountMethod, map[string]any{"account_id": member.AccountID}, member.Token)
-	requireNoError(t, "GetByID after rename", read)
+	requireNoError(t, "GetAccountByID after rename", read)
 	var reread accountResult
 	mustUnmarshal(t, read.Result, &reread)
 	if reread.Name != newName {
-		t.Errorf("GetByID after rename: name = %q, want %q", reread.Name, newName)
+		t.Errorf("GetAccountByID after rename: name = %q, want %q", reread.Name, newName)
 	}
 
 	if name, ok := dbAccountName(t, c, member.AccountID); ok && name != newName {

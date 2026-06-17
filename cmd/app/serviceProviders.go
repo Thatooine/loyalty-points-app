@@ -35,6 +35,7 @@ type ServiceProviders struct {
 	TransactionRepository      pkgWallet.TransactionRepository
 	AuditEntryRepository       pkgAudit.AuditEntryRepository
 	WalletService              pkgWallet.WalletService
+	AccountService             pkgAccounts.AccountService
 	AccountOpener              pkgAccounts.AccountOpener
 	UserRegistrationService    pkgUsers.UserRegistrationService
 	EmailPasswordAuthenticator pkgAuth.EmailPasswordAuthenticator
@@ -96,6 +97,8 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 		auditEntryRepository,
 	)
 
+	accountService := internalAccounts.NewAccountServiceImpl(accountRepository)
+
 	accountOpener := internalAccounts.NewAccountOpenerServiceImpl(accountRepository)
 
 	logoutService := internalAuth.NewLogoutServiceImpl(userRepository)
@@ -115,6 +118,7 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 		TransactionRepository:      transactionRepository,
 		AuditEntryRepository:       auditEntryRepository,
 		WalletService:              walletService,
+		AccountService:             accountService,
 		AccountOpener:              accountOpener,
 		UserRegistrationService:    userRegistrationService,
 		EmailPasswordAuthenticator: emailPasswordAuthenticator,

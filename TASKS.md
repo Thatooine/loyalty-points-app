@@ -26,10 +26,10 @@ remains open (standalone account creation — see Task 1).
 
 ## Task 1 — Points wallet service
 
-- [x] **Create & manage member accounts** — account opened atomically at registration; rename via `Account.UpdateAccountName`; admin balance adjust via `Account.UpdateAccountBalance` (`pkg/users/userRegistrationService.go`, `pkg/accounts/accountJSONRPCAdaptor.go`)
+- [x] **Create & manage member accounts** — account opened atomically at registration; rename via `AccountService.UpdateAccountName`; admin balance adjust via `AccountService.UpdateAccountBalance` (`pkg/users/userRegistrationService.go`, `pkg/accounts/accountServiceJSONRPCAdaptor.go`)
   - [ ] _Consider:_ assignment shows a standalone Account `{account_id, name}` shape. Currently an account is only created via user registration (one wallet per user, default "Primary Wallet"). Decide if a standalone create-account RPC is needed or document the registration-creates-account choice in SOLUTION.md.
 - [x] **Record earn & spend operations** — `Wallet.EarnPoints`, `Wallet.SpendPoints`, `Wallet.ProcessTransaction` (`pkg/wallets/walletService.go`, `walletServiceJSONRPCAdaptor.go`)
-- [x] **Track current balance per account** — `Account.GetAccountBalance`, balance on `Account.GetByID` (`pkg/accounts/accountJSONRPCAdaptor.go`)
+- [x] **Track current balance per account** — `AccountService.GetAccountBalance`, balance on `AccountService.GetAccountByID` (`pkg/accounts/accountServiceJSONRPCAdaptor.go`)
 - [x] **Prevent double-counting on repeated `ref`** — see global constraint above
 - [x] **Reject spends that make balance negative** — overdraft floor; maps to `ErrInsufficientBalance`
 - [x] **Example requests/responses in README for the endpoints** — `README.md` now documents every endpoint with `curl` request + JSON response examples (register, login, earn, spend, process, account read/balance/rename, admin balance adjust, batch). Postman collection also present (`api/loyalty-points.postman_collection.json`).
@@ -40,7 +40,7 @@ remains open (standalone account creation — see Task 1).
 
 - [x] **At least two roles: member & admin** — `users.RoleMember`, `users.RoleAdmin` (`pkg/authorization/permissions.go`)
 - [x] **Members read own balance + submit own earn/spend** — member permission set is all `:own`-scoped; data layer scopes to `owner_id = UserID` (`pkg/authorization/permissions.go`, repository impls)
-- [x] **Admins view any account + apply adjustments** — admin holds `:all` perms; `Account.UpdateAccountBalance` is admin-only adjustment path (`pkg/accounts/accountJSONRPCAdaptor.go`)
+- [x] **Admins view any account + apply adjustments** — admin holds `:all` perms; `AccountService.UpdateAccountBalance` is admin-only adjustment path (`pkg/accounts/accountServiceJSONRPCAdaptor.go`)
 - [x] **Token issuance & verification chosen** — signed JWT access tokens; permissions resolved from role at issue time and embedded in claim (`pkg/authentication/`, `internal/pkg/authentication/accessTokenServiceImpl.go`)
 - [x] **Two-layer enforcement implemented** — method gate (`authorizationMiddleware` + `DefaultPolicy`) and ownership scope in data layer via `IsGranted` (`pkg/authorization/`)
 - [x] **Document token/credential shape, storage/validation, role enforcement** — documented in `SOLUTION.md §4` (RS256 JWS `LoginClaim` shape, issue/store/validate flow, two-layer enforcement, and admin provisioning) with a summary in `README.md`.
