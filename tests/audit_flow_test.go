@@ -5,7 +5,7 @@ import "testing"
 // Audit JSON-RPC method, by the exact "<ServiceName>.<Method>" string the client
 // sends. The audit trail is readable by both members (scoped to their own
 // entries) and admins (every owner's).
-const listAuditByRefMethod = "AuditService.ListByTransactionRef"
+const listAuditByRefMethod = "AuditService.FetchTransactionAuditTrail"
 
 // auditEntryResult mirrors audit.AuditEntryResult — one recorded attempt.
 type auditEntryResult struct {
@@ -20,18 +20,18 @@ type auditEntryResult struct {
 	Reason         string  `json:"reason"`
 }
 
-// trailResult mirrors audit.ListByTransactionRefResult.
+// trailResult mirrors audit.FetchTransactionAuditTrailResult.
 type trailResult struct {
 	TransactionRef string             `json:"transaction_ref"`
 	Entries        []auditEntryResult `json:"entries"`
 }
 
-// trail calls AuditService.ListByTransactionRef for ref with the given token and
+// trail calls AuditService.FetchTransactionAuditTrail for ref with the given token and
 // returns the decoded result, asserting no wire error.
 func trail(t *testing.T, c *apiClient, token, ref string) trailResult {
 	t.Helper()
 	resp := c.call(t, listAuditByRefMethod, map[string]any{"transaction_ref": ref}, token)
-	requireNoError(t, "ListByTransactionRef", resp)
+	requireNoError(t, "FetchTransactionAuditTrail", resp)
 	var tr trailResult
 	mustUnmarshal(t, resp.Result, &tr)
 	return tr
@@ -118,7 +118,7 @@ func TestListAuditByTransactionRefUnauthenticated(t *testing.T) {
 		"transaction_ref": uniqueRef(t),
 	}, "") // no Bearer token
 	if resp.Error == nil {
-		t.Fatal("ListByTransactionRef without token: expected an error, got none")
+		t.Fatal("FetchTransactionAuditTrail without token: expected an error, got none")
 	}
 }
 
@@ -163,6 +163,6 @@ func TestListAuditByTransactionRefMissingRef(t *testing.T) {
 		"transaction_ref": "",
 	}, member.Token)
 	if resp.Error == nil {
-		t.Fatal("ListByTransactionRef with empty ref: expected a validation error, got none")
+		t.Fatal("FetchTransactionAuditTrail with empty ref: expected a validation error, got none")
 	}
 }

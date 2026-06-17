@@ -140,7 +140,7 @@ are only knowable from a real run.
 
 Every attempt — accepted, duplicate, or rejected — is also written to the
 server's `audit_entries` table and is queryable afterwards via
-`AuditService.ListByTransactionRef`.
+`AuditService.FetchTransactionAuditTrail`.
 
 The process exits non-zero if the file can't be opened, the header is invalid,
 or the request can't be sent.

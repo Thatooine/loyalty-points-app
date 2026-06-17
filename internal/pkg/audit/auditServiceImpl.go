@@ -21,10 +21,10 @@ func NewAuditServiceImpl(auditEntries pkgAudit.AuditEntryRepository) *AuditServi
 	return &AuditServiceImpl{auditEntries: auditEntries}
 }
 
-func (s *AuditServiceImpl) ListByTransactionRef(ctx context.Context, request pkgAudit.ListAuditByRefRequest) (*pkgAudit.ListAuditByRefResponse, error) {
+func (s *AuditServiceImpl) FetchTransactionAuditTrail(ctx context.Context, request pkgAudit.ListAuditByRefRequest) (*pkgAudit.ListAuditByRefResponse, error) {
 	if err := request.Validate(); err != nil {
 		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
-		return nil, fmt.Errorf("invalid request for ListByTransactionRef: %w", err)
+		return nil, fmt.Errorf("invalid request for FetchTransactionAuditTrail: %w", err)
 	}
 
 	resp, err := s.auditEntries.ListByTransactionRef(ctx, pkgAudit.ListAuditEntriesByTransactionRefRequest{

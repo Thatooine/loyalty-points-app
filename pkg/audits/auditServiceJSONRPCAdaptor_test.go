@@ -12,14 +12,14 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/users"
 )
 
-// TestListByTransactionRef_HappyPath: with a valid claim, the adaptor scopes the
+// TestFetchTransactionAuditTrail_HappyPath: with a valid claim, the adaptor scopes the
 // listing to the caller's user id and maps the service entries onto the wire
 // result.
-func TestListByTransactionRef_HappyPath(t *testing.T) {
+func TestFetchTransactionAuditTrail_HappyPath(t *testing.T) {
 	const userID = "user-1"
 	ref := "tx-1"
 	mock := &internalaudit.MockAuditService{T: t}
-	mock.ListByTransactionRefFunc = func(t *testing.T, m *internalaudit.MockAuditService, ctx context.Context, request audits.ListAuditByRefRequest) (*audits.ListAuditByRefResponse, error) {
+	mock.FetchTransactionAuditTrailFunc = func(t *testing.T, m *internalaudit.MockAuditService, ctx context.Context, request audits.ListAuditByRefRequest) (*audits.ListAuditByRefResponse, error) {
 		// The adaptor must pin the scope to the claim's user id, never the wire.
 		if request.UserID != userID {
 			t.Errorf("service called with UserID = %q, want %q", request.UserID, userID)
@@ -41,8 +41,8 @@ func TestListByTransactionRef_HappyPath(t *testing.T) {
 	)
 
 	var result audits.ListByTransactionRefResult
-	if err := adaptor.ListByTransactionRef(req, &audits.ListByTransactionRefParams{TransactionRef: ref}, &result); err != nil {
-		t.Fatalf("ListByTransactionRef returned error: %v", err)
+	if err := adaptor.FetchTransactionAuditTrail(req, &audits.ListByTransactionRefParams{TransactionRef: ref}, &result); err != nil {
+		t.Fatalf("FetchTransactionAuditTrail returned error: %v", err)
 	}
 
 	if result.TransactionRef != ref {
@@ -56,11 +56,11 @@ func TestListByTransactionRef_HappyPath(t *testing.T) {
 	}
 }
 
-// TestListByTransactionRef_EmptyTrail: an empty slice from the service is a valid
+// TestFetchTransactionAuditTrail_EmptyTrail: an empty slice from the service is a valid
 // result (no entries the caller may see), surfaced as an empty Entries slice.
-func TestListByTransactionRef_EmptyTrail(t *testing.T) {
+func TestFetchTransactionAuditTrail_EmptyTrail(t *testing.T) {
 	mock := &internalaudit.MockAuditService{T: t}
-	mock.ListByTransactionRefFunc = func(t *testing.T, m *internalaudit.MockAuditService, ctx context.Context, request audits.ListAuditByRefRequest) (*audits.ListAuditByRefResponse, error) {
+	mock.FetchTransactionAuditTrailFunc = func(t *testing.T, m *internalaudit.MockAuditService, ctx context.Context, request audits.ListAuditByRefRequest) (*audits.ListAuditByRefResponse, error) {
 		return &audits.ListAuditByRefResponse{AuditEntries: nil}, nil
 	}
 
@@ -73,8 +73,8 @@ func TestListByTransactionRef_EmptyTrail(t *testing.T) {
 	)
 
 	var result audits.ListByTransactionRefResult
-	if err := adaptor.ListByTransactionRef(req, &audits.ListByTransactionRefParams{TransactionRef: "tx-1"}, &result); err != nil {
-		t.Fatalf("ListByTransactionRef returned error: %v", err)
+	if err := adaptor.FetchTransactionAuditTrail(req, &audits.ListByTransactionRefParams{TransactionRef: "tx-1"}, &result); err != nil {
+		t.Fatalf("FetchTransactionAuditTrail returned error: %v", err)
 	}
 	if result.Entries == nil {
 		t.Error("result.Entries = nil, want non-nil empty slice")
@@ -84,11 +84,11 @@ func TestListByTransactionRef_EmptyTrail(t *testing.T) {
 	}
 }
 
-// TestListByTransactionRef_Unauthenticated: with no login claim on the context
+// TestFetchTransactionAuditTrail_Unauthenticated: with no login claim on the context
 // the adaptor fails closed and never touches the service.
-func TestListByTransactionRef_Unauthenticated(t *testing.T) {
+func TestFetchTransactionAuditTrail_Unauthenticated(t *testing.T) {
 	mock := &internalaudit.MockAuditService{T: t}
-	mock.ListByTransactionRefFunc = func(t *testing.T, m *internalaudit.MockAuditService, ctx context.Context, request audits.ListAuditByRefRequest) (*audits.ListAuditByRefResponse, error) {
+	mock.FetchTransactionAuditTrailFunc = func(t *testing.T, m *internalaudit.MockAuditService, ctx context.Context, request audits.ListAuditByRefRequest) (*audits.ListAuditByRefResponse, error) {
 		t.Fatal("service must not be called without a claim")
 		return nil, nil
 	}
@@ -97,16 +97,16 @@ func TestListByTransactionRef_Unauthenticated(t *testing.T) {
 	req := httptest.NewRequest("POST", "/api", nil) // no claim on context
 
 	var result audits.ListByTransactionRefResult
-	if err := adaptor.ListByTransactionRef(req, &audits.ListByTransactionRefParams{TransactionRef: "tx-1"}, &result); err == nil {
-		t.Fatal("ListByTransactionRef: expected unauthorized error, got nil")
+	if err := adaptor.FetchTransactionAuditTrail(req, &audits.ListByTransactionRefParams{TransactionRef: "tx-1"}, &result); err == nil {
+		t.Fatal("FetchTransactionAuditTrail: expected unauthorized error, got nil")
 	}
 }
 
-// TestListByTransactionRef_ServiceError: a non-validation service error is mapped
+// TestFetchTransactionAuditTrail_ServiceError: a non-validation service error is mapped
 // to the opaque internal message, never leaking internals.
-func TestListByTransactionRef_ServiceError(t *testing.T) {
+func TestFetchTransactionAuditTrail_ServiceError(t *testing.T) {
 	mock := &internalaudit.MockAuditService{T: t}
-	mock.ListByTransactionRefFunc = func(t *testing.T, m *internalaudit.MockAuditService, ctx context.Context, request audits.ListAuditByRefRequest) (*audits.ListAuditByRefResponse, error) {
+	mock.FetchTransactionAuditTrailFunc = func(t *testing.T, m *internalaudit.MockAuditService, ctx context.Context, request audits.ListAuditByRefRequest) (*audits.ListAuditByRefResponse, error) {
 		return nil, errs.ErrInternal
 	}
 
@@ -119,9 +119,9 @@ func TestListByTransactionRef_ServiceError(t *testing.T) {
 	)
 
 	var result audits.ListByTransactionRefResult
-	err := adaptor.ListByTransactionRef(req, &audits.ListByTransactionRefParams{TransactionRef: "tx-1"}, &result)
+	err := adaptor.FetchTransactionAuditTrail(req, &audits.ListByTransactionRefParams{TransactionRef: "tx-1"}, &result)
 	if err == nil {
-		t.Fatal("ListByTransactionRef: expected an error, got nil")
+		t.Fatal("FetchTransactionAuditTrail: expected an error, got nil")
 	}
 	if err.Error() != "could not retrieve audit trail" {
 		t.Errorf("error = %q, want %q", err.Error(), "could not retrieve audit trail")

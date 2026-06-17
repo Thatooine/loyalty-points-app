@@ -59,11 +59,11 @@ type ListByTransactionRefResult struct {
 	Entries        []AuditEntryResult `json:"entries"`
 }
 
-// ListByTransactionRef returns every audit entry recorded for a transaction ref,
-// scoped to the caller. The UserID is taken from the verified claim — never the
-// wire — so the repository's ownership scoping pins a member to their own
+// FetchTransactionAuditTrail returns every audit entry recorded for a transaction
+// ref, scoped to the caller. The UserID is taken from the verified claim — never
+// the wire — so the repository's ownership scoping pins a member to their own
 // entries.
-func (a *AuditServiceJSONRPCAdaptor) ListByTransactionRef(r *http.Request, params *ListByTransactionRefParams, result *ListByTransactionRefResult) error {
+func (a *AuditServiceJSONRPCAdaptor) FetchTransactionAuditTrail(r *http.Request, params *ListByTransactionRefParams, result *ListByTransactionRefResult) error {
 	ctx := r.Context()
 
 	claim, ok := authentication.LoginClaimFromContext(ctx)
@@ -72,7 +72,7 @@ func (a *AuditServiceJSONRPCAdaptor) ListByTransactionRef(r *http.Request, param
 		return errs.ErrUnauthorized
 	}
 
-	resp, err := a.audit.ListByTransactionRef(ctx, ListAuditByRefRequest{
+	resp, err := a.audit.FetchTransactionAuditTrail(ctx, ListAuditByRefRequest{
 		TransactionRef: params.TransactionRef,
 		UserID:         claim.UserID,
 	})

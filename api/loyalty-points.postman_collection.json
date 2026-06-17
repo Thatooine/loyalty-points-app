@@ -367,7 +367,7 @@
           }
         },
         {
-          "name": "AuditService.ListByTransactionRef",
+          "name": "AuditService.FetchTransactionAuditTrail",
           "request": {
             "auth": {
               "type": "bearer",
@@ -385,7 +385,7 @@
             "body": {
               "mode": "raw",
               "options": { "raw": { "language": "json" } },
-              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"AuditService.ListByTransactionRef\",\n  \"params\": [\n    {\n      \"transaction_ref\": \"tx-1\"\n    }\n  ],\n  \"id\": 1\n}"
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"AuditService.FetchTransactionAuditTrail\",\n  \"params\": [\n    {\n      \"transaction_ref\": \"tx-1\"\n    }\n  ],\n  \"id\": 1\n}"
             },
             "description": "Returns every audit entry recorded for a transaction ref, oldest first — including accepted, duplicate, and rejected attempts. Scoped to the caller: a member (audit:read:own) sees only entries against accounts they own, so querying a ref recorded against another owner's account simply returns an empty trail (no existence leak); an admin (audit:read:all) sees every owner's. Returns { result: { transaction_ref, entries: [{ id, user_id, transaction_ref, account_id, owner_id, kind, points, outcome, reason, created_at }] } }. An empty entries slice is a valid result, not an error. Use the same ref you sent to Wallet.ProcessTransaction/EarnPoints/SpendPoints. Sends Authorization: Bearer {{token}}."
           }

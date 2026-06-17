@@ -9,9 +9,9 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 )
 
-// TestServiceListByTransactionRef_HappyPath proves the service forwards the
+// TestServiceFetchTransactionAuditTrail_HappyPath proves the service forwards the
 // scoped request to the repository and returns the entries it gets back.
-func TestServiceListByTransactionRef_HappyPath(t *testing.T) {
+func TestServiceFetchTransactionAuditTrail_HappyPath(t *testing.T) {
 	var captured pkgAudit.ListAuditEntriesByTransactionRefRequest
 	ref := "tx-1"
 	repo := &MockAuditEntryRepository{
@@ -25,9 +25,9 @@ func TestServiceListByTransactionRef_HappyPath(t *testing.T) {
 	}
 	service := NewAuditServiceImpl(repo)
 
-	resp, err := service.ListByTransactionRef(context.Background(), pkgAudit.ListAuditByRefRequest{TransactionRef: ref, UserID: "user-1"})
+	resp, err := service.FetchTransactionAuditTrail(context.Background(), pkgAudit.ListAuditByRefRequest{TransactionRef: ref, UserID: "user-1"})
 	if err != nil {
-		t.Fatalf("ListByTransactionRef() error = %v, want nil", err)
+		t.Fatalf("FetchTransactionAuditTrail() error = %v, want nil", err)
 	}
 	if len(resp.AuditEntries) != 1 || resp.AuditEntries[0].ID != 1 {
 		t.Errorf("returned entries = %+v, want one entry with ID=1", resp.AuditEntries)
@@ -37,9 +37,9 @@ func TestServiceListByTransactionRef_HappyPath(t *testing.T) {
 	}
 }
 
-// TestServiceListByTransactionRef_ValidationFailsClosed proves an invalid request
+// TestServiceFetchTransactionAuditTrail_ValidationFailsClosed proves an invalid request
 // is rejected before any persistence: the repository is never reached.
-func TestServiceListByTransactionRef_ValidationFailsClosed(t *testing.T) {
+func TestServiceFetchTransactionAuditTrail_ValidationFailsClosed(t *testing.T) {
 	repo := &MockAuditEntryRepository{
 		T: t,
 		ListByTransactionRefFunc: func(t *testing.T, m *MockAuditEntryRepository, ctx context.Context, request pkgAudit.ListAuditEntriesByTransactionRefRequest) (*pkgAudit.ListAuditEntriesByTransactionRefResponse, error) {
@@ -49,18 +49,18 @@ func TestServiceListByTransactionRef_ValidationFailsClosed(t *testing.T) {
 	}
 	service := NewAuditServiceImpl(repo)
 
-	_, err := service.ListByTransactionRef(context.Background(), pkgAudit.ListAuditByRefRequest{TransactionRef: "", UserID: "user-1"})
+	_, err := service.FetchTransactionAuditTrail(context.Background(), pkgAudit.ListAuditByRefRequest{TransactionRef: "", UserID: "user-1"})
 	if err == nil {
-		t.Fatal("ListByTransactionRef() error = nil, want validation error")
+		t.Fatal("FetchTransactionAuditTrail() error = nil, want validation error")
 	}
 	if !errors.Is(err, errs.ErrInvalidArgument) {
-		t.Errorf("ListByTransactionRef() error = %v, want it to wrap %v", err, errs.ErrInvalidArgument)
+		t.Errorf("FetchTransactionAuditTrail() error = %v, want it to wrap %v", err, errs.ErrInvalidArgument)
 	}
 }
 
-// TestServiceListByTransactionRef_RepositoryError proves a repository failure
+// TestServiceFetchTransactionAuditTrail_RepositoryError proves a repository failure
 // surfaces and the underlying sentinel is preserved through the wrap.
-func TestServiceListByTransactionRef_RepositoryError(t *testing.T) {
+func TestServiceFetchTransactionAuditTrail_RepositoryError(t *testing.T) {
 	repo := &MockAuditEntryRepository{
 		T: t,
 		ListByTransactionRefFunc: func(t *testing.T, m *MockAuditEntryRepository, ctx context.Context, request pkgAudit.ListAuditEntriesByTransactionRefRequest) (*pkgAudit.ListAuditEntriesByTransactionRefResponse, error) {
@@ -69,8 +69,8 @@ func TestServiceListByTransactionRef_RepositoryError(t *testing.T) {
 	}
 	service := NewAuditServiceImpl(repo)
 
-	_, err := service.ListByTransactionRef(context.Background(), pkgAudit.ListAuditByRefRequest{TransactionRef: "tx-1", UserID: "user-1"})
+	_, err := service.FetchTransactionAuditTrail(context.Background(), pkgAudit.ListAuditByRefRequest{TransactionRef: "tx-1", UserID: "user-1"})
 	if !errors.Is(err, errs.ErrInternal) {
-		t.Errorf("ListByTransactionRef() error = %v, want it to wrap %v", err, errs.ErrInternal)
+		t.Errorf("FetchTransactionAuditTrail() error = %v, want it to wrap %v", err, errs.ErrInternal)
 	}
 }

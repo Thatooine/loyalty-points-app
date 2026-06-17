@@ -18,12 +18,12 @@ var _ pkgAudit.AuditService = &MockAuditService{}
 type MockAuditService struct {
 	T *testing.T
 
-	ListByTransactionRefFunc func(t *testing.T, m *MockAuditService, ctx context.Context, request pkgAudit.ListAuditByRefRequest) (*pkgAudit.ListAuditByRefResponse, error)
+	FetchTransactionAuditTrailFunc func(t *testing.T, m *MockAuditService, ctx context.Context, request pkgAudit.ListAuditByRefRequest) (*pkgAudit.ListAuditByRefResponse, error)
 }
 
-func (m *MockAuditService) ListByTransactionRef(ctx context.Context, request pkgAudit.ListAuditByRefRequest) (*pkgAudit.ListAuditByRefResponse, error) {
-	if m.ListByTransactionRefFunc == nil {
+func (m *MockAuditService) FetchTransactionAuditTrail(ctx context.Context, request pkgAudit.ListAuditByRefRequest) (*pkgAudit.ListAuditByRefResponse, error) {
+	if m.FetchTransactionAuditTrailFunc == nil {
 		return nil, nil
 	}
-	return m.ListByTransactionRefFunc(m.T, m, ctx, request)
+	return m.FetchTransactionAuditTrailFunc(m.T, m, ctx, request)
 }
