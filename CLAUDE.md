@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Spec
+
+The authoritative product spec lives in `docs/specs/` (currently `docs/specs/loyalty-wallet.md`). It restates the brief as testable acceptance criteria and maps each to the test that proves it. Before implementing or changing behavior in the loyalty wallet — new RPC methods, ledger rules, validations, error semantics — read the relevant spec and make the change conform to it. If a change alters behavior the spec describes, update the spec (and its test mapping) in the same change.
+
 ## Commands
 
 ```bash
