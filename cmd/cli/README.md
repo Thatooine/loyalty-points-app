@@ -32,7 +32,7 @@ Batch ingestion is **admin-only**, so you need an admin bearer token. The
 bundled `cmd/bootstrap` tool creates a well-known admin principal:
 
 - email: `system@mail.com`
-- password: `systemUser123`
+- password: `admin-user-123`
 
 ```bash
 # 1. Bring up Postgres and the server
@@ -48,7 +48,7 @@ ADMIN_TOKEN=$(curl -s http://localhost:8080/api \
   -d '{
         "jsonrpc": "2.0",
         "method": "EmailPasswordAuthenticator.Login",
-        "params": [{"email": "system@mail.com", "password": "systemUser123"}],
+        "params": [{"email": "system@mail.com", "password": "admin-user-123"}],
         "id": 1
       }' | jq -r '.result.token')
 ```

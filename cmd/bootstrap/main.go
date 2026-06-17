@@ -26,7 +26,7 @@ const defaultPostgresDSN = "postgres://loyalty:loyalty@localhost:5432/loyalty_po
 
 const systemUserEmail = "system@mail.com"
 
-const systemUserPassword = "systemUser123"
+const systemUserPassword = "admin-user-123"
 
 // schema_migrations is deliberately excluded so the schema (and applied-migration
 // record) is preserved across a wipe.

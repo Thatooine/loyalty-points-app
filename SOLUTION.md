@@ -346,7 +346,7 @@ of a normal user is an operator action.
 
 For local development there is a bootstrap command (`go run ./cmd/bootstrap`)
 that resets the database and recreates a single well-known **admin** system user
-(`system@mail.com` / `systemUser123`), so a login yields an admin token to work
+(`system@mail.com` / `admin-user-123`), so a login yields an admin token to work
 with immediately. It is a dev convenience and a clean-slate reset, not a
 production provisioning path.
 

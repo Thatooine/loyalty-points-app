@@ -57,7 +57,7 @@ New registrations are always members, and crediting points / batch ingestion are
 admin-only. For local development, bootstrap a well-known **admin** system user:
 
 ```bash
-go run ./cmd/bootstrap   # resets the DB and (re)creates system@mail.com / systemUser123 as an admin
+go run ./cmd/bootstrap   # resets the DB and (re)creates system@mail.com / admin-user-123 as an admin
 ```
 
 Then `EmailPasswordAuthenticator.Login` with those credentials to get an admin
