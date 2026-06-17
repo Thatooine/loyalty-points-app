@@ -13,15 +13,10 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-// Migrate applies the embedded Postgres migrations in lexical filename order,
-// skipping any already recorded in the schema_migrations table. It is safe to
-// run at every startup.
-//
-// The pgx driver defaults to the extended query
-// protocol, which rejects multiple statements in a single Exec. The migration
-// files are authored as semicolon-terminated DDL statements, so each file is
-// split and its statements executed one at a time inside the migration's
-// transaction.
+// Migrate applies the embedded migrations in lexical filename order, skipping
+// any already recorded, and is safe to run at every startup. Each file is split
+// into individual statements because the pgx extended query protocol rejects
+// multiple statements in a single Exec.
 func Migrate(ctx context.Context, db *sql.DB) error {
 	_, err := db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -82,11 +77,9 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-// splitStatements breaks a migration file into individual SQL statements on the
-// semicolon terminator. Line comments are stripped first so a semicolon inside a
-// "-- ..." comment is not mistaken for a statement terminator. The embedded
-// migrations are authored without semicolons inside string literals or function
-// bodies, so this is sufficient and avoids pulling in a full SQL parser.
+// splitStatements splits on the semicolon terminator after stripping line
+// comments. The migrations are authored without semicolons inside string
+// literals or function bodies, so this suffices and avoids a full SQL parser.
 func splitStatements(sqlText string) []string {
 	var stripped strings.Builder
 	for _, line := range strings.Split(sqlText, "\n") {

@@ -17,10 +17,6 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/time"
 )
 
-// AccountRepositoryImpl is the Postgres implementation of
-// accounts.AccountRepository. Every method resolves its executor from the
-// context, so it runs inside an ambient transaction when one is present and
-// against the pool otherwise.
 type AccountRepositoryImpl struct {
 	db *sql.DB
 }

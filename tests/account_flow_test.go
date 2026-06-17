@@ -4,9 +4,8 @@ import (
 	"testing"
 )
 
-// Account JSON-RPC methods. GetAccountByID and GetAccountBalance are read methods;
-// UpdateAccountName is an owner-scoped rename; UpdateAccountBalance is the
-// admin-only raw balance adjustment (the ledger-bypassing write path).
+// UpdateAccountBalance is the admin-only raw balance adjustment (the
+// ledger-bypassing write path).
 const (
 	getAccountMethod           = "AccountService.GetAccountByID"
 	updateAccountNameMethod    = "AccountService.UpdateAccountName"
@@ -14,7 +13,6 @@ const (
 	openAccountMethod          = "AccountOpener.OpenAccount"
 )
 
-// accountResult mirrors accounts.AccountResult.
 type accountResult struct {
 	ID      string `json:"id"`
 	UserID  string `json:"user_id"`
@@ -22,7 +20,6 @@ type accountResult struct {
 	Balance int64  `json:"balance"`
 }
 
-// openAccountResult mirrors accounts.OpenAccountResult.
 type openAccountResult struct {
 	AccountID string `json:"account_id"`
 	Name      string `json:"name"`
@@ -30,7 +27,6 @@ type openAccountResult struct {
 	Balance   int64  `json:"balance"`
 }
 
-// dbAccountOwner reads accounts.owner_id directly. Returns false when no DB path.
 func dbAccountOwner(t *testing.T, c *apiClient, accountID string) (string, bool) {
 	t.Helper()
 	if c.db == nil {
@@ -43,9 +39,8 @@ func dbAccountOwner(t *testing.T, c *apiClient, accountID string) (string, bool)
 	return ownerID, true
 }
 
-// registerAdmin onboards a fresh member, promotes them to admin directly in the
-// DB, then re-logs in so the new token embeds the admin permission set (the
-// claim's permissions are fixed at login time). Requires a DB path.
+// registerAdmin promotes a fresh member in the DB then re-logs in, because the
+// claim's permission set is fixed at login time. Requires a DB path.
 func registerAdmin(t *testing.T, c *apiClient) (registerResult, string) {
 	t.Helper()
 	admin := registerMember(t, c)
@@ -65,7 +60,6 @@ func registerAdmin(t *testing.T, c *apiClient) (registerResult, string) {
 	return admin, login.Token
 }
 
-// dbAccountName reads accounts.name directly. Returns false when no DB path.
 func dbAccountName(t *testing.T, c *apiClient, accountID string) (string, bool) {
 	t.Helper()
 	if c.db == nil {
@@ -78,8 +72,6 @@ func dbAccountName(t *testing.T, c *apiClient, accountID string) (string, bool) 
 	return name, true
 }
 
-// TestAccountGetAccountByIDEndpoint confirms a member reads their own account, and that
-// the read is ownership-scoped: another user's account id reads as not found.
 func TestAccountGetAccountByIDEndpoint(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
@@ -102,7 +94,6 @@ func TestAccountGetAccountByIDEndpoint(t *testing.T) {
 		t.Errorf("GetAccountByID: balance = %d, want 0", acc.Balance)
 	}
 
-	// Ownership scoping: an intruder cannot read the owner's account.
 	intruder := registerMember(t, c)
 	foreign := c.call(t, getAccountMethod, map[string]any{"account_id": member.AccountID}, intruder.Token)
 	if foreign.Error == nil {
@@ -110,20 +101,15 @@ func TestAccountGetAccountByIDEndpoint(t *testing.T) {
 	}
 }
 
-// TestAccountGetAccountBalanceEndpoint confirms the balance read reflects a prior
-// wallet credit and is ownership-scoped.
 func TestAccountGetAccountBalanceEndpoint(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
 	_, adminToken := registerAdmin(t, c)
 
-	// fresh account reads zero
 	if got := remoteBalance(t, c, member.Token, member.AccountID); got != 0 {
 		t.Errorf("initial balance = %d, want 0", got)
 	}
 
-	// credit through the wallet (operator-only), then confirm the member's read
-	// reflects it
 	earn := c.call(t, earnPointsMethod, map[string]any{
 		"ref":        uniqueRef(t),
 		"account_id": member.AccountID,
@@ -135,7 +121,6 @@ func TestAccountGetAccountBalanceEndpoint(t *testing.T) {
 		t.Errorf("balance after earn = %d, want 75", got)
 	}
 
-	// ownership scoping: an intruder cannot read the owner's balance
 	intruder := registerMember(t, c)
 	foreign := c.call(t, getBalanceMethod, map[string]any{"account_id": member.AccountID}, intruder.Token)
 	if foreign.Error == nil {
@@ -143,10 +128,6 @@ func TestAccountGetAccountBalanceEndpoint(t *testing.T) {
 	}
 }
 
-// TestOpenAccountEndpoint confirms a member opens a second wallet for themselves:
-// the new account carries the requested name, is owned by the caller, starts at
-// zero, and is immediately readable through the member's own (ownership-scoped)
-// GetAccountByID — proving it persisted under their ownership.
 func TestOpenAccountEndpoint(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
@@ -173,8 +154,6 @@ func TestOpenAccountEndpoint(t *testing.T) {
 		t.Errorf("OpenAccount: balance = %d, want 0", opened.Balance)
 	}
 
-	// The owner can read the freshly opened account back through GetAccountByID,
-	// confirming it persisted under their ownership scope.
 	read := c.call(t, getAccountMethod, map[string]any{"account_id": opened.AccountID}, member.Token)
 	requireNoError(t, "GetAccountByID after open", read)
 	var acc accountResult
@@ -188,8 +167,6 @@ func TestOpenAccountEndpoint(t *testing.T) {
 	}
 }
 
-// TestOpenAccountDefaultName confirms a blank name falls back to the service
-// default rather than persisting an empty name.
 func TestOpenAccountDefaultName(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
@@ -208,8 +185,6 @@ func TestOpenAccountDefaultName(t *testing.T) {
 	}
 }
 
-// TestOpenAccountUnauthenticated confirms the method is protected: without a
-// token the request is rejected.
 func TestOpenAccountUnauthenticated(t *testing.T) {
 	c := setup(t)
 
@@ -219,8 +194,6 @@ func TestOpenAccountUnauthenticated(t *testing.T) {
 	}
 }
 
-// TestUpdateAccountNameEndpoint confirms an owner renames their account and the
-// change is observable through GetAccountByID and the persisted row.
 func TestUpdateAccountNameEndpoint(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
@@ -241,7 +214,6 @@ func TestUpdateAccountNameEndpoint(t *testing.T) {
 		t.Errorf("UpdateAccountName: id = %q, want %q", acc.ID, member.AccountID)
 	}
 
-	// Re-read through GetAccountByID confirms the rename persisted.
 	read := c.call(t, getAccountMethod, map[string]any{"account_id": member.AccountID}, member.Token)
 	requireNoError(t, "GetAccountByID after rename", read)
 	var reread accountResult
@@ -255,8 +227,6 @@ func TestUpdateAccountNameEndpoint(t *testing.T) {
 	}
 }
 
-// TestUpdateAccountNameForeignRejected confirms ownership scoping on rename: a
-// non-owner cannot rename another user's account, and the name is untouched.
 func TestUpdateAccountNameForeignRejected(t *testing.T) {
 	c := setup(t)
 	owner := registerMember(t, c)
@@ -275,15 +245,11 @@ func TestUpdateAccountNameForeignRejected(t *testing.T) {
 	}
 }
 
-// TestUpdateAccountBalanceAdminEndpoint confirms an admin can apply a raw signed
-// delta to any account, that credit and debit both apply, and that the change is
-// observable through the owner's balance read and the persisted row.
 func TestUpdateAccountBalanceAdminEndpoint(t *testing.T) {
 	c := setup(t)
 	owner := registerMember(t, c)
 	_, adminToken := registerAdmin(t, c)
 
-	// credit +500
 	credit := c.call(t, updateAccountBalanceMethod, map[string]any{
 		"account_id": owner.AccountID,
 		"delta":      500,
@@ -295,7 +261,6 @@ func TestUpdateAccountBalanceAdminEndpoint(t *testing.T) {
 		t.Errorf("balance after +500 = %d, want 500", afterCredit.Balance)
 	}
 
-	// debit -200 -> 300
 	debit := c.call(t, updateAccountBalanceMethod, map[string]any{
 		"account_id": owner.AccountID,
 		"delta":      -200,
@@ -307,7 +272,6 @@ func TestUpdateAccountBalanceAdminEndpoint(t *testing.T) {
 		t.Errorf("balance after -200 = %d, want 300", afterDebit.Balance)
 	}
 
-	// the owner observes the admin-applied balance through their own read
 	if got := remoteBalance(t, c, owner.Token, owner.AccountID); got != 300 {
 		t.Errorf("owner GetAccountBalance = %d, want 300", got)
 	}
@@ -317,8 +281,6 @@ func TestUpdateAccountBalanceAdminEndpoint(t *testing.T) {
 	}
 }
 
-// TestUpdateAccountBalanceMemberForbidden confirms the endpoint is admin-only: a
-// member token is rejected and the balance is untouched.
 func TestUpdateAccountBalanceMemberForbidden(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
@@ -336,9 +298,7 @@ func TestUpdateAccountBalanceMemberForbidden(t *testing.T) {
 	}
 }
 
-// TestUpdateAccountBalanceOverdraftRejected confirms the overdraft floor still
-// holds on the raw write path: an admin debit below zero is rejected and the
-// balance is untouched.
+// The overdraft floor must hold even on the raw (ledger-bypassing) write path.
 func TestUpdateAccountBalanceOverdraftRejected(t *testing.T) {
 	c := setup(t)
 	owner := registerMember(t, c) // balance 0

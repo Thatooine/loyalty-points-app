@@ -13,12 +13,8 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/users"
 )
 
-// AccountServiceJSONRPCAdaptor exposes AccountService over JSON-RPC. It is a
-// protected service: the authorization middleware places the verified login
-// claim in the request context. Every lookup is scoped to the caller's user id
-// taken from that claim, so a caller can only read their own accounts —
-// requesting another user's account id yields "account not found", with no way
-// to tell it apart from a genuinely missing one.
+// UserID is taken from the verified claim, never the wire, so every lookup is
+// scoped to the caller's own accounts.
 type AccountServiceJSONRPCAdaptor struct {
 	accounts AccountService
 }
@@ -31,12 +27,10 @@ func (a *AccountServiceJSONRPCAdaptor) Name() string {
 	return "AccountService"
 }
 
-// GetByIDParams is the wire request for GetAccountByID and GetAccountBalance.
 type GetByIDParams struct {
 	AccountID string `json:"account_id"`
 }
 
-// AccountResult is the wire representation of an account.
 type AccountResult struct {
 	ID        string    `json:"id"`
 	UserID    string    `json:"user_id"`
@@ -45,7 +39,6 @@ type AccountResult struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// BalanceResult is the wire response for GetAccountBalance.
 type BalanceResult struct {
 	AccountID string `json:"account_id"`
 	Balance   int64  `json:"balance"`
@@ -98,16 +91,11 @@ func (a *AccountServiceJSONRPCAdaptor) GetAccountBalance(r *http.Request, params
 	return nil
 }
 
-// UpdateAccountNameParams is the wire request for UpdateAccountName.
 type UpdateAccountNameParams struct {
 	AccountID string `json:"account_id"`
 	Name      string `json:"name"`
 }
 
-// UpdateAccountName renames the caller's account. Like the read methods the
-// UserID is taken from the verified claim, so the repository's ownership scoping
-// pins the rename to an account the caller owns — renaming another user's
-// account reads as "account not found".
 func (a *AccountServiceJSONRPCAdaptor) UpdateAccountName(r *http.Request, params *UpdateAccountNameParams, result *AccountResult) error {
 	ctx := r.Context()
 
@@ -134,20 +122,13 @@ func (a *AccountServiceJSONRPCAdaptor) UpdateAccountName(r *http.Request, params
 	return nil
 }
 
-// UpdateAccountBalanceParams is the wire request for UpdateAccountBalance.
 type UpdateAccountBalanceParams struct {
 	AccountID string `json:"account_id"`
-	// Delta is the signed amount to apply: positive to credit, negative to debit.
-	Delta int64 `json:"delta"`
+	Delta     int64  `json:"delta"`
 }
 
-// UpdateAccountBalance applies a raw signed delta to an account balance. It is
-// admin-only: this is the ledger-bypassing write path, intended for operator
-// corrections, so it does not flow through the wallet's idempotency/audit unit
-// of work. The permission map already gates this to admins (account:write:all);
-// the explicit claim check here is defence in depth so the policy cannot drift
-// if the map changes. The overdraft floor is still enforced by the repository's
-// guarded UPDATE.
+// Explicit admin check is defence in depth: the policy already gates this, but
+// it must not drift if the permission map changes.
 func (a *AccountServiceJSONRPCAdaptor) UpdateAccountBalance(r *http.Request, params *UpdateAccountBalanceParams, result *BalanceResult) error {
 	ctx := r.Context()
 

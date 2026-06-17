@@ -8,10 +8,6 @@ import (
 	sql2 "github.com/Thatooine/loyalty-points-app/pkg/sql"
 )
 
-// PostgresTxManager implements TransactionManager over a Postgres database pool.
-// The unit-of-work logic is straightforward: begin, stash the *sql.Tx in the
-// context, and commit or roll back based on fn's error. Keeping it a dedicated
-// type leaves room to tune Postgres isolation levels later.
 type PostgresTxManager struct {
 	db *sql.DB
 }
@@ -20,10 +16,9 @@ func NewPostgresTxManager(db *sql.DB) *PostgresTxManager {
 	return &PostgresTxManager{db: db}
 }
 
-// RunInTx begins a transaction, stores it in a derived context, and runs fn.
-// The transaction commits if fn returns nil and rolls back otherwise. If ctx
-// already carries a transaction, fn joins it directly and commit/rollback is
-// left to the outermost RunInTx call.
+// RunInTx commits if fn returns nil and rolls back otherwise. If ctx already
+// carries a transaction, fn joins it and commit/rollback is left to the
+// outermost call, so nested RunInTx calls compose into one unit of work.
 func (m *PostgresTxManager) RunInTx(ctx context.Context, fn func(ctx context.Context) error) error {
 	if _, ok := ctx.Value(sql2.TxContextKey{}).(*sql.Tx); ok {
 		return fn(ctx)

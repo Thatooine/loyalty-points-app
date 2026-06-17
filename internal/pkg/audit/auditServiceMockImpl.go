@@ -7,14 +7,8 @@ import (
 	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audits"
 )
 
-// Ensure that MockAuditService implements the AuditService interface.
 var _ pkgAudit.AuditService = &MockAuditService{}
 
-// MockAuditService is a hand-written mock implementation of audits.AuditService.
-// Each method delegates to a function field that a test sets to control the
-// return value (the happy path) or the error (the failure path); an unset field
-// is a no-op returning the zero value, so a test only wires the methods it
-// exercises.
 type MockAuditService struct {
 	T *testing.T
 

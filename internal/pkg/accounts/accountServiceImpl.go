@@ -9,10 +9,6 @@ import (
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 )
 
-// AccountServiceImpl fronts AccountRepository for the account read/update path.
-// It validates the request and delegates 1:1 to the repository, deliberately
-// holding no logic of its own: the wire layer depends on this service rather
-// than on the persistence port.
 type AccountServiceImpl struct {
 	accounts pkgAccounts.AccountRepository
 }

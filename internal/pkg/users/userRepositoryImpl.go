@@ -16,9 +16,6 @@ import (
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 )
 
-// UserRepositoryImpl is the Postgres implementation of users.UserRepository.
-// Every method resolves its executor from the context, so it runs inside an
-// ambient transaction when one is present and against the pool otherwise.
 type UserRepositoryImpl struct {
 	db *sql.DB
 }

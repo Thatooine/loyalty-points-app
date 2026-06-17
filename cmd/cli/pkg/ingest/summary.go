@@ -6,11 +6,9 @@ import (
 	"strings"
 )
 
-// Summary is the CLI's tally of a batch run, built from the server's batch
-// response (or, on a dry run, from the parsed rows alone).
 type Summary struct {
 	File        string
-	Sent        int // well-formed rows (sent to the server, or that would be on a dry run)
+	Sent        int
 	Accepted    int
 	Duplicates  int
 	Rejected    int
@@ -18,16 +16,12 @@ type Summary struct {
 	Rejections  []Rejection
 }
 
-// Rejection is a per-row failure — either a local parse error or a server-side
-// rejection.
 type Rejection struct {
 	Line   int
 	Ref    string
 	Reason string
 }
 
-// batchResult mirrors the wallet adaptor's ProcessTransactionBatchResult wire
-// shape.
 type batchResult struct {
 	Results []struct {
 		Ref    string `json:"ref"`
@@ -41,8 +35,8 @@ type batchResult struct {
 	} `json:"summary"`
 }
 
-// Summarize tallies the outcome of a batch run. Pass response == nil for a dry
-// run: rows are counted as "to send" and only local errors are reported.
+// Summarize tallies a batch run. Pass response == nil for a dry run: rows are
+// counted as "to send" and only local errors are reported.
 func Summarize(file string, rows []Row, localErrors []RowError, response *Response) Summary {
 	summary := Summary{File: file, Sent: len(rows), LocalErrors: len(localErrors)}
 
@@ -92,7 +86,6 @@ func Summarize(file string, rows []Row, localErrors []RowError, response *Respon
 	return summary
 }
 
-// Format renders the summary for the terminal.
 func (s Summary) Format(dryRun bool) string {
 	var b strings.Builder
 	if dryRun {

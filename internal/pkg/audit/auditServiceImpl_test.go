@@ -9,8 +9,6 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 )
 
-// TestServiceFetchTransactionAuditTrail_HappyPath proves the service forwards the
-// scoped request to the repository and returns the entries it gets back.
 func TestServiceFetchTransactionAuditTrail_HappyPath(t *testing.T) {
 	var captured pkgAudit.ListAuditEntriesByTransactionRefRequest
 	ref := "tx-1"
@@ -37,8 +35,6 @@ func TestServiceFetchTransactionAuditTrail_HappyPath(t *testing.T) {
 	}
 }
 
-// TestServiceFetchTransactionAuditTrail_ValidationFailsClosed proves an invalid request
-// is rejected before any persistence: the repository is never reached.
 func TestServiceFetchTransactionAuditTrail_ValidationFailsClosed(t *testing.T) {
 	repo := &MockAuditEntryRepository{
 		T: t,
@@ -58,8 +54,6 @@ func TestServiceFetchTransactionAuditTrail_ValidationFailsClosed(t *testing.T) {
 	}
 }
 
-// TestServiceFetchTransactionAuditTrail_RepositoryError proves a repository failure
-// surfaces and the underlying sentinel is preserved through the wrap.
 func TestServiceFetchTransactionAuditTrail_RepositoryError(t *testing.T) {
 	repo := &MockAuditEntryRepository{
 		T: t,

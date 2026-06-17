@@ -9,10 +9,6 @@ import (
 	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audits"
 )
 
-// AuditServiceImpl fronts AuditEntryRepository for the audit-trail read path. It
-// validates the request and delegates 1:1 to the repository, deliberately
-// holding no logic of its own: the wire layer depends on this service rather
-// than on the persistence port.
 type AuditServiceImpl struct {
 	auditEntries pkgAudit.AuditEntryRepository
 }

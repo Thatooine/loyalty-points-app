@@ -15,7 +15,6 @@ const (
 	testAccountName = "Primary Wallet"
 )
 
-// registerResult / loginResult mirror the adaptor response shapes.
 type registerResult struct {
 	Token     string `json:"token"`
 	UserID    string `json:"userID"`
@@ -38,15 +37,12 @@ func registerParams(email string) map[string]any {
 	}
 }
 
-// TestRegisterThenLogin walks the full happy path and asserts the data
-// persisted: logging in with the same credentials in a fresh request proves
-// the user and password hash were stored. When LOYALTY_DB_DSN is set it also
-// checks the DB rows directly — the same checks as scripts/test_register_login.sh.
+// Logging in with the same credentials in a fresh request proves the user and
+// password hash were durably stored.
 func TestRegisterThenLogin(t *testing.T) {
 	c := setup(t)
 	email := uniqueEmail(t)
 
-	// 1. Register succeeds and returns a token, user id and account id.
 	var reg registerResult
 	resp := c.call(t, registerMethod, registerParams(email), "")
 	requireNoError(t, "Register", resp)
@@ -65,8 +61,6 @@ func TestRegisterThenLogin(t *testing.T) {
 		t.Errorf("Register: email = %q, want %q", reg.Email, email)
 	}
 
-	// 2. Persistence (behavioral): logging in with the right password returns
-	// the same user id, proving the credentials were durably stored.
 	var login loginResult
 	resp = c.call(t, loginMethod, map[string]any{"email": email, "password": testPassword}, "")
 	requireNoError(t, "Login", resp)
@@ -79,7 +73,6 @@ func TestRegisterThenLogin(t *testing.T) {
 		t.Errorf("Login: userID = %q, want %q (from register)", login.UserID, reg.UserID)
 	}
 
-	// 3. Persistence (direct DB) — only when a DB path was provided.
 	if c.db == nil {
 		t.Log("LOYALTY_DB_DSN not set; skipping direct DB assertions")
 		return
@@ -122,8 +115,6 @@ func TestRegisterThenLogin(t *testing.T) {
 	}
 }
 
-// TestRegisterDuplicateEmailRejected confirms a second registration with the
-// same email fails.
 func TestRegisterDuplicateEmailRejected(t *testing.T) {
 	c := setup(t)
 	email := uniqueEmail(t)
@@ -137,7 +128,6 @@ func TestRegisterDuplicateEmailRejected(t *testing.T) {
 	}
 }
 
-// TestLoginWrongPasswordRejected confirms a bad password is rejected.
 func TestLoginWrongPasswordRejected(t *testing.T) {
 	c := setup(t)
 	email := uniqueEmail(t)
@@ -151,7 +141,6 @@ func TestLoginWrongPasswordRejected(t *testing.T) {
 	}
 }
 
-// TestLoginUnknownUserRejected confirms login for an unregistered email fails.
 func TestLoginUnknownUserRejected(t *testing.T) {
 	c := setup(t)
 

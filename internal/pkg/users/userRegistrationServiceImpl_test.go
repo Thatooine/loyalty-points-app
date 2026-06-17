@@ -74,7 +74,6 @@ func TestRegister_HappyPath(t *testing.T) {
 		t.Fatalf("Register() error = %v", err)
 	}
 
-	// Response wiring.
 	if resp.UserID == "" {
 		t.Fatal("Register() returned empty UserID")
 	}
@@ -88,7 +87,6 @@ func TestRegister_HappyPath(t *testing.T) {
 		t.Errorf("Email = %q, want new@example.com", resp.Email)
 	}
 
-	// Spy: the user was created as a member with a hashed (not plaintext) password.
 	if createdUser.Role != pkgUsers.RoleMember {
 		t.Errorf("created user Role = %q, want member", createdUser.Role)
 	}
@@ -99,7 +97,6 @@ func TestRegister_HappyPath(t *testing.T) {
 		t.Errorf("stored hash does not match password: %v", err)
 	}
 
-	// Spy: the opened account is owned by the new user, default-named, zero balance.
 	if createdAccount.OwnerID != createdUser.ID {
 		t.Errorf("account OwnerID = %q, want new user %q", createdAccount.OwnerID, createdUser.ID)
 	}

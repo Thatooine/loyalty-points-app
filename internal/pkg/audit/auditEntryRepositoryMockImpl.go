@@ -7,14 +7,8 @@ import (
 	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audits"
 )
 
-// Ensure that MockAuditEntryRepository implements the AuditEntryRepository interface.
 var _ pkgAudit.AuditEntryRepository = &MockAuditEntryRepository{}
 
-// MockAuditEntryRepository is a hand-written mock implementation of
-// audits.AuditEntryRepository. Each method delegates to a function field that a
-// test sets to control the return value (the happy path) or the error (the
-// failure path); an unset field is a no-op returning the zero value, so a test
-// only wires the methods it exercises.
 type MockAuditEntryRepository struct {
 	T *testing.T
 

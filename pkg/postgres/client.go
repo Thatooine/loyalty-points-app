@@ -11,10 +11,6 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// NewClient opens the Postgres database at the given DSN and verifies the
-// connection. Postgres uses MVCC with row-level locking and
-// genuinely supports concurrent writers, so we run a real connection pool here
-// rather than capping it at a single connection.
 func NewClient(ctx context.Context, dsn string) (*sql.DB, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {

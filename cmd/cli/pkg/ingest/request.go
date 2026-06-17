@@ -2,9 +2,8 @@ package ingest
 
 import "time"
 
-// Request is a JSON-RPC 2.0 request. gorilla/rpc/v2/json2 expects params to be
-// an array whose single element is the method's argument object, so Params is
-// always a one-element slice.
+// Request is a JSON-RPC 2.0 request. gorilla/rpc/v2/json2 expects params to be a
+// one-element array whose element is the method's argument object.
 type Request struct {
 	Version string `json:"jsonrpc"`
 	Method  string `json:"method"`
@@ -12,9 +11,6 @@ type Request struct {
 	ID      int    `json:"id"`
 }
 
-// transactionParams is one transaction in the batch, built from a CSV row. The
-// field names match the wallet adaptor's wire shape. occurred_at is omitted
-// when blank so the server stamps it at processing time.
 type transactionParams struct {
 	Ref        string `json:"ref"`
 	AccountID  string `json:"account_id"`
@@ -23,15 +19,12 @@ type transactionParams struct {
 	OccurredAt string `json:"occurred_at,omitempty"`
 }
 
-// batchParams is the argument object for the wallet's batch method: the ordered
-// list of transactions.
 type batchParams struct {
 	Transactions []transactionParams `json:"transactions"`
 }
 
-// BuildRequest turns the (already sorted) rows into a single JSON-RPC request
-// calling method once with the whole ordered batch. The server applies the
-// transactions in this slice order.
+// BuildRequest builds one JSON-RPC request from the already-sorted rows; the
+// server applies the transactions in this slice order.
 func BuildRequest(rows []Row, method string) Request {
 	transactions := make([]transactionParams, 0, len(rows))
 	for _, row := range rows {

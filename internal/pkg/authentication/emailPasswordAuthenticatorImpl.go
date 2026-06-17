@@ -42,9 +42,9 @@ func (s *EmailPasswordAuthenticatorImpl) Authenticate(ctx context.Context, reque
 		return nil, fmt.Errorf("invalid request for Authenticate: %w", err)
 	}
 
-	// 1. retrieve the user entity by email. Login runs before any claim exists,
-	// so it acts as the system principal: the user repository exempts
-	// SystemUserID from ownership scoping, letting the lookup resolve any email.
+	// Login runs before any claim exists, so it acts as the system principal: the
+	// user repository exempts SystemUserID from ownership scoping, letting the
+	// lookup resolve any email.
 	userResp, err := s.userRepository.GetByEmail(ctx, pkgUsers.GetUserByEmailRequest{
 		Email:  request.Email,
 		UserID: pkgUsers.RootUserID,
@@ -58,15 +58,13 @@ func (s *EmailPasswordAuthenticatorImpl) Authenticate(ctx context.Context, reque
 	}
 	user := userResp.User
 
-	// 2 & 3. compare the password against the stored bcrypt hash. bcrypt embeds
-	// the salt in the hash, so the comparison hashes the candidate internally —
-	// there is no separate hash-then-equals step.
+	// bcrypt embeds the salt in the hash, so the comparison hashes the candidate
+	// internally — there is no separate hash-then-equals step.
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(request.Password)); err != nil {
 		log.Ctx(ctx).Warn().Str("userID", user.ID).Msg("authentication failed: password mismatch")
 		return nil, errs.ErrUnauthorized
 	}
 
-	// 4. password is correct — issue a token from a claim identifying the user.
 	tokenResp, err := s.accessTokenService.IssueAccessToken(
 		ctx,
 		pkgAuth.IssueAccessTokenRequest{
@@ -86,7 +84,6 @@ func (s *EmailPasswordAuthenticatorImpl) Authenticate(ctx context.Context, reque
 		return nil, fmt.Errorf("could not issue access token: %w", err)
 	}
 
-	// 5. return the token, user id and email
 	return &pkgAuth.EmailPasswordAuthenticatorResponse{
 		Token:  tokenResp.AccessToken,
 		UserID: user.ID,

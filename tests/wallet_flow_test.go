@@ -6,9 +6,6 @@ import (
 	"testing"
 )
 
-// Wallet JSON-RPC methods, by the exact "<ServiceName>.<Method>" string the
-// client sends. ListTransactions/GetByID are not exposed over the wire; balance
-// is observed through the account read endpoint instead.
 const (
 	processTransactionMethod      = "Wallet.ProcessTransaction"
 	processTransactionBatchMethod = "Wallet.ProcessTransactionBatch"
@@ -17,8 +14,6 @@ const (
 	getBalanceMethod              = "AccountService.GetAccountBalance"
 )
 
-// walletResult mirrors wallet.ProcessTransactionJSONRPCResponse — the shape
-// returned by ProcessTransaction, EarnPoints and SpendPoints alike.
 type walletResult struct {
 	Ref       string `json:"ref"`
 	AccountID string `json:"account_id"`
@@ -28,13 +23,11 @@ type walletResult struct {
 	Duplicate bool   `json:"duplicate"`
 }
 
-// balanceResult mirrors accounts.BalanceResult.
 type balanceResult struct {
 	AccountID string `json:"account_id"`
 	Balance   int64  `json:"balance"`
 }
 
-// batchResult mirrors wallet.ProcessTransactionBatchResult.
 type batchResult struct {
 	Results []struct {
 		Ref     string `json:"ref"`
@@ -49,9 +42,8 @@ type batchResult struct {
 	} `json:"summary"`
 }
 
-// uniqueRef returns a ref unlikely to collide with a previous run. The server is
-// persistent and ref carries a global UNIQUE constraint, so every test must mint
-// its own or a rerun would dedupe against the prior run's rows.
+// The server is persistent and ref carries a global UNIQUE constraint, so each
+// test must mint a fresh ref or a rerun would dedupe against prior rows.
 func uniqueRef(t *testing.T) string {
 	t.Helper()
 	buf := make([]byte, 8)
@@ -61,8 +53,6 @@ func uniqueRef(t *testing.T) string {
 	return "tx-" + hex.EncodeToString(buf)
 }
 
-// registerMember onboards a fresh member and returns their token, user id and
-// the wallet account opened for them at registration.
 func registerMember(t *testing.T, c *apiClient) registerResult {
 	t.Helper()
 	var reg registerResult
@@ -75,8 +65,6 @@ func registerMember(t *testing.T, c *apiClient) registerResult {
 	return reg
 }
 
-// remoteBalance reads the account balance through the AccountService.GetAccountBalance
-// endpoint — proving the wallet write is observable through a separate read path.
 func remoteBalance(t *testing.T, c *apiClient, token, accountID string) int64 {
 	t.Helper()
 	resp := c.call(t, getBalanceMethod, map[string]any{"account_id": accountID}, token)
@@ -86,8 +74,6 @@ func remoteBalance(t *testing.T, c *apiClient, token, accountID string) int64 {
 	return bal.Balance
 }
 
-// dbBalance reads accounts.balance directly. Skips the assertion when no DB path
-// was provided.
 func dbBalance(t *testing.T, c *apiClient, accountID string) (int64, bool) {
 	t.Helper()
 	if c.db == nil {
@@ -100,11 +86,6 @@ func dbBalance(t *testing.T, c *apiClient, accountID string) (int64, bool) {
 	return balance, true
 }
 
-// TestEarnPointsEndpoint credits a member's account through the EarnPoints
-// endpoint and verifies the outcome three ways: the RPC response, a second read
-// through GetAccountBalance, and the persisted ledger + account rows. Crediting
-// is operator-only, so the earn is performed by an admin against the member's
-// account; the member observes the result through their own read path.
 func TestEarnPointsEndpoint(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
@@ -133,14 +114,11 @@ func TestEarnPointsEndpoint(t *testing.T) {
 		t.Errorf("EarnPoints: balance = %d, want 150", earn.Balance)
 	}
 
-	// Cross-endpoint: the balance is observable through the account read path.
 	if got := remoteBalance(t, c, member.Token, member.AccountID); got != 150 {
 		t.Errorf("GetAccountBalance = %d, want 150", got)
 	}
 
-	// Direct persistence: the ledger row landed with the signed delta, the right
-	// kind, ownership stamped to the account owner (the member), and authorship
-	// stamped to the acting admin.
+	// owner_id is the account owner (member); created_by is the acting admin.
 	if c.db == nil {
 		t.Log("LOYALTY_DB_DSN not set; skipping direct DB assertions")
 		return
@@ -170,15 +148,11 @@ func TestEarnPointsEndpoint(t *testing.T) {
 	}
 }
 
-// TestSpendPointsEndpoint earns then spends and confirms the debit applies and
-// the ledger sum equals the materialised balance.
 func TestSpendPointsEndpoint(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
 	_, adminToken := registerAdmin(t, c)
 
-	// Crediting is operator-only, so an admin seeds the starting balance the
-	// member then spends from.
 	earn := c.call(t, earnPointsMethod, map[string]any{
 		"ref":        uniqueRef(t),
 		"account_id": member.AccountID,
@@ -199,7 +173,6 @@ func TestSpendPointsEndpoint(t *testing.T) {
 	if spend.Kind != "spend" {
 		t.Errorf("SpendPoints: kind = %q, want \"spend\"", spend.Kind)
 	}
-	// Spend is recorded as a signed debit.
 	if spend.Points != -50 {
 		t.Errorf("SpendPoints: points = %d, want -50", spend.Points)
 	}
@@ -228,9 +201,7 @@ func TestSpendPointsEndpoint(t *testing.T) {
 	}
 }
 
-// TestSpendOverdraftRejected confirms the balance floor is enforced over the
-// wire: a spend that would overdraw fails, the balance is untouched, and the
-// rejected ledger insert rolled back so its ref is free again.
+// A rejected spend must roll back its ledger insert so the ref is free again.
 func TestSpendOverdraftRejected(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c) // opens with balance 0
@@ -253,7 +224,6 @@ func TestSpendOverdraftRejected(t *testing.T) {
 		t.Log("LOYALTY_DB_DSN not set; skipping direct DB assertions")
 		return
 	}
-	// The rejected attempt left no ledger row — the insert rolled back.
 	var n int
 	if err := c.db.QueryRow("SELECT COUNT(*) FROM transactions WHERE ref = $1", ref).Scan(&n); err != nil {
 		t.Fatalf("count transaction rows: %v", err)
@@ -266,17 +236,13 @@ func TestSpendOverdraftRejected(t *testing.T) {
 	}
 }
 
-// TestProcessTransactionDuplicateRef confirms idempotency through the generic
-// ProcessTransaction endpoint: resubmitting a ref returns the original outcome
-// flagged Duplicate, never double-counts, and persists a single ledger row.
+// A duplicate ref must not move the balance and must persist a single row.
 func TestProcessTransactionDuplicateRef(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
 	_, adminToken := registerAdmin(t, c)
 	ref := uniqueRef(t)
 
-	// ProcessTransaction is operator-only; the admin credits the member's
-	// account and re-submits the same ref.
 	params := map[string]any{
 		"ref":        ref,
 		"account_id": member.AccountID,
@@ -320,8 +286,6 @@ func TestProcessTransactionDuplicateRef(t *testing.T) {
 	}
 }
 
-// TestProcessTransactionUnauthenticated confirms the method gate rejects a
-// wallet write with no token before it reaches the service.
 func TestProcessTransactionUnauthenticated(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
@@ -337,11 +301,7 @@ func TestProcessTransactionUnauthenticated(t *testing.T) {
 	}
 }
 
-// TestSpendForeignAccountRejected confirms ownership scoping over the wire: a
-// member cannot transact against an account they do not own — the scoped lookup
-// makes it indistinguishable from a missing account. SpendPoints is the
-// member-callable transact method, so ownership is exercised through it (earn
-// and the generic ProcessTransaction are operator-only).
+// A transact against an unowned account is indistinguishable from a missing one.
 func TestSpendForeignAccountRejected(t *testing.T) {
 	c := setup(t)
 	owner := registerMember(t, c)
@@ -357,7 +317,6 @@ func TestSpendForeignAccountRejected(t *testing.T) {
 		t.Fatal("SpendPoints against a foreign account: expected an error, got none")
 	}
 
-	// The owner's balance is untouched.
 	if got := remoteBalance(t, c, owner.Token, owner.AccountID); got != 0 {
 		t.Errorf("owner balance after foreign attempt = %d, want 0", got)
 	}
@@ -374,8 +333,6 @@ func TestSpendForeignAccountRejected(t *testing.T) {
 	}
 }
 
-// TestProcessTransactionBatchMemberForbidden confirms batch ingestion is
-// admin-only: a member token is rejected at the endpoint.
 func TestProcessTransactionBatchMemberForbidden(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
@@ -390,11 +347,8 @@ func TestProcessTransactionBatchMemberForbidden(t *testing.T) {
 	}
 }
 
-// TestProcessTransactionBatchServerOrders confirms ordering is a server
-// guarantee, not a client courtesy: a spend submitted BEFORE the earn that funds
-// it — i.e. out of chronological order in the slice — is still accepted, because
-// the server sorts the batch by occurred_at itself before applying it. Slice
-// order alone would trip the overdraft floor on the spend.
+// The server sorts the batch by occurred_at, so a spend listed before the earn
+// that funds it is still accepted; slice order alone would trip the floor.
 func TestProcessTransactionBatchServerOrders(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
@@ -403,8 +357,6 @@ func TestProcessTransactionBatchServerOrders(t *testing.T) {
 	earnRef := uniqueRef(t)
 	spendRef := uniqueRef(t)
 
-	// Submitted out of order on purpose: the later spend is first in the slice,
-	// the earlier earn that funds it is second.
 	resp := c.call(t, processTransactionBatchMethod, map[string]any{
 		"transactions": []map[string]any{
 			{"ref": spendRef, "account_id": member.AccountID, "kind": "spend", "points": 100, "occurred_at": "2024-01-01T11:00:00Z"},
@@ -424,9 +376,6 @@ func TestProcessTransactionBatchServerOrders(t *testing.T) {
 	}
 }
 
-// TestEarnPointsMemberForbidden confirms crediting is operator-only: a member
-// cannot mint points into their own account through EarnPoints, and the
-// rejection leaves no ledger row and an untouched balance.
 func TestEarnPointsMemberForbidden(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
@@ -457,9 +406,6 @@ func TestEarnPointsMemberForbidden(t *testing.T) {
 	}
 }
 
-// TestProcessTransactionMemberForbidden confirms the generic transaction method
-// is operator-only too: a member cannot reach it to credit their own account by
-// passing kind=earn.
 func TestProcessTransactionMemberForbidden(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)

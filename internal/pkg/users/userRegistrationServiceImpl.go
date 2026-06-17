@@ -23,11 +23,6 @@ const registrationTokenTTL = 1 * time.Hour
 // defaultAccountName is the wallet name used when the request leaves it blank.
 const defaultAccountName = "Primary Wallet"
 
-// UserRegistrationServiceImpl onboards a new principal by composing the user
-// and account repositories inside one unit of work, then issuing an access
-// token. Creating the identity and opening the wallet either both commit or
-// neither does, so a failed account-open never leaves a credential-only user
-// behind.
 type UserRegistrationServiceImpl struct {
 	txManager          pkgSQL.TxManager
 	users              pkgUsers.UserRepository

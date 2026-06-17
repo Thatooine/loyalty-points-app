@@ -16,14 +16,11 @@ type Response struct {
 	Error  *RPCError       `json:"error"`
 }
 
-// RPCError is the JSON-RPC error object.
 type RPCError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 }
 
-// Send POSTs the batch request to the JSON-RPC endpoint with an optional bearer
-// token and decodes the single response.
 func Send(ctx context.Context, client *http.Client, url, token string, request Request) (Response, error) {
 	body, err := json.Marshal(request)
 	if err != nil {

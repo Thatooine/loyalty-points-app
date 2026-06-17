@@ -8,11 +8,8 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 )
 
-// LogoutServiceJSONRPCAdaptor exposes LogoutService over JSON-RPC as
-// "Session.Logout". Like the other protected adaptors, the acting principal is
-// taken from the verified login claim placed on the context by the
-// authorization middleware — never from the request body — so a caller can only
-// log themselves out.
+// The principal is taken from the verified claim, never the wire, so a caller
+// can only log themselves out.
 type LogoutServiceJSONRPCAdaptor struct {
 	logoutService LogoutService
 }
@@ -25,11 +22,9 @@ func (a *LogoutServiceJSONRPCAdaptor) Name() string {
 	return "Session"
 }
 
-// Carries no fields: the principal is resolved from the token.
 type LogoutJSONRPCRequest struct{}
 
 type LogoutJSONRPCResponse struct {
-	// Always true on success; gives the client a non-empty body to assert against.
 	OK bool `json:"ok"`
 }
 

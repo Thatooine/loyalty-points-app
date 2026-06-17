@@ -15,10 +15,6 @@ import (
 // account.
 const defaultAccountName = "Primary Wallet"
 
-// AccountOpenerServiceImpl opens a new account by delegating the persistence to
-// AccountRepository.Create. The domain rules live here, not in the repository:
-// it defaults a blank name and forces the new account's owner to the caller,
-// keeping the repository policy-free.
 type AccountOpenerServiceImpl struct {
 	accounts pkgAccounts.AccountRepository
 }

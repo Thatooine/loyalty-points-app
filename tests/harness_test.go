@@ -1,17 +1,6 @@
-// Package tests holds black-box integration tests that exercise the JSON-RPC
-// API over HTTP against an already-running server — the Go equivalent of
-// scripts/test_register_login.sh.
-//
-// The tests assume the server is already up. Point them at it with:
-//
-//	LOYALTY_API_URL   JSON-RPC endpoint   (default http://localhost:8080/api)
-//	LOYALTY_DB_DSN    optional Postgres DSN; when set, the persistence test
-//	                  additionally reads the DB directly to confirm the bcrypt
-//	                  hash and the opened wallet account.
-//
-// Run with:  go test ./tests/...    (after starting the server)
-// If the server is unreachable the tests skip rather than fail, so a plain
-// `go test ./...` without a running server stays green.
+// Package tests holds black-box JSON-RPC integration tests run over HTTP against
+// an already-running server, configured via LOYALTY_API_URL and LOYALTY_DB_DSN.
+// If the server is unreachable the tests skip rather than fail.
 package tests
 
 import (
@@ -33,15 +22,12 @@ import (
 
 const defaultAPIURL = "http://localhost:8080/api"
 
-// apiClient talks to a running server over HTTP.
 type apiClient struct {
 	baseURL string
 	db      *sql.DB // non-nil only when LOYALTY_DB_DSN is set
 }
 
-// setup returns a client for the running server, skipping the test if the
-// server cannot be reached. When LOYALTY_DB_DSN is set it also opens the DB
-// for direct persistence assertions.
+// setup skips the test when the server is unreachable.
 func setup(t *testing.T) *apiClient {
 	t.Helper()
 
@@ -68,8 +54,6 @@ func setup(t *testing.T) *apiClient {
 	return c
 }
 
-// serverReachable reports whether an HTTP request to the endpoint gets any
-// response (even a 405) — i.e. the server is listening.
 func serverReachable(url string) bool {
 	client := &http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get(url)
@@ -80,7 +64,6 @@ func serverReachable(url string) bool {
 	return true
 }
 
-// rpcResponse is a decoded JSON-RPC 2.0 response.
 type rpcResponse struct {
 	Result json.RawMessage `json:"result"`
 	Error  *rpcError       `json:"error"`
@@ -91,9 +74,7 @@ type rpcError struct {
 	Message string `json:"message"`
 }
 
-// call POSTs a single JSON-RPC request and returns the decoded response.
-// params is the single params object (sent as the required one-element array);
-// token, when non-empty, is sent as a Bearer credential.
+// params is the single params object, sent as the required one-element array.
 func (c *apiClient) call(t *testing.T, method string, params any, token string) rpcResponse {
 	t.Helper()
 
@@ -134,8 +115,7 @@ func (c *apiClient) call(t *testing.T, method string, params any, token string) 
 	return decoded
 }
 
-// uniqueEmail returns an address unlikely to collide with a previous run, since
-// the tests run against a persistent server whose data outlives the process.
+// The server is persistent across runs, so each test must mint a fresh email.
 func uniqueEmail(t *testing.T) string {
 	t.Helper()
 	buf := make([]byte, 6)

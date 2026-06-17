@@ -26,12 +26,6 @@ func setupRPCServer(providers ServiceProviders) {
 
 	router := mux.NewRouter()
 
-	// All JSON-RPC services — public and protected — are exposed on the single
-	// /api endpoint. The authorization middleware gates each request by the
-	// method it calls: public methods (e.g. login) pass through untouched,
-	// while every other method must present a valid token and a role permitted
-	// to call it. Business adaptors — wallet, accounts, audit — are added to
-	// this list as they are built.
 	services := []jsonrpc.Service{
 		authentication.NewEmailPasswordAuthenticatorJSONRPCAdaptor(providers.EmailPasswordAuthenticator),
 		authentication.NewLogoutServiceJSONRPCAdaptor(providers.LogoutService),
@@ -70,14 +64,10 @@ func setupRPCServer(providers ServiceProviders) {
 	}()
 }
 
-// newJSONRPCServer creates a JSON-RPC server with the JSON codec registered and
-// the given services mounted under their Name().
 func newJSONRPCServer(services []jsonrpc.Service) *rpc.Server {
 	jsonRPCServer := rpc.NewServer()
-	// The error mapper is the single place that turns a domain error returned by
-	// any handler into a JSON-RPC error with a stable code and machine-readable
-	// data.reason (see jsonrpc.MapError); without it gorilla collapses every
-	// non-json2 error to -32000.
+	// Without the error mapper gorilla collapses every non-json2 error to -32000;
+	// jsonrpc.MapError preserves stable codes and the machine-readable data.reason.
 	codec := gorillaJSON.NewCustomCodecWithErrorMapper(rpc.DefaultEncoderSelector, jsonrpc.MapError)
 	jsonRPCServer.RegisterCodec(codec, "application/json")
 

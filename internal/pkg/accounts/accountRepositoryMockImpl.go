@@ -7,14 +7,8 @@ import (
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 )
 
-// Ensure that MockAccountRepository implements the AccountRepository interface.
 var _ pkgAccounts.AccountRepository = &MockAccountRepository{}
 
-// MockAccountRepository is a hand-written mock implementation of
-// accounts.AccountRepository. Each method delegates to a function field that a
-// test sets to control the return value (the happy path) or the error (the
-// failure path); an unset field is a no-op returning the zero value, so a test
-// only wires the methods it exercises.
 type MockAccountRepository struct {
 	T *testing.T
 

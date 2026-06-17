@@ -19,10 +19,6 @@ import (
 	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallets"
 )
 
-// TransactionRepositoryImpl is the Postgres implementation of
-// wallet.TransactionRepository. Every method resolves its executor from the
-// context, so it runs inside an ambient transaction when one is present and
-// against the pool otherwise.
 type TransactionRepositoryImpl struct {
 	db *sql.DB
 }

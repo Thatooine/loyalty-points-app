@@ -5,20 +5,16 @@ import (
 	"fmt"
 )
 
-// LogoutService revokes a user's outstanding access tokens. It does so by
-// bumping the user's token_version (session epoch): every token issued before
-// the bump carries a now-stale version and is rejected by ValidateAccessToken.
-//
-// Because the version is a single per-user value, logout is "log out
-// everywhere" — it invalidates the caller's tokens on every device at once.
-// Per-device logout would require per-token tracking, which this does not do.
+// LogoutService revokes a user's outstanding access tokens by bumping their
+// token_version. The version is a single per-user value, so this is necessarily
+// "log out everywhere"; per-device logout would require per-token tracking.
 type LogoutService interface {
 	Logout(ctx context.Context, request LogoutRequest) (*LogoutResponse, error)
 }
 
 type LogoutRequest struct {
-	// Taken from the verified login claim by the adaptor, never from client
-	// input, so a caller can only log themselves out.
+	// UserID is taken from the verified login claim, never from client input,
+	// so a caller can only log themselves out.
 	UserID string
 }
 

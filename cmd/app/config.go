@@ -10,12 +10,12 @@ func init() {
 	viper.MustBindEnv("PostgresDSN", "POSTGRES_DSN")
 }
 
-// Config holds all non-secret app configuration
 type Config struct {
 	PostgresDSN string
 }
 
-// SecureConfig holds all secret application configuration
+// SecureConfig holds secret configuration, kept separate from Config so secrets
+// are not logged alongside ordinary settings.
 type SecureConfig struct {
 	JWTPrivateKeyPEM string
 }

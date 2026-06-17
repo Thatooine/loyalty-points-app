@@ -16,11 +16,6 @@ import (
 	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallets"
 )
 
-// WalletServiceImpl is the heart of the system (plan §5.1): every write path
-// flows through ProcessTransaction, which composes the account, transaction,
-// and audit repositories inside one unit of work so the invariants —
-// idempotency, the overdraft floor, and the audit trail — hold once and are
-// tested once. The repositories beneath it stay policy-free.
 type WalletServiceImpl struct {
 	txManager             pkgSQL.TxManager
 	accountRepository     pkgAccounts.AccountRepository
@@ -169,10 +164,6 @@ func (s *WalletServiceImpl) ProcessTransaction(ctx context.Context, request pkgW
 	return resp, nil
 }
 
-// EarnPoints credits points to an account by constructing an earn transaction
-// and delegating to ProcessTransaction, so it inherits the single write path's
-// idempotency, balance floor, ownership scoping, and audit trail. The only
-// thing it adds is fixing the Kind to KindEarn from the method itself.
 func (s *WalletServiceImpl) EarnPoints(ctx context.Context, request pkgWallet.EarnPointsRequest) (*pkgWallet.ProcessTransactionResponse, error) {
 	return s.ProcessTransaction(ctx, pkgWallet.ProcessTransactionRequest{
 		UserID:     request.UserID,
@@ -184,10 +175,6 @@ func (s *WalletServiceImpl) EarnPoints(ctx context.Context, request pkgWallet.Ea
 	})
 }
 
-// SpendPoints debits points from an account by constructing a spend transaction
-// and delegating to ProcessTransaction. As with EarnPoints the only addition is
-// fixing the Kind — here KindSpend — so the debit runs through the same guarded
-// write path and is subject to the balance floor.
 func (s *WalletServiceImpl) SpendPoints(ctx context.Context, request pkgWallet.SpendPointsRequest) (*pkgWallet.ProcessTransactionResponse, error) {
 	return s.ProcessTransaction(ctx, pkgWallet.ProcessTransactionRequest{
 		UserID:     request.UserID,
@@ -199,17 +186,13 @@ func (s *WalletServiceImpl) SpendPoints(ctx context.Context, request pkgWallet.S
 	})
 }
 
-// ProcessTransactionBatch applies a batch sequentially in chronological order.
-// Each element reuses the single-transaction path — inheriting idempotency, the
-// overdraft floor, ownership checks, and the audit trail — so there is no second
-// code path to keep in sync. A per-element rejection is captured in the result
-// rather than aborting the batch, so one bad row never sinks the rest.
+// A per-element rejection is captured in the result rather than aborting the
+// batch, so one bad row never sinks the rest.
 //
 // The overdraft floor is order-dependent (an earn must land before the spend it
 // funds), so the server sorts by OccurredAt itself rather than trusting the
-// caller's order. The CLI also pre-sorts (so its dry-run preview shows the true
-// order), but this makes ordering a server guarantee for any client. Results are
-// returned in this applied order; callers correlate by Ref, not position.
+// caller's order. Results are returned in this applied order; callers correlate
+// by Ref, not position.
 func (s *WalletServiceImpl) ProcessTransactionBatch(ctx context.Context, request pkgWallet.ProcessTransactionBatchRequest) (*pkgWallet.ProcessTransactionBatchResponse, error) {
 	resp := &pkgWallet.ProcessTransactionBatchResponse{
 		Results: make([]pkgWallet.BatchElementResult, 0, len(request.Transactions)),
@@ -273,8 +256,6 @@ func (s *WalletServiceImpl) rejectTransaction(ctx context.Context, request pkgWa
 	return nil, err
 }
 
-// signedDelta converts a request's points into the signed delta as applied:
-// earn credits, spend debits.
 func signedDelta(kind pkgWallet.Kind, points int64) int64 {
 	if kind == pkgWallet.KindSpend {
 		return -points
@@ -282,7 +263,6 @@ func signedDelta(kind pkgWallet.Kind, points int64) int64 {
 	return points
 }
 
-// reasonFor maps a processing error to a human-readable audit reason.
 func reasonFor(err error) string {
 	switch {
 	case errors.Is(err, errs.ErrInsufficientBalance):
@@ -296,8 +276,7 @@ func reasonFor(err error) string {
 	}
 }
 
-// buildAuditEntry assembles an audit row echoing the attempted payload. Points
-// records the signed delta as applied, matching the ledger.
+// Points records the signed delta as applied, matching the ledger.
 func buildAuditEntry(request pkgWallet.ProcessTransactionRequest, delta int64, ownerID *string, outcome pkgAudit.Outcome, reason string, now time.Time) pkgAudit.CreateAuditEntryRequest {
 	ref := request.Ref
 	accountID := request.AccountID

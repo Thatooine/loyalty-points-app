@@ -15,11 +15,6 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/time"
 )
 
-// AuditEntryRepositoryImpl is the Postgres implementation of
-// audit.AuditEntryRepository. Create reads back the generated identity with an
-// INSERT ... RETURNING id (pgx has no LastInsertId). Every method resolves its
-// executor from the context, so it runs inside an ambient transaction when one
-// is present and against the pool otherwise.
 type AuditEntryRepositoryImpl struct {
 	db *sql.DB
 }
@@ -136,9 +131,6 @@ func (r *AuditEntryRepositoryImpl) ListByAccountID(ctx context.Context, request 
 	return &pkgAudit.ListAuditEntriesByAccountIDResponse{AuditEntries: entries}, nil
 }
 
-// queryEntries runs a SELECT returning the standard audit_entries column set and
-// scans every row into AuditEntry values. It returns a non-nil empty slice when
-// the query matches nothing.
 func (r *AuditEntryRepositoryImpl) queryEntries(ctx context.Context, query string, args ...any) ([]pkgAudit.AuditEntry, error) {
 	exec := pkgSQL.ExecutorFromContext(ctx, r.db)
 

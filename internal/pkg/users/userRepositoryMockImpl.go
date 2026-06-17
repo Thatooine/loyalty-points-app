@@ -7,14 +7,8 @@ import (
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 )
 
-// Ensure that MockUserRepository implements the UserRepository interface.
 var _ pkgUsers.UserRepository = &MockUserRepository{}
 
-// MockUserRepository is a hand-written mock implementation of
-// users.UserRepository. Each method delegates to a function field that a test
-// sets to control the return value (the happy path) or the error (the failure
-// path); an unset field is a no-op returning the zero value, so a test only
-// wires the methods it exercises.
 type MockUserRepository struct {
 	T *testing.T
 

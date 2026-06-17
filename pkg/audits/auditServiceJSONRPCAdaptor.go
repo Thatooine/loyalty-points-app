@@ -11,13 +11,8 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 )
 
-// AuditServiceJSONRPCAdaptor exposes the audit trail of a transaction over
-// JSON-RPC. It is a protected service callable by both members and admins: the
-// authorization middleware places the verified login claim in the request
-// context, and the listing is scoped to the caller's user id taken from that
-// claim. A member sees only their own attempts; an admin holding audit:read:all
-// sees every owner's. The repository enforces that scope, so a member querying a
-// ref recorded against another owner's account simply gets an empty trail.
+// UserID is taken from the verified claim, never the wire: a member sees only
+// their own attempts, an admin with audit:read:all sees every owner's.
 type AuditServiceJSONRPCAdaptor struct {
 	audit AuditService
 }
@@ -30,14 +25,12 @@ func (a *AuditServiceJSONRPCAdaptor) Name() string {
 	return "AuditService"
 }
 
-// ListByTransactionRefParams is the wire request for ListByTransactionRef.
 type ListByTransactionRefParams struct {
 	TransactionRef string `json:"transaction_ref"`
 }
 
-// AuditEntryResult is the wire representation of one audit entry. The nullable
-// fields stay pointers so a JSON null is emitted when the attempt could not
-// resolve them (e.g. a malformed row with no account).
+// Nullable fields stay pointers so a JSON null is emitted when the attempt
+// could not resolve them (e.g. a malformed row with no account).
 type AuditEntryResult struct {
 	ID             int64     `json:"id"`
 	UserID         string    `json:"user_id"`
@@ -51,18 +44,11 @@ type AuditEntryResult struct {
 	CreatedAt      time.Time `json:"created_at"`
 }
 
-// ListByTransactionRefResult is the wire response for ListByTransactionRef:
-// every recorded attempt for the ref, oldest first. An empty slice is a valid
-// result (the ref has no entries the caller may see), not an error.
 type ListByTransactionRefResult struct {
 	TransactionRef string             `json:"transaction_ref"`
 	Entries        []AuditEntryResult `json:"entries"`
 }
 
-// FetchTransactionAuditTrail returns every audit entry recorded for a transaction
-// ref, scoped to the caller. The UserID is taken from the verified claim — never
-// the wire — so the repository's ownership scoping pins a member to their own
-// entries.
 func (a *AuditServiceJSONRPCAdaptor) FetchTransactionAuditTrail(r *http.Request, params *ListByTransactionRefParams, result *ListByTransactionRefResult) error {
 	ctx := r.Context()
 

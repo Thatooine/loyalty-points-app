@@ -9,8 +9,6 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/errs"
 )
 
-// TestServiceGetAccountByID_HappyPath proves the service forwards the scoped request to
-// the repository and returns the account it gets back.
 func TestServiceGetAccountByID_HappyPath(t *testing.T) {
 	var captured pkgAccounts.GetAccountByIDRequest
 	repo := &MockAccountRepository{
@@ -34,8 +32,6 @@ func TestServiceGetAccountByID_HappyPath(t *testing.T) {
 	}
 }
 
-// TestServiceGetAccountByID_ValidationFailsClosed proves an invalid request is rejected
-// before any persistence: the repository is never reached.
 func TestServiceGetAccountByID_ValidationFailsClosed(t *testing.T) {
 	repo := &MockAccountRepository{
 		T: t,
@@ -55,8 +51,6 @@ func TestServiceGetAccountByID_ValidationFailsClosed(t *testing.T) {
 	}
 }
 
-// TestServiceGetAccountByID_RepositoryError proves a repository failure surfaces and the
-// underlying sentinel is preserved through the wrap.
 func TestServiceGetAccountByID_RepositoryError(t *testing.T) {
 	repo := &MockAccountRepository{
 		T: t,
@@ -72,8 +66,6 @@ func TestServiceGetAccountByID_RepositoryError(t *testing.T) {
 	}
 }
 
-// TestServiceGetAccountBalance_HappyPath proves the balance read is forwarded and
-// returned.
 func TestServiceGetAccountBalance_HappyPath(t *testing.T) {
 	var captured pkgAccounts.GetAccountBalanceRequest
 	repo := &MockAccountRepository{
@@ -97,8 +89,6 @@ func TestServiceGetAccountBalance_HappyPath(t *testing.T) {
 	}
 }
 
-// TestServiceGetAccountBalance_RepositoryError proves a repository failure
-// surfaces with its sentinel intact.
 func TestServiceGetAccountBalance_RepositoryError(t *testing.T) {
 	repo := &MockAccountRepository{
 		T: t,
@@ -114,8 +104,6 @@ func TestServiceGetAccountBalance_RepositoryError(t *testing.T) {
 	}
 }
 
-// TestServiceUpdateAccountName_HappyPath proves the rename is forwarded with all
-// fields and the renamed account is returned.
 func TestServiceUpdateAccountName_HappyPath(t *testing.T) {
 	var captured pkgAccounts.UpdateAccountNameRequest
 	repo := &MockAccountRepository{
@@ -139,8 +127,6 @@ func TestServiceUpdateAccountName_HappyPath(t *testing.T) {
 	}
 }
 
-// TestServiceUpdateAccountName_ValidationFailsClosed proves a blank name is
-// rejected before the repository is reached.
 func TestServiceUpdateAccountName_ValidationFailsClosed(t *testing.T) {
 	repo := &MockAccountRepository{
 		T: t,
@@ -157,8 +143,6 @@ func TestServiceUpdateAccountName_ValidationFailsClosed(t *testing.T) {
 	}
 }
 
-// TestServiceUpdateAccountBalance_HappyPath proves the signed delta is forwarded
-// and the post-delta balance is returned.
 func TestServiceUpdateAccountBalance_HappyPath(t *testing.T) {
 	var captured pkgAccounts.UpdateAccountBalanceRequest
 	repo := &MockAccountRepository{
@@ -182,8 +166,6 @@ func TestServiceUpdateAccountBalance_HappyPath(t *testing.T) {
 	}
 }
 
-// TestServiceUpdateAccountBalance_RepositoryError proves an insufficient-balance
-// failure surfaces with its sentinel intact.
 func TestServiceUpdateAccountBalance_RepositoryError(t *testing.T) {
 	repo := &MockAccountRepository{
 		T: t,

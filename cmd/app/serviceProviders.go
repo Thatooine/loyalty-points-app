@@ -25,8 +25,6 @@ import (
 	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallets"
 )
 
-// ServiceProviders holds the wired-up service implementations used by the
-// server adaptors and middleware.
 type ServiceProviders struct {
 	DB                         *sql.DB
 	TransactionManager         sql2.TxManager
@@ -45,15 +43,11 @@ type ServiceProviders struct {
 	LogoutService              pkgAuth.LogoutService
 }
 
-// Close releases resources held by the service providers.
 func (s *ServiceProviders) Close() error {
 	return s.DB.Close()
 }
 
-// NewServiceProviders constructs all service implementations from the given
-// configuration.
 func NewServiceProviders(ctx context.Context, config *Config, secureConfig *SecureConfig) (*ServiceProviders, error) {
-	// open the Postgres database and apply any pending schema migrations
 	db, err := postgres.NewClient(ctx, config.PostgresDSN)
 	if err != nil {
 		return nil, fmt.Errorf("could not create postgres client: %w", err)
@@ -62,20 +56,17 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 		return nil, fmt.Errorf("could not migrate database: %w", err)
 	}
 
-	// repositories and the transaction manager, all behind their ports
 	transactionManager := postgres.NewPostgresTxManager(db)
 	userRepository := internalUsers.NewUserRepositoryImpl(db)
 	accountRepository := internalAccounts.NewAccountRepositoryImpl(db)
 	transactionRepository := internalWallet.NewTransactionRepositoryImpl(db)
 	auditEntryRepository := internalAudit.NewAuditEntryRepositoryImpl(db)
 
-	// parse the RSA private key used to sign and verify access tokens
 	jwtPrivateKey, err := parseRSAPrivateKey(secureConfig.JWTPrivateKeyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse JWT private key: %w", err)
 	}
 
-	// create a signer for issuing access tokens
 	tokenSigner, err := jose.NewSigner(
 		jose.SigningKey{Algorithm: jose.RS256, Key: jwtPrivateKey},
 		nil,
@@ -84,7 +75,6 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 		return nil, fmt.Errorf("could not create token signer: %w", err)
 	}
 
-	// services that compose the repositories (mirrors the house wiring order)
 	accessTokenService := internalAuth.NewAccessTokenServiceImpl(tokenSigner, &jwtPrivateKey.PublicKey, userRepository)
 	emailPasswordAuthenticator := internalAuth.NewEmailPasswordAuthenticatorImpl(
 		userRepository,
@@ -132,7 +122,6 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 	}, nil
 }
 
-// parseRSAPrivateKey decodes a PKCS#8 PEM-encoded RSA private key.
 func parseRSAPrivateKey(privateKeyPEM string) (*rsa.PrivateKey, error) {
 	block, _ := pem.Decode([]byte(privateKeyPEM))
 	if block == nil {

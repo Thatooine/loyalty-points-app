@@ -2,12 +2,8 @@ package tests
 
 import "testing"
 
-// Audit JSON-RPC method, by the exact "<ServiceName>.<Method>" string the client
-// sends. The audit trail is readable by both members (scoped to their own
-// entries) and admins (every owner's).
 const listAuditByRefMethod = "AuditService.FetchTransactionAuditTrail"
 
-// auditEntryResult mirrors audit.AuditEntryResult — one recorded attempt.
 type auditEntryResult struct {
 	ID             int64   `json:"id"`
 	UserID         string  `json:"user_id"`
@@ -20,14 +16,11 @@ type auditEntryResult struct {
 	Reason         string  `json:"reason"`
 }
 
-// trailResult mirrors audit.FetchTransactionAuditTrailResult.
 type trailResult struct {
 	TransactionRef string             `json:"transaction_ref"`
 	Entries        []auditEntryResult `json:"entries"`
 }
 
-// trail calls AuditService.FetchTransactionAuditTrail for ref with the given token and
-// returns the decoded result, asserting no wire error.
 func trail(t *testing.T, c *apiClient, token, ref string) trailResult {
 	t.Helper()
 	resp := c.call(t, listAuditByRefMethod, map[string]any{"transaction_ref": ref}, token)
@@ -37,19 +30,12 @@ func trail(t *testing.T, c *apiClient, token, ref string) trailResult {
 	return tr
 }
 
-// TestListAuditByTransactionRefEndpoint earns points against a member's account, then
-// confirms both the owning member and an admin can read the resulting audit
-// trail for that ref. The member is scoped to their own entries (owner_id), the
-// admin sees the same entry through the all-scoped read. The wire result and the
-// persisted audit_entries row are asserted.
 func TestListAuditByTransactionRefEndpoint(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
 	admin, adminToken := registerAdmin(t, c)
 	ref := uniqueRef(t)
 
-	// Crediting is operator-only: the admin earns against the member's account,
-	// which records one accepted audit entry owned by the member.
 	earn := c.call(t, earnPointsMethod, map[string]any{
 		"ref":        ref,
 		"account_id": member.AccountID,
@@ -57,7 +43,6 @@ func TestListAuditByTransactionRefEndpoint(t *testing.T) {
 	}, adminToken)
 	requireNoError(t, "EarnPoints", earn)
 
-	// The owning member reads their own trail.
 	memberTrail := trail(t, c, member.Token, ref)
 	if memberTrail.TransactionRef != ref {
 		t.Errorf("trail ref = %q, want %q", memberTrail.TransactionRef, ref)
@@ -83,14 +68,11 @@ func TestListAuditByTransactionRefEndpoint(t *testing.T) {
 		t.Errorf("user_id = %q, want %q (the acting admin)", entry.UserID, admin.UserID)
 	}
 
-	// The admin reads the same trail through the all-scoped read path.
 	adminTrail := trail(t, c, adminToken, ref)
 	if len(adminTrail.Entries) != 1 {
 		t.Errorf("admin trail entries = %d, want 1", len(adminTrail.Entries))
 	}
 
-	// Direct persistence: exactly one audit_entries row exists for the ref, owned by
-	// the member.
 	if c.db == nil {
 		t.Log("LOYALTY_DB_DSN not set; skipping direct DB assertions")
 		return
@@ -110,8 +92,6 @@ func TestListAuditByTransactionRefEndpoint(t *testing.T) {
 	}
 }
 
-// TestListAuditByTransactionRefUnauthenticated confirms the method gate rejects a trail
-// read with no token before it reaches the service.
 func TestListAuditByTransactionRefUnauthenticated(t *testing.T) {
 	c := setup(t)
 	resp := c.call(t, listAuditByRefMethod, map[string]any{
@@ -122,10 +102,8 @@ func TestListAuditByTransactionRefUnauthenticated(t *testing.T) {
 	}
 }
 
-// TestListAuditByTransactionRefForeignMemberScopedOut confirms ownership scoping over
-// the wire: a member cannot read the audit trail of a ref recorded against
-// another member's account. The scoped read returns an empty trail (no error,
-// no existence leak), while the owner still sees their entry.
+// A foreign member's scoped read returns an empty trail, not an error — no
+// existence leak.
 func TestListAuditByTransactionRefForeignMemberScopedOut(t *testing.T) {
 	c := setup(t)
 	owner := registerMember(t, c)
@@ -140,21 +118,17 @@ func TestListAuditByTransactionRefForeignMemberScopedOut(t *testing.T) {
 	}, adminToken)
 	requireNoError(t, "EarnPoints", earn)
 
-	// The intruder sees nothing — the entry is scoped to the owner.
 	intruderTrail := trail(t, c, intruder.Token, ref)
 	if len(intruderTrail.Entries) != 0 {
 		t.Errorf("intruder trail entries = %d, want 0: %+v", len(intruderTrail.Entries), intruderTrail.Entries)
 	}
 
-	// The owner still sees their own entry.
 	ownerTrail := trail(t, c, owner.Token, ref)
 	if len(ownerTrail.Entries) != 1 {
 		t.Errorf("owner trail entries = %d, want 1", len(ownerTrail.Entries))
 	}
 }
 
-// TestListAuditByTransactionRefMissingRef confirms an empty (required) ref is rejected
-// by validation rather than returning an empty trail.
 func TestListAuditByTransactionRefMissingRef(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)

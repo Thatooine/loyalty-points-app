@@ -2,15 +2,11 @@ package accounts
 
 import "time"
 
-// Account is a loyalty points wallet. Identity and credentials live on the
-// owning User (users.User); a user can hold many accounts. The balance is a
-// materialised cache of the transaction ledger: a SUM over the account's
-// transactions must always equal it.
+// Account is a loyalty points wallet. Balance is a materialised cache of the
+// transaction ledger: SUM(points) over the account's transactions must equal it.
 type Account struct {
-	// ID is the account's unique identifier, a UUID assigned at persistence.
 	ID string `json:"id"`
 
-	// OwnerID is the owning user (users.User.ID).
 	OwnerID string `json:"ownerID"`
 
 	Name string `json:"name"`
