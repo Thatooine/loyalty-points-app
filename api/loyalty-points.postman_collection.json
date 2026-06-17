@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Loyalty Points App",
-    "description": "JSON-RPC 2.0 API for the loyalty-points server. All methods are POSTed to the single /api endpoint. params MUST be a one-element array (the gorilla json2 codec unmarshals it into [1]interface{}).\n\nPreset credentials live in collection variables — {{email}}, {{password}}, {{name}}, {{accountName}} — and are shared by Register and Login, so editing them in one place keeps both in sync and you can log in with whatever you just registered. Public methods (Register, Login) need no token. Register and Login capture the returned {{token}}; Register also captures {{userID}} and {{accountID}} so protected calls (e.g. the wallet methods) reuse them automatically.\n\nTypical flow: run Register once, then Login (or any protected call) — variables are already populated.\n\nWallet.ProcessTransaction is callable by members on their own accounts. Wallet.ProcessTransactionBatch is admin-only: it applies an ordered batch sequentially in array order — a member token is rejected.\n\nImport into Requestly via Import -> Postman.",
+    "description": "JSON-RPC 2.0 API for the loyalty-points server. All methods are POSTed to the single /api endpoint. params MUST be a one-element array (the gorilla json2 codec unmarshals it into [1]interface{}).\n\nPreset credentials live in collection variables — {{email}}, {{password}}, {{name}}, {{accountName}} — and are shared by Register and Login, so editing them in one place keeps both in sync and you can log in with whatever you just registered. Public methods (Register, Login) need no token. Register and Login capture the returned {{token}}; Register also captures {{userID}} and {{accountID}} so protected calls (e.g. the wallet methods) reuse them automatically.\n\nTypical flow: run Register once, then Login (or any protected call) — variables are already populated.\n\nCrediting is operator-only: Wallet.ProcessTransaction and Wallet.EarnPoints require an admin token (members cannot mint points into their own account). Wallet.SpendPoints is the only ledger write a member may call on an account they own. Wallet.ProcessTransactionBatch is admin-only: it applies an ordered batch sequentially in array order — a member token is rejected.\n\nImport into Requestly via Import -> Postman.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -155,7 +155,7 @@
               "options": { "raw": { "language": "json" } },
               "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"Wallet.ProcessTransaction\",\n  \"params\": [\n    {\n      \"ref\": \"tx-1\",\n      \"account_id\": \"{{accountID}}\",\n      \"kind\": \"earn\",\n      \"points\": 100\n    }\n  ],\n  \"id\": 1\n}"
             },
-            "description": "Records a single transaction. Callable by a member on an account they own (the server takes the actor from the token and enforces ownership; admins may act on any account). occurred_at is OPTIONAL — omit it (as here) and the server stamps it at processing time; supply an RFC 3339 value to back-date a transaction. Sends Authorization: Bearer {{token}}."
+            "description": "Records a single transaction. ADMIN-ONLY (wallet:transact:all) — because it can credit (kind 'earn'), it is operator-only so a member cannot mint points; members use Wallet.SpendPoints instead. The owner is the account owner resolved from the account, not the acting admin. occurred_at is OPTIONAL — omit it (as here) and the server stamps it at processing time; supply an RFC 3339 value to back-date a transaction. Sends Authorization: Bearer {{token}}."
           }
         },
         {
@@ -179,7 +179,7 @@
               "options": { "raw": { "language": "json" } },
               "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"Wallet.EarnPoints\",\n  \"params\": [\n    {\n      \"ref\": \"earn-1\",\n      \"account_id\": \"{{accountID}}\",\n      \"points\": 100\n    }\n  ],\n  \"id\": 1\n}"
             },
-            "description": "Credits points. A thin convenience wrapper over ProcessTransaction with kind fixed to 'earn' — same idempotency, ownership, and audit guarantees. Callable by a member on an account they own; admins may act on any account. occurred_at is OPTIONAL (omitted here; the server stamps it). Re-send with the SAME ref to see idempotency: the balance stays put and the response comes back with \"duplicate\": true. Sends Authorization: Bearer {{token}}."
+            "description": "Credits points. A thin convenience wrapper over ProcessTransaction with kind fixed to 'earn' — same idempotency, ownership, and audit guarantees. ADMIN-ONLY (wallet:transact:all): crediting is operator-only so a member cannot mint points into their own account — a member token is rejected. occurred_at is OPTIONAL (omitted here; the server stamps it). Re-send with the SAME ref to see idempotency: the balance stays put and the response comes back with \"duplicate\": true. Sends Authorization: Bearer {{token}}."
           }
         },
         {
