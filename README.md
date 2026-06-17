@@ -12,7 +12,7 @@ file is the operator's guide: how to run it and how to call it.
 
 ## Requirements
 
-- Go 1.23+
+- Go 1.25+
 - Docker (for the bundled PostgreSQL) — or any reachable PostgreSQL instance
 
 ## Run it locally

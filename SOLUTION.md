@@ -399,7 +399,7 @@ and lists rejections with their line and reason.
 Timestamps are stored as **RFC3339Nano UTC TEXT** — human-readable and
 lexicographically sortable, which lets ordering and keyset pagination rely on
 plain string comparison. `OwnerID` is a foreign key to `users.id`
-(denormalized onto `transactions` and `audit_log` so entries are attributable
+(denormalized onto `transactions` and `audit_entries` so entries are attributable
 without a join); the DTO field is `UserID`, the SQL column is `owner_id`. Schema
 lives in `pkg/postgres/migrations/*.sql`, embedded and applied in lexical
 filename order on startup and in tests.
@@ -417,9 +417,6 @@ each has a clear next step.
   real system needs an admin-bootstrap path or an invite flow. I chose manual
   promotion over an admin-creates-admin RPC specifically to avoid shipping a
   privilege-escalation surface I couldn't fully harden in scope.
-- **One wallet per user.** Registration opens a single default account. The data
-  model already supports multiple accounts per user (`accounts.owner_id`), so a
-  `CreateAccount` RPC is a small addition — I left it out to stay within scope.
 - **Permissions are snapshotted into the token.** A role change only takes effect
   on the next login (≤1h, the token TTL). Tokens are revocable via the
   `token_version` epoch (logout-everywhere — §4), but there is no refresh-token
@@ -439,8 +436,7 @@ each has a clear next step.
 
 ## 8. AI workflow
 
-> This section documents how AI tooling was used, per the assignment. Edit it to
-> reflect your own prompts and judgements before submitting.
+> This section documents how AI tooling was used, per the assignment.
 
 I used **Claude Code** as a pair-programmer throughout, with a deliberately
 plan-first, test-backed workflow rather than free-form generation.
@@ -471,6 +467,28 @@ scope" list points at the next skill, so the model hands work off rather than
 half-doing a neighbouring layer. This was the single biggest lever on
 consistency: the skills, not me, kept the near-identical files of each domain in
 lockstep.
+
+### Spec as the conformance contract
+
+The brief is restated as a testable spec in `docs/specs/loyalty-wallet.md`: each
+row turns one requirement into an acceptance criterion, cites its origin in the
+brief, names the test that proves it, and records a verdict (✅ test-proven /
+⚠️ by-design / 📄 doc deliverable). It is the bridge between "what the assignment
+asked for" and "what a test actually exercises" — including the honest gaps (C-4
+durability is ⚠️, not claimed as proven) and the deliberate deviation from a
+literal reading of the brief (A-2: members spend but cannot earn). Re-running it
+means bringing the full environment up and confirming the tests *RAN*, not
+skipped — a skipped DB/endpoint test proves nothing.
+
+That spec is wired into the agent workflow through `CLAUDE.md`, which makes it
+**authoritative**: before changing loyalty-wallet behavior — a new RPC method, a
+ledger rule, an error semantic — an agent is instructed to read the relevant
+spec row and conform to it, and if a change alters documented behavior, to update
+the spec and its test mapping *in the same change*. So `CLAUDE.md` carries the
+architecture and gotchas an agent needs to work safely, the `.claude/skills/`
+encode the per-layer mechanics, and `docs/specs/` is the acceptance contract the
+result is checked against — the three together keep generated changes both
+structurally consistent and provably conformant.
 
 ### How I steered the rest
 
