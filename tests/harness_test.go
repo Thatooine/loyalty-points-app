@@ -77,7 +77,18 @@ type rpcError struct {
 // params is the single params object, sent as the required one-element array.
 func (c *apiClient) call(t *testing.T, method string, params any, token string) rpcResponse {
 	t.Helper()
+	resp, err := c.callRaw(method, params, token)
+	if err != nil {
+		t.Fatalf("%s: %v", method, err)
+	}
+	return resp
+}
 
+// callRaw is the goroutine-safe core of call: it touches no *testing.T, so it
+// is safe to invoke from concurrently-spawned goroutines (where t.Fatalf is
+// forbidden). Concurrency tests collect its (rpcResponse, error) and assert on
+// the test goroutine after joining.
+func (c *apiClient) callRaw(method string, params any, token string) (rpcResponse, error) {
 	reqBody, err := json.Marshal(map[string]any{
 		"jsonrpc": "2.0",
 		"method":  method,
@@ -85,12 +96,12 @@ func (c *apiClient) call(t *testing.T, method string, params any, token string) 
 		"id":      1,
 	})
 	if err != nil {
-		t.Fatalf("marshal request: %v", err)
+		return rpcResponse{}, fmt.Errorf("marshal request: %w", err)
 	}
 
 	httpReq, err := http.NewRequest(http.MethodPost, c.baseURL, bytes.NewReader(reqBody))
 	if err != nil {
-		t.Fatalf("build request: %v", err)
+		return rpcResponse{}, fmt.Errorf("build request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	if token != "" {
@@ -99,20 +110,20 @@ func (c *apiClient) call(t *testing.T, method string, params any, token string) 
 
 	resp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
-		t.Fatalf("do request: %v", err)
+		return rpcResponse{}, fmt.Errorf("do request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("read response: %v", err)
+		return rpcResponse{}, fmt.Errorf("read response: %w", err)
 	}
 
 	var decoded rpcResponse
 	if err := json.Unmarshal(body, &decoded); err != nil {
-		t.Fatalf("decode response %q: %v", body, err)
+		return rpcResponse{}, fmt.Errorf("decode response %q: %w", body, err)
 	}
-	return decoded
+	return decoded, nil
 }
 
 // The server is persistent across runs, so each test must mint a fresh email.

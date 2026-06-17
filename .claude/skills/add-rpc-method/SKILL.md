@@ -7,6 +7,8 @@ description: Scaffold a new JSON-RPC method end-to-end across the ports-and-adap
 
 One logical method touches several files. Skipping any one fails silently or at runtime — most often a forgotten `DefaultPolicy()` entry, which makes the method return "method not allowed" no matter the token.
 
+**Spec first.** If the method implements behavior governed by the product spec in `docs/specs/` (e.g. `loyalty-wallet.md`), read the relevant acceptance criteria before scaffolding and make the request/response shapes, validation, and error semantics conform. If the method adds or changes spec-described behavior, update the spec and its test mapping in the same change.
+
 ## The checklist
 
 Work through these in order. The first four live in `pkg/<domain>` (the port side); the SQL lives in `internal/pkg/<domain>`; policy and wiring are global.
