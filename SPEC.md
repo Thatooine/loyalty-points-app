@@ -53,6 +53,7 @@ environment was brought fully up first.
 | C-3 | Overlapping requests on one account stay correct | Constraints | `tests/TestConcurrentEarnsNoLostUpdates` (20 concurrent earns → no lost updates), `tests/TestConcurrentSpendsRespectOverdraftFloor` (over-demand spends never breach the floor); both pass under `-race`. Design: single guarded `UPDATE ... WHERE balance + delta >= 0`. | ✅ |
 | C-4 | Data durable across process restarts | Constraints | **No restart test.** Design: Postgres-backed; schema in `pkg/postgres/migrations`, applied on startup. | ⚠️ |
 | C-5 | Request body size is bounded (DoS guard) | Hardening (not in brief) | `tests/TestRequestBodyTooLargeRejected` — body over the 4 MiB cap rejected as `-32602` during the read, before auth/dispatch. Design: `http.MaxBytesReader` in `pkg/authorization/authorizationMiddleware.go`. | ✅ |
+| C-6 | Request rate is bounded per IP / per user (brute-force + DoS guard) | Hardening (not in brief) | `pkg/rateLimiting` middleware tests (`TestIPRateLimiter_*`, `TestUserRateLimiter_*`) — over-limit → HTTP 429 / code `-32006`; under-limit passes; non-targeted methods and claim-less requests bypass; body preserved for downstream. Design: Redis-backed token bucket (`github.com/mennanov/limiters`), IP limiter on the public auth methods + per-user limiter on authenticated traffic, wired in `cmd/app/setupRPCServer.go`. Live 429 verified manually; not in the `tests/` suite because the limit is server-global state and would make the shared-IP suite flaky. | ✅ unit, ⚠️ no integration test |
 
 ## Task 2 — Access control
 

@@ -10,11 +10,11 @@ import (
 )
 
 type AuditServiceImpl struct {
-	auditEntries pkgAudit.AuditEntryRepository
+	auditEntryRepository pkgAudit.AuditEntryRepository
 }
 
 func NewAuditServiceImpl(auditEntries pkgAudit.AuditEntryRepository) *AuditServiceImpl {
-	return &AuditServiceImpl{auditEntries: auditEntries}
+	return &AuditServiceImpl{auditEntryRepository: auditEntries}
 }
 
 func (s *AuditServiceImpl) FetchTransactionAuditTrail(ctx context.Context, request pkgAudit.ListAuditByRefRequest) (*pkgAudit.ListAuditByRefResponse, error) {
@@ -23,13 +23,15 @@ func (s *AuditServiceImpl) FetchTransactionAuditTrail(ctx context.Context, reque
 		return nil, fmt.Errorf("invalid request for FetchTransactionAuditTrail: %w", err)
 	}
 
-	resp, err := s.auditEntries.ListByTransactionRef(ctx, pkgAudit.ListAuditEntriesByTransactionRefRequest{
-		TransactionRef: request.TransactionRef,
-		UserID:         request.UserID,
-	})
+	listByTransactionRefResponse, err := s.auditEntryRepository.ListByTransactionRef(
+		ctx,
+		pkgAudit.ListAuditEntriesByTransactionRefRequest{
+			TransactionRef: request.TransactionRef,
+			UserID:         request.UserID,
+		})
 	if err != nil {
 		return nil, fmt.Errorf("could not list audit entries by transaction ref: %w", err)
 	}
 
-	return &pkgAudit.ListAuditByRefResponse{AuditEntries: resp.AuditEntries}, nil
+	return &pkgAudit.ListAuditByRefResponse{AuditEntries: listByTransactionRefResponse.AuditEntries}, nil
 }

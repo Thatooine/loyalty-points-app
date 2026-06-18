@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 #
-# One-click local stack: start PostgreSQL, seed an admin, run the server.
+# One-click local stack: start PostgreSQL + Redis, seed an admin, run the server.
 #
 #   ./scripts/start-stack.sh
 #
 # Steps, in order:
-#   1. docker compose up -d   — start the bundled Postgres
-#   2. wait until Postgres is accepting connections
+#   1. docker compose up -d   — start the bundled Postgres and Redis
+#   2. wait until Postgres and Redis are accepting connections
 #   3. go run ./cmd/bootstrap — wipe data tables and (re)create the admin
 #                               system@mail.com / systemUser123
 #   4. go run ./cmd/app       — JSON-RPC server on :8080 (auto-applies migrations)
 #
-# The server runs in the foreground; press Ctrl-C to stop it. Postgres keeps
-# running in the background — stop it with `docker compose down`.
+# The server runs in the foreground; press Ctrl-C to stop it. Postgres and Redis
+# keep running in the background — stop them with `docker compose down`.
 #
 set -euo pipefail
 
@@ -30,7 +30,7 @@ for cmd in docker go; do
   fi
 done
 
-log "Starting PostgreSQL (docker compose up -d)"
+log "Starting PostgreSQL + Redis (docker compose up -d)"
 docker compose up -d
 
 log "Waiting for PostgreSQL to be ready"
@@ -41,6 +41,19 @@ for attempt in $(seq 1 30); do
   fi
   if [ "${attempt}" -eq 30 ]; then
     echo "error: PostgreSQL did not become ready in time" >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+log "Waiting for Redis to be ready"
+for attempt in $(seq 1 30); do
+  if docker compose exec -T redis redis-cli ping >/dev/null 2>&1; then
+    echo "Redis is ready."
+    break
+  fi
+  if [ "${attempt}" -eq 30 ]; then
+    echo "error: Redis did not become ready in time" >&2
     exit 1
   fi
   sleep 1

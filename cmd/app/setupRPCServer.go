@@ -18,9 +18,31 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/authentication"
 	"github.com/Thatooine/loyalty-points-app/pkg/authorization"
 	"github.com/Thatooine/loyalty-points-app/pkg/jsonrpc"
+	"github.com/Thatooine/loyalty-points-app/pkg/rateLimiting"
 	"github.com/Thatooine/loyalty-points-app/pkg/users"
 	"github.com/Thatooine/loyalty-points-app/pkg/wallets"
 )
+
+// Rate-limit budgets. Token buckets: capacity is the burst, refillRate is the
+// time to regain one token. Defaults are deliberately generous (a real
+// deployment should tighten them via ops); the point here is a DoS / brute-force
+// ceiling, not tight quota enforcement.
+const (
+	// IP limiter on the public auth methods — credential brute-force guard.
+	authRateCapacity = 200
+	authRateRefill   = 100 * time.Millisecond // ~10 sustained req/s/IP after burst
+
+	// User limiter on authenticated traffic, keyed by UserID.
+	userRateCapacity = 100
+	userRateRefill   = 20 * time.Millisecond // ~50 sustained req/s/user after burst
+)
+
+// publicAuthMethods are the unauthenticated JSON-RPC methods the IP limiter
+// throttles. They mirror the public set in authorization.DefaultPolicy().
+var publicAuthMethods = map[string]bool{
+	"EmailPasswordAuthenticator.Login": true,
+	"UserRegistrationService.Register": true,
+}
 
 func setupRPCServer(providers ServiceProviders) *http.Server {
 	port := 8080
@@ -39,7 +61,24 @@ func setupRPCServer(providers ServiceProviders) *http.Server {
 
 	apiRouter := router.PathPrefix("/api").Subrouter()
 	apiRouter.Use(logger.Middleware)
+
+	// IP limiter runs before auth so a flood of login/register attempts is shed
+	// cheaply, before any JWT work. Skipped entirely when no rate limiter is
+	// wired (local without Redis).
+	if providers.RateLimiter != nil {
+		apiRouter.Use(rateLimiting.NewIPRateLimiterMiddleware(
+			providers.RateLimiter, publicAuthMethods, authRateCapacity, authRateRefill))
+	}
+
 	apiRouter.Use(authorization.NewAuthorizationMiddleware(providers.AccessTokenValidator, authorization.DefaultPolicy()))
+
+	// User limiter runs after auth: it keys on the login claim the authorization
+	// middleware puts on the context.
+	if providers.RateLimiter != nil {
+		apiRouter.Use(rateLimiting.NewUserRateLimiterMiddleware(
+			providers.RateLimiter, userRateCapacity, userRateRefill))
+	}
+
 	apiRouter.Handle("", newJSONRPCServer(services))
 
 	// start the http server

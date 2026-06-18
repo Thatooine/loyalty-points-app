@@ -202,8 +202,14 @@ next step:
   login (≤1h). Revocable via the `token_version` epoch, but no refresh-token flow
   and no per-device revocation — that needs a server-side token table, trading away
   the stateless-JWT property.
-- **No rate / request-size limits** on ingestion. The batch is one unit of work —
-  simple and correct, but not ideal for huge files. Next: chunking.
+- **Resource bounds are in place; quota tuning isn't.** Request body is capped (4 MiB,
+  C-5), batches are bounded (1000 rows, B-5), and there's a Redis-backed token-bucket
+  rate limiter — per-IP on the public auth methods (brute-force guard) and per-user on
+  authenticated traffic (C-6). The Redis backend makes the limit shared across
+  instances rather than per-process. Defaults are deliberately generous (a DoS/abuse
+  ceiling, not tight quota); next: per-method quotas, `Retry-After`, and tuning per
+  deployment. The batch itself is still one unit of work — fine for bounded files, not
+  huge ones; next there is chunking.
 - **Forward-only migrations** (§2). No down-migrations or dirty-state tracking; a
   long-lived service would adopt a real migration tool.
 

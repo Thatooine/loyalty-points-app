@@ -3,7 +3,7 @@
 A small backend service for a loyalty-points wallet: member accounts, earning
 and spending of points, role-based access control, batch CSV ingestion, and an
 audit trail. Built in Go, exposed as a **JSON-RPC 2.0** API over HTTP, backed by
-**PostgreSQL**.
+**PostgreSQL**, with **Redis**-backed rate limiting.
 
 The design rationale and trade-offs live in [SOLUTION.md](./SOLUTION.md). This
 file is the operator's guide: how to run it and how to call it.
@@ -13,7 +13,7 @@ file is the operator's guide: how to run it and how to call it.
 ## Requirements
 
 - Go 1.25+
-- Docker (for the bundled PostgreSQL) — or any reachable PostgreSQL instance
+- Docker (for the bundled PostgreSQL and Redis) — or any reachable PostgreSQL/Redis instance
 
 ## Run it locally
 
@@ -26,12 +26,12 @@ file is the operator's guide: how to run it and how to call it.
 It runs `docker compose up -d`, waits for Postgres, runs `cmd/bootstrap` (which
 **wipes all data tables** and recreates the `system@mail.com` admin — see below),
 then runs the server in the foreground on `:8080`. Press Ctrl-C to stop the
-server; `docker compose down` stops Postgres.
+server; `docker compose down` stops Postgres and Redis.
 
 Or do it by hand:
 
 ```bash
-# 1. Start PostgreSQL (credentials match the app's baked-in defaults)
+# 1. Start PostgreSQL + Redis (credentials/addresses match the app's baked-in defaults)
 docker compose up -d
 
 # 2. Run the server. It auto-applies migrations on startup and listens on :8080.
@@ -46,10 +46,17 @@ can be overridden by environment variable:
 | --------------------- | --------------------------------------------------------------------------- | -------------------------------- |
 | `POSTGRES_DSN`        | `postgres://loyalty:loyalty@localhost:5432/loyalty_points?sslmode=disable`  | Database connection string       |
 | `JWT_PRIVATE_KEY_PEM` | a dev RSA key (PKCS#8 PEM)                                                   | Signs/verifies access tokens     |
+| `REDIS_URI`           | `localhost:6379`                                                            | Rate limiter backend             |
+| `APP_ENV`             | `local`                                                                     | Non-`local` requires secrets via env (fail closed) |
 | `PORT`                | `8080`                                                                      | HTTP listen port                 |
 
 > The baked-in key is for local development only. Provide your own
 > `JWT_PRIVATE_KEY_PEM` for any real deployment.
+>
+> Rate limiting is Redis-backed: a per-IP token bucket on the public auth methods
+> (brute-force guard) and a per-user bucket on authenticated traffic. In `local`,
+> if Redis is unreachable the server logs a warning and runs with rate limiting
+> disabled; outside `local`, `REDIS_URI` is required.
 
 ### Get an admin token
 

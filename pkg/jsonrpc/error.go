@@ -20,6 +20,7 @@ const (
 	CodeNotFound            = -32003
 	CodeAlreadyExists       = -32004
 	CodeInsufficientBalance = -32005
+	CodeTooManyRequests     = -32006
 )
 
 // RequestEnvelope is the minimal slice of a JSON-RPC request callers need to
@@ -36,6 +37,14 @@ type RequestEnvelope struct {
 // consistent envelope regardless of which layer rejected the request.
 // JSON-RPC errors are transported with HTTP 200; the error lives in the body.
 func WriteError(w http.ResponseWriter, id json.RawMessage, code int, message, reason string) {
+	WriteErrorStatus(w, http.StatusOK, id, code, message, reason)
+}
+
+// WriteErrorStatus is WriteError with an explicit HTTP status. Almost every
+// JSON-RPC error rides on HTTP 200 (the error is in the body), but a few
+// transport-level rejections — notably rate limiting — set a status the body
+// also reflects so load balancers and generic clients can act on it (e.g. 429).
+func WriteErrorStatus(w http.ResponseWriter, status int, id json.RawMessage, code int, message, reason string) {
 	if len(id) == 0 {
 		id = json.RawMessage("null")
 	}
@@ -56,6 +65,6 @@ func WriteError(w http.ResponseWriter, id json.RawMessage, code int, message, re
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(response)
 }

@@ -30,5 +30,21 @@ services:
       timeout: 5s
       retries: 5
 
+  # Redis backs the rate limiter (per-IP on auth methods, per-user on
+  # authenticated traffic). The default local REDIS_URI is localhost:6379, which
+  # matches this container. If Redis is down in local the app logs a warning and
+  # runs with rate limiting disabled.
+  redis:
+    image: redis:7
+    container_name: loyalty-points-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
 volumes:
   loyalty-postgres-data:

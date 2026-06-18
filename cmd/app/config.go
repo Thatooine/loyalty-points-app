@@ -15,11 +15,16 @@ func init() {
 	viper.MustBindEnv("Environment", "APP_ENV")
 	viper.MustBindEnv("JWTPrivateKeyPEM", "JWT_PRIVATE_KEY_PEM")
 	viper.MustBindEnv("PostgresDSN", "POSTGRES_DSN")
+	viper.MustBindEnv("RedisURI", "REDIS_URI")
 }
 
 type Config struct {
 	Environment string
 	PostgresDSN string
+	// RedisURI backs the rate limiter. Empty disables rate limiting in local;
+	// outside local it is required (fail closed) so a deployment can't silently
+	// run without per-IP / per-user throttling.
+	RedisURI string
 }
 
 // SecureConfig holds secret configuration, kept separate from Config so secrets
@@ -44,6 +49,7 @@ func GetConfig(configFileName string) (*Config, *SecureConfig) {
 	// control.
 	env := viper.GetString("Environment")
 	if env == EnvLocal {
+		viper.SetDefault("RedisURI", "localhost:6379")
 		viper.SetDefault("PostgresDSN", "postgres://loyalty:loyalty@localhost:5432/loyalty_points?sslmode=disable")
 		viper.SetDefault("JWTPrivateKeyPEM", `-----BEGIN PRIVATE KEY-----
 MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQCsTXWAE1NG6IVw
@@ -93,6 +99,9 @@ BaJssnoLm4Izls0Q87EHQ93fFw==
 		}
 		if conf.PostgresDSN == "" {
 			log.Fatal().Str("env", env).Msg("POSTGRES_DSN is required outside the local environment")
+		}
+		if conf.RedisURI == "" {
+			log.Fatal().Str("env", env).Msg("REDIS_URI is required outside the local environment")
 		}
 	}
 

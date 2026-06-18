@@ -12,21 +12,27 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/postgres"
 	sql2 "github.com/Thatooine/loyalty-points-app/pkg/sql"
 	"github.com/go-jose/go-jose/v4"
+	"github.com/redis/go-redis/v9"
+	"github.com/rs/zerolog/log"
 
 	internalAccounts "github.com/Thatooine/loyalty-points-app/internal/pkg/accounts"
 	internalAudit "github.com/Thatooine/loyalty-points-app/internal/pkg/audit"
 	internalAuth "github.com/Thatooine/loyalty-points-app/internal/pkg/authentication"
+	internalRateLimiting "github.com/Thatooine/loyalty-points-app/internal/pkg/rateLimiting"
 	internalUsers "github.com/Thatooine/loyalty-points-app/internal/pkg/users"
 	internalWallet "github.com/Thatooine/loyalty-points-app/internal/pkg/wallets"
 	pkgAccounts "github.com/Thatooine/loyalty-points-app/pkg/accounts"
 	pkgAudit "github.com/Thatooine/loyalty-points-app/pkg/audits"
 	pkgAuth "github.com/Thatooine/loyalty-points-app/pkg/authentication"
+	pkgRateLimiting "github.com/Thatooine/loyalty-points-app/pkg/rateLimiting"
 	pkgUsers "github.com/Thatooine/loyalty-points-app/pkg/users"
 	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallets"
 )
 
 type ServiceProviders struct {
 	DB                         *sql.DB
+	RedisClient                *redis.Client
+	RateLimiter                pkgRateLimiting.RedisTokenBucketRateLimiter
 	TransactionManager         sql2.TxManager
 	UserRepository             pkgUsers.UserRepository
 	AccountRepository          pkgAccounts.AccountRepository
@@ -44,6 +50,11 @@ type ServiceProviders struct {
 }
 
 func (s *ServiceProviders) Close() error {
+	if s.RedisClient != nil {
+		if err := s.RedisClient.Close(); err != nil {
+			log.Error().Err(err).Msg("failed to close redis client")
+		}
+	}
 	return s.DB.Close()
 }
 
@@ -54,6 +65,27 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 	}
 	if err := postgres.Migrate(ctx, db); err != nil {
 		return nil, fmt.Errorf("could not migrate database: %w", err)
+	}
+
+	// Rate limiter (Redis-backed). Outside local the config layer already
+	// requires REDIS_URI, so a connection failure here is fatal. In local an
+	// unreachable / unset Redis degrades gracefully: rate limiting is disabled
+	// (RateLimiter stays nil) so the zero-config dev flow and the integration
+	// suite still run without standing up Redis.
+	var redisClient *redis.Client
+	var rateLimiter pkgRateLimiting.RedisTokenBucketRateLimiter
+	if config.RedisURI != "" {
+		redisClient = redis.NewClient(&redis.Options{Addr: config.RedisURI})
+		if err := redisClient.Ping(ctx).Err(); err != nil {
+			if config.Environment != EnvLocal {
+				return nil, fmt.Errorf("could not connect to redis: %w", err)
+			}
+			log.Warn().Err(err).Str("redis", config.RedisURI).Msg("redis unreachable in local; rate limiting disabled")
+			_ = redisClient.Close()
+			redisClient = nil
+		} else {
+			rateLimiter = internalRateLimiting.NewRedisRateLimiterImpl(redisClient)
+		}
 	}
 
 	transactionManager := postgres.NewPostgresTxManager(db)
@@ -105,6 +137,8 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 
 	return &ServiceProviders{
 		DB:                         db,
+		RedisClient:                redisClient,
+		RateLimiter:                rateLimiter,
 		TransactionManager:         transactionManager,
 		UserRepository:             userRepository,
 		AccountRepository:          accountRepository,
