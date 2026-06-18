@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 #
-# Start the local stack WITHOUT wiping data — the everyday restart.
+# Reset the local stack to a clean slate: start infra, WIPE all data, reseed the
+# admin, then run the server. Use this for a fresh start, not a routine restart.
 #
-#   ./scripts/start-stack.sh
+#   ./scripts/reset-stack.sh
 #
 # Steps, in order:
 #   1. docker compose up -d   — start the bundled Postgres and Redis
 #   2. wait until Postgres and Redis are accepting connections
-#   3. go run ./cmd/app       — JSON-RPC server on :8080 (auto-applies migrations)
+#   3. go run ./cmd/bootstrap — wipe data tables and (re)create the admin
+#                               system@mail.com / systemUser123
+#   4. go run ./cmd/app       — JSON-RPC server on :8080 (auto-applies migrations)
 #
-# Existing data (users, accounts, ledger) is preserved across restarts. To wipe
-# everything and reseed the admin instead, use ./scripts/reset-stack.sh.
+# To restart WITHOUT wiping data, use ./scripts/start-stack.sh instead.
 #
 # The server runs in the foreground; press Ctrl-C to stop it. Postgres and Redis
 # keep running in the background — stop them with `docker compose down`.
@@ -59,6 +61,10 @@ for attempt in $(seq 1 30); do
   fi
   sleep 1
 done
+
+log "Bootstrapping admin user (system@mail.com)"
+echo "Note: this wipes all data tables before recreating the admin."
+go run ./cmd/bootstrap
 
 log "Starting JSON-RPC server on :8080 (Ctrl-C to stop)"
 exec go run ./cmd/app

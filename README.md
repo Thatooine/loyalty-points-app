@@ -17,16 +17,20 @@ file is the operator's guide: how to run it and how to call it.
 
 ## Run it locally
 
-**One-click:** start Postgres, seed an admin, and run the server in one command:
+**One-click:** start Postgres + Redis and run the server in one command. Two
+variants:
 
 ```bash
-./scripts/start-stack.sh
+./scripts/start-stack.sh   # restart, keeping existing data
+./scripts/reset-stack.sh   # fresh start: wipes data and reseeds the admin
 ```
 
-It runs `docker compose up -d`, waits for Postgres, runs `cmd/bootstrap` (which
-**wipes all data tables** and recreates the `system@mail.com` admin — see below),
-then runs the server in the foreground on `:8080`. Press Ctrl-C to stop the
-server; `docker compose down` stops Postgres and Redis.
+Both run `docker compose up -d`, wait for Postgres and Redis, then run the server
+in the foreground on `:8080`. `reset-stack.sh` additionally runs `cmd/bootstrap`
+first, which **wipes all data tables** and recreates the `system@mail.com` admin
+(see below); `start-stack.sh` skips that step so users, accounts, and the ledger
+survive the restart. Press Ctrl-C to stop the server; `docker compose down` stops
+Postgres and Redis.
 
 Or do it by hand:
 
@@ -534,7 +538,7 @@ queryable afterwards via `AuditService.FetchTransactionAuditTrail`.
 | `pkg/postgres/migrations` | Embedded SQL schema, applied in lexical order on startup               |
 | `tests/`             | Black-box HTTP/JSON-RPC integration tests                                   |
 | `api/`               | Postman collection (`loyalty-points.postman_collection.json`)               |
-| `scripts/`           | `start-stack.sh` — one-command local stack                                  |
+| `scripts/`           | `start-stack.sh` (restart, keeps data) / `reset-stack.sh` (fresh, wipes data) |
 
 A ready-to-import **Postman collection** lives at
 [`api/loyalty-points.postman_collection.json`](./api/loyalty-points.postman_collection.json)
