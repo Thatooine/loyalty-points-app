@@ -44,6 +44,47 @@ type BalanceResult struct {
 	Balance   int64  `json:"balance"`
 }
 
+type FetchMyAccountsParams struct{}
+
+type AccountsResult struct {
+	Accounts []AccountResult `json:"accounts"`
+}
+
+// FetchMyAccounts lists every account the caller directly owns. UserID is taken
+// from the verified claim, so the listing is always scoped to the caller.
+func (a *AccountServiceJSONRPCAdaptor) FetchMyAccounts(r *http.Request, params *FetchMyAccountsParams, result *AccountsResult) error {
+	ctx := r.Context()
+
+	claim, ok := authentication.LoginClaimFromContext(ctx)
+	if !ok {
+		log.Ctx(ctx).Error().Msg("account: no login claim in context for protected method")
+		return errs.ErrUnauthorized
+	}
+
+	resp, err := a.accounts.FetchMyAccounts(ctx, FetchMyAccountsRequest{
+		UserID: claim.UserID,
+	})
+	if err != nil {
+		log.Ctx(ctx).Warn().Err(err).Str("userID", claim.UserID).Msg("account: fetch my accounts failed")
+		if errors.Is(err, errs.ErrInvalidArgument) {
+			return err
+		}
+		return errs.WithMessage(errs.ErrInternal, "could not retrieve accounts")
+	}
+
+	result.Accounts = make([]AccountResult, 0, len(resp.Accounts))
+	for _, account := range resp.Accounts {
+		result.Accounts = append(result.Accounts, AccountResult{
+			ID:        account.ID,
+			UserID:    account.OwnerID,
+			Name:      account.Name,
+			Balance:   account.Balance,
+			CreatedAt: account.CreatedAt,
+		})
+	}
+	return nil
+}
+
 func (a *AccountServiceJSONRPCAdaptor) GetAccountByID(r *http.Request, params *GetByIDParams, result *AccountResult) error {
 	ctx := r.Context()
 

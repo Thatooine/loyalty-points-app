@@ -10,6 +10,7 @@ const (
 	processTransactionBatchMethod = "Wallet.ProcessTransactionBatch"
 	earnPointsMethod              = "Wallet.EarnPoints"
 	spendPointsMethod             = "Wallet.SpendPoints"
+	fetchMyAccountsMethod         = "AccountService.FetchMyAccounts"
 	getAccountMethod              = "AccountService.GetAccountByID"
 	getAccountBalanceMethod       = "AccountService.GetAccountBalance"
 	updateAccountNameMethod       = "AccountService.UpdateAccountName"
@@ -43,6 +44,7 @@ func DefaultPolicy() *Policy {
 			earnPointsMethod:              {PermWalletTransactAll},
 			spendPointsMethod:             {PermWalletTransactOwn, PermWalletTransactAll},
 			processTransactionBatchMethod: {PermWalletBatchAll},
+			fetchMyAccountsMethod:         {PermAccountReadOwn, PermAccountReadAll},
 			getAccountMethod:              {PermAccountReadOwn, PermAccountReadAll},
 			getAccountBalanceMethod:       {PermAccountReadOwn, PermAccountReadAll},
 			updateAccountNameMethod:       {PermAccountWriteOwn, PermAccountWriteAll},

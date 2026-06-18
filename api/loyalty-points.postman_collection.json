@@ -271,6 +271,30 @@
           ]
         },
         {
+          "name": "AccountService.FetchMyAccounts",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api",
+              "host": ["{{baseUrl}}"],
+              "path": ["api"]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"AccountService.FetchMyAccounts\",\n  \"params\": [\n    {}\n  ],\n  \"id\": 1\n}"
+            },
+            "description": "Lists every account the caller directly owns. Takes no params — the owner is read from the token, never the wire, so a member only ever sees their own accounts. Admins (account:read:all) read across owners. Returns { result: { accounts: [ { id, user_id, name, balance, created_at }, ... ] } }; an owner with no accounts gets an empty array. Sends Authorization: Bearer {{token}}."
+          }
+        },
+        {
           "name": "AccountService.GetAccountByID",
           "request": {
             "auth": {

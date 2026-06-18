@@ -2,6 +2,16 @@ package accounts
 
 import "github.com/Thatooine/loyalty-points-app/pkg/errs"
 
+func (r *FetchMyAccountsRequest) Validate() error {
+	var reasons []string
+
+	if r.UserID == "" {
+		reasons = append(reasons, "UserID is required")
+	}
+
+	return errs.NewValidationError(reasons)
+}
+
 func (r *ReadAccountRequest) Validate() error {
 	var reasons []string
 

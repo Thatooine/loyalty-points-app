@@ -17,6 +17,22 @@ func NewAccountServiceImpl(accounts pkgAccounts.AccountRepository) *AccountServi
 	return &AccountServiceImpl{accounts: accounts}
 }
 
+func (s *AccountServiceImpl) FetchMyAccounts(ctx context.Context, request pkgAccounts.FetchMyAccountsRequest) (*pkgAccounts.FetchMyAccountsResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")
+		return nil, fmt.Errorf("invalid request for FetchMyAccounts: %w", err)
+	}
+
+	resp, err := s.accounts.List(ctx, pkgAccounts.ListAccountsRequest{
+		UserID: request.UserID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not fetch accounts: %w", err)
+	}
+
+	return &pkgAccounts.FetchMyAccountsResponse{Accounts: resp.Accounts}, nil
+}
+
 func (s *AccountServiceImpl) GetAccountByID(ctx context.Context, request pkgAccounts.ReadAccountRequest) (*pkgAccounts.ReadAccountResponse, error) {
 	if err := request.Validate(); err != nil {
 		log.Ctx(ctx).Error().Err(err).Msg("request validation failed")

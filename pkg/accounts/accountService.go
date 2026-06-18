@@ -3,6 +3,8 @@ package accounts
 import "context"
 
 type AccountService interface {
+	FetchMyAccounts(ctx context.Context, request FetchMyAccountsRequest) (*FetchMyAccountsResponse, error)
+
 	GetAccountByID(ctx context.Context, request ReadAccountRequest) (*ReadAccountResponse, error)
 
 	GetAccountBalance(ctx context.Context, request ReadAccountBalanceRequest) (*ReadAccountBalanceResponse, error)
@@ -10,6 +12,14 @@ type AccountService interface {
 	UpdateAccountName(ctx context.Context, request RenameAccountRequest) (*RenameAccountResponse, error)
 
 	UpdateAccountBalance(ctx context.Context, request AdjustAccountBalanceRequest) (*AdjustAccountBalanceResponse, error)
+}
+
+type FetchMyAccountsRequest struct {
+	UserID string
+}
+
+type FetchMyAccountsResponse struct {
+	Accounts []Account
 }
 
 type ReadAccountRequest struct {

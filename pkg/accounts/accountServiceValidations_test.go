@@ -2,6 +2,15 @@ package accounts
 
 import "testing"
 
+func TestFetchMyAccountsRequest_Validate(t *testing.T) {
+	if err := (&FetchMyAccountsRequest{UserID: "user-1"}).Validate(); err != nil {
+		t.Fatalf("valid request: %v", err)
+	}
+	if err := (&FetchMyAccountsRequest{}).Validate(); err == nil {
+		t.Fatalf("missing UserID: want error")
+	}
+}
+
 func TestReadAccountRequest_Validate(t *testing.T) {
 	if err := (&ReadAccountRequest{AccountID: "acc-1", UserID: "user-1"}).Validate(); err != nil {
 		t.Fatalf("valid request: %v", err)
