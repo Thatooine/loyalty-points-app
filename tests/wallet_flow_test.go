@@ -1,10 +1,13 @@
 package tests
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"strings"
 	"testing"
+
+	"github.com/Thatooine/loyalty-points-app/pkg/postgres"
 )
 
 const (
@@ -56,6 +59,46 @@ func uniqueRef(t *testing.T) string {
 		t.Fatalf("generate unique ref: %v", err)
 	}
 	return "tx-" + hex.EncodeToString(buf)
+}
+
+// TestBalanceDurableAcrossReconnect covers C-4: a committed balance lives in
+// Postgres, not process memory. It writes a balance, then re-reads it through a
+// brand-new connection pool opened after the write — the database-level analogue
+// of a process restart (the spec's allowed "reconnect a fresh pool" form).
+func TestBalanceDurableAcrossReconnect(t *testing.T) {
+	c := setup(t)
+	if c.db == nil {
+		t.Skip("LOYALTY_DB_DSN not set; durability check needs direct DB access")
+	}
+	member := registerMember(t, c)
+	_, adminToken := registerAdmin(t, c)
+
+	earn := c.call(t, earnPointsMethod, map[string]any{
+		"ref":        uniqueRef(t),
+		"account_id": member.AccountID,
+		"points":     250,
+	}, adminToken)
+	requireNoError(t, "EarnPoints", earn)
+
+	if got := remoteBalance(t, c, member.Token, member.AccountID); got != 250 {
+		t.Fatalf("balance after earn = %d, want 250", got)
+	}
+
+	// Reconnect a fresh pool to the same database: the writing connection is gone,
+	// so a balance the new pool can still read proves it was durably committed.
+	fresh, err := postgres.NewClient(context.Background(), testDBDSN)
+	if err != nil {
+		t.Fatalf("reconnect fresh pool: %v", err)
+	}
+	defer fresh.Close()
+
+	var balance int64
+	if err := fresh.QueryRow("SELECT balance FROM accounts WHERE id = $1", member.AccountID).Scan(&balance); err != nil {
+		t.Fatalf("re-read balance from fresh pool: %v", err)
+	}
+	if balance != 250 {
+		t.Errorf("balance read from fresh pool = %d, want 250 (not durable)", balance)
+	}
 }
 
 func registerMember(t *testing.T, c *apiClient) registerResult {

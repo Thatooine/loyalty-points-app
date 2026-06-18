@@ -1,8 +1,8 @@
 # Spec: Loyalty Points Wallet
 
-**Status:** conformance pass run 2026-06-17
+**Status:** conformance pass run 2026-06-18
 **Brief (source of truth):** `scratch/Sanlam _ Senior Software Engineer Assignment.pdf`
-**System under test:** this repository, full suite green against live server + Postgres
+**System under test:** this repository, full suite green against live server + Postgres + Redis
 
 This spec is *derived from* the brief. Each row restates one requirement as a
 testable acceptance criterion, cites where it comes from in the brief, names the
@@ -11,15 +11,16 @@ test that proves it, and records the verdict observed in the conformance run.
 ## How the conformance pass was run
 
 ```bash
-docker compose up -d                       # Postgres
+docker compose up -d                       # Postgres + Redis
 go run ./cmd/app                           # JSON-RPC server on :8080/api
 export TEST_POSTGRES_DSN='postgres://loyalty:loyalty@localhost:5432/loyalty_points?sslmode=disable'
 export LOYALTY_API_URL='http://localhost:8080/api'
+export LOYALTY_DB_DSN='postgres://loyalty:loyalty@localhost:5432/loyalty_points?sslmode=disable'
 go test ./... -count=1                     # every package
-go test ./tests/ -v -count=1               # per-test verdicts (31 integration tests, 0 skips)
+go test ./tests/ -v -count=1               # per-test verdicts (39 integration tests, 0 skips)
 ```
 
-Result: **all packages `ok`; all 31 integration tests RAN and PASSED, zero skips.**
+Result: **all packages `ok`; all 39 integration tests RAN and PASSED, zero skips.**
 The zero-skip part matters — a skipped DB/endpoint test proves nothing, so the
 environment was brought fully up first.
 
@@ -51,7 +52,7 @@ environment was brought fully up first.
 | C-1 | Same reference counted at most once | Constraints | `tests/TestProcessTransactionDuplicateRef` | ✅ |
 | C-2 | No spend may drive balance below zero | Constraints | `tests/TestSpendOverdraftRejected` | ✅ |
 | C-3 | Overlapping requests on one account stay correct | Constraints | `tests/TestConcurrentEarnsNoLostUpdates` (20 concurrent earns → no lost updates), `tests/TestConcurrentSpendsRespectOverdraftFloor` (over-demand spends never breach the floor); both pass under `-race`. Design: single guarded `UPDATE ... WHERE balance + delta >= 0`. | ✅ |
-| C-4 | Data durable across process restarts | Constraints | **No restart test.** Design: Postgres-backed; schema in `pkg/postgres/migrations`, applied on startup. | ⚠️ |
+| C-4 | Data durable across process restarts | Constraints | `tests/TestBalanceDurableAcrossReconnect` (writes a balance, then re-reads it through a fresh connection pool opened after the write — the DB-level analogue of a restart). Postgres-backed; schema in `pkg/postgres/migrations`, applied on startup. | ✅ |
 | C-5 | Request body size is bounded (DoS guard) | Hardening (not in brief) | `tests/TestRequestBodyTooLargeRejected` — body over the 4 MiB cap rejected as `-32602` during the read, before auth/dispatch. Design: `http.MaxBytesReader` in `pkg/authorization/authorizationMiddleware.go`. | ✅ |
 | C-6 | Request rate is bounded per IP / per user (brute-force + DoS guard) | Hardening (not in brief) | `pkg/rateLimiting` middleware tests (`TestIPRateLimiter_*`, `TestUserRateLimiter_*`) — over-limit → HTTP 429 / code `-32006`; under-limit passes; non-targeted methods and claim-less requests bypass; body preserved for downstream. Design: Redis-backed token bucket (`github.com/mennanov/limiters`), IP limiter on the public auth methods + per-user limiter on authenticated traffic, wired in `cmd/app/setupRPCServer.go`. Live 429 verified manually; not in the `tests/` suite because the limit is server-global state and would make the shared-IP suite flaky. | ✅ unit, ⚠️ no integration test |
 
@@ -100,9 +101,9 @@ These are the only open items — the rest of the system conforms with test evid
 1. ~~**C-3 / B-2 concurrency**~~ — ✅ **DONE.** `tests/wallet_concurrency_test.go`
    adds `TestConcurrentEarnsNoLostUpdates` and `TestConcurrentSpendsRespectOverdraftFloor`
    (goroutines + `sync.WaitGroup`, pass under `-race`). C-3 and B-2 are now test-proven.
-2. **C-4 durability** — optional: a test that writes, restarts the process (or
-   reconnects a fresh pool), and re-reads the balance. Low value since Postgres
-   durability is a platform guarantee, but it closes the row honestly.
+2. ~~**C-4 durability**~~ — ✅ **DONE.** `tests/TestBalanceDurableAcrossReconnect`
+   writes a balance and re-reads it through a fresh pool opened after the write
+   (reconnect form), closing the row honestly.
 3. **D-4 video demo** — record before submission. Walk this spec table top to
    bottom as the demo script; each ✅ row is a thing to show live.
 4. **SOLUTION.md** — confirm it includes the A-2 deviation rationale and the

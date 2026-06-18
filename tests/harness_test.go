@@ -22,6 +22,8 @@ import (
 
 const defaultAPIURL = "http://localhost:8080/api"
 
+const testDBDSN = "postgres://loyalty:loyalty@localhost:5432/loyalty_points?sslmode=disable"
+
 type apiClient struct {
 	baseURL string
 	db      *sql.DB // non-nil only when LOYALTY_DB_DSN is set
@@ -42,7 +44,7 @@ func setup(t *testing.T) *apiClient {
 
 	c := &apiClient{baseURL: baseURL}
 
-	if dsn := "postgres://loyalty:loyalty@localhost:5432/loyalty_points?sslmode=disable"; dsn != "" {
+	if dsn := testDBDSN; dsn != "" {
 		db, err := postgres.NewClient(context.Background(), dsn)
 		if err != nil {
 			t.Fatalf("open db: %v", err)

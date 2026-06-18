@@ -19,6 +19,12 @@ A loyalty-points ledger exposed as a JSON-RPC 2.0 API over PostgreSQL:
   token a user holds).
 - **Batch ingestion** — a CLI loads a CSV safely, reports a summary, and audits
   every attempt.
+- **Abuse guards** — request body (4 MiB) and batch size (1000) are bounded, and a
+  Redis-backed rate limiter throttles per-IP on the public auth methods
+  (brute-force) and per-user on authenticated traffic.
+- **Operational** — secrets **fail closed** outside the `local` environment
+  (no baked-in dev key/DSN), and shutdown is graceful (drains in-flight requests
+  before closing the pool).
 
 All three assignment tasks are implemented and covered by unit, adaptor,
 validation, and black-box HTTP integration tests.
@@ -32,6 +38,7 @@ Each choice below lists what it buys and what it costs.
 | Choice | Why | Cost accepted |
 |---|---|---|
 | **PostgreSQL** (over SQLite) | Real row-level locking — the guarded `UPDATE` overdraft floor (§3) serialises overlapping spends on the row, not a process-wide lock. Plus `CHECK` constraints, composite indexes for keyset pagination. | A network dependency and a container. Bought back with `docker compose up` + baked-in defaults (one-command setup). |
+| **Redis** (`mennanov/limiters`) | Backs the rate limiter with a distributed token bucket, so per-IP / per-user limits hold **across instances**, not per-process. A redsync lock keeps each bucket's read-modify-write safe under concurrency. | A second network dependency. Softened in `local`: if Redis is unreachable the server logs a warning and runs with rate limiting disabled; outside `local` `REDIS_URI` is required (fail closed). |
 | **JSON-RPC 2.0** on `gorilla/rpc/v2` | A ledger is a set of *verbs* (`EarnPoints`, `SpendPoints`), not REST resources. Methods auto-register by signature: no dispatcher, no route table. One endpoint → one auth middleware, one log mount, one auditable `method → permissions` policy that fails *closed*. Ordered batches are first-class. | Everything is `POST`, errors return HTTP 200 with the error in the body, no resource caching. Cheap here: calls are commands, not cacheable reads. The gorilla codec can't decode JSON-RPC batch arrays — which nudged batch ingestion toward the single ordered payload I wanted anyway (§5). |
 | **Ports & adapters** | `pkg/<domain>` = interfaces, DTOs, `Validate()`, adaptors; `internal/pkg/<domain>` = Postgres impls. Production code depends only on `pkg`; most tests need no DB; swapping an impl is one line in the wiring file. | More files per capability. Tamed with the `.claude/skills/` scaffolds (§8). |
 | **`pgx/v5` via `database/sql`** | Keeps the stdlib `*sql.DB`/`*sql.Tx` seam (what the executor and `TxManager` build on) while using pgx's driver and pool. Repositories aren't coupled to pgx types. | Forgoes pgx native features (`COPY`, batch pipelining) — none needed here. |
