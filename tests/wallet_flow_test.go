@@ -3,6 +3,7 @@ package tests
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"strings"
 	"testing"
 )
 
@@ -13,6 +14,10 @@ const (
 	spendPointsMethod             = "Wallet.SpendPoints"
 	getBalanceMethod              = "AccountService.GetAccountBalance"
 )
+
+// invalidParamsCode is the JSON-RPC code the server returns for a malformed
+// request (validation failure, body too large): pkg/jsonrpc.CodeInvalidParams.
+const invalidParamsCode = -32602
 
 type walletResult struct {
 	Ref       string `json:"ref"`
@@ -373,6 +378,56 @@ func TestProcessTransactionBatchServerOrders(t *testing.T) {
 
 	if got := remoteBalance(t, c, adminToken, member.AccountID); got != 0 {
 		t.Errorf("balance after earn(100) then spend(100) = %d, want 0", got)
+	}
+}
+
+// A batch larger than the server's cap is rejected wholesale as invalid params,
+// before any insert — so the targeted account is left untouched.
+func TestProcessTransactionBatchExceedsMaxRejected(t *testing.T) {
+	c := setup(t)
+	member := registerMember(t, c)
+	_, adminToken := registerAdmin(t, c)
+
+	// One past the cap (maxBatchSize=1000). Validation fires before processing,
+	// so these refs are never inserted and cannot collide on a rerun.
+	const tooMany = 1001
+	txs := make([]map[string]any, 0, tooMany)
+	for i := 0; i < tooMany; i++ {
+		txs = append(txs, map[string]any{
+			"ref": uniqueRef(t), "account_id": member.AccountID, "kind": "earn", "points": 1,
+		})
+	}
+
+	resp := c.call(t, processTransactionBatchMethod, map[string]any{"transactions": txs}, adminToken)
+	if resp.Error == nil {
+		t.Fatal("oversize batch: expected an invalid-params error, got none")
+	}
+	if resp.Error.Code != invalidParamsCode {
+		t.Errorf("oversize batch: error code = %d, want %d", resp.Error.Code, invalidParamsCode)
+	}
+
+	if got := remoteBalance(t, c, adminToken, member.AccountID); got != 0 {
+		t.Errorf("balance after rejected oversize batch = %d, want 0", got)
+	}
+}
+
+// A request body over the transport cap is rejected during the read, before
+// auth or dispatch — an unauthenticated call to a public method is enough to
+// exercise the guard.
+func TestRequestBodyTooLargeRejected(t *testing.T) {
+	c := setup(t)
+
+	huge := strings.Repeat("a", 5<<20) // 5 MiB, over the 4 MiB body cap
+	resp := c.call(t, loginMethod, map[string]any{"email": huge, "password": "x"}, "")
+
+	if resp.Error == nil {
+		t.Fatal("oversize body: expected an error, got none")
+	}
+	if resp.Error.Code != invalidParamsCode {
+		t.Errorf("oversize body: error code = %d, want %d", resp.Error.Code, invalidParamsCode)
+	}
+	if !strings.Contains(resp.Error.Message, "too large") {
+		t.Errorf("oversize body: message = %q, want it to mention 'too large'", resp.Error.Message)
 	}
 }
 

@@ -194,6 +194,11 @@ func (s *WalletServiceImpl) SpendPoints(ctx context.Context, request pkgWallet.S
 // caller's order. Results are returned in this applied order; callers correlate
 // by Ref, not position.
 func (s *WalletServiceImpl) ProcessTransactionBatch(ctx context.Context, request pkgWallet.ProcessTransactionBatchRequest) (*pkgWallet.ProcessTransactionBatchResponse, error) {
+	if err := request.Validate(); err != nil {
+		log.Ctx(ctx).Warn().Err(err).Msg("batch request validation failed")
+		return nil, fmt.Errorf("invalid request for ProcessTransactionBatch: %w", err)
+	}
+
 	resp := &pkgWallet.ProcessTransactionBatchResponse{
 		Results: make([]pkgWallet.BatchElementResult, 0, len(request.Transactions)),
 	}

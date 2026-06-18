@@ -1,6 +1,28 @@
 package wallets
 
-import "github.com/Thatooine/loyalty-points-app/pkg/errs"
+import (
+	"fmt"
+
+	"github.com/Thatooine/loyalty-points-app/pkg/errs"
+)
+
+// maxBatchSize bounds how many transactions a single batch may carry, so one
+// request cannot enqueue unbounded work. The transport-level body-size limit is
+// the first line of defence; this is the explicit semantic cap.
+const maxBatchSize = 1000
+
+func (r *ProcessTransactionBatchRequest) Validate() error {
+	var reasons []string
+
+	switch {
+	case len(r.Transactions) == 0:
+		reasons = append(reasons, "batch must contain at least one transaction")
+	case len(r.Transactions) > maxBatchSize:
+		reasons = append(reasons, fmt.Sprintf("batch exceeds maximum of %d transactions", maxBatchSize))
+	}
+
+	return errs.NewValidationError(reasons)
+}
 
 func (r *ProcessTransactionRequest) Validate() error {
 	var reasons []string

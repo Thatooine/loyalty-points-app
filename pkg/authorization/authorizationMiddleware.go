@@ -3,6 +3,7 @@ package authorization
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,13 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/jsonrpc"
 )
 
+// maxRequestBodyBytes caps the request body this middleware will read into
+// memory. It runs before authentication, so without it an unauthenticated
+// caller could stream an arbitrarily large body through io.ReadAll. The limit
+// is generous relative to the largest legitimate batch (whose element count is
+// separately bounded by ProcessTransactionBatchRequest.Validate).
+const maxRequestBodyBytes = 4 << 20 // 4 MiB
+
 // Method gating here is all-or-nothing; own-vs-all scope is resolved later by
 // the data layer from the claim's permissions (see IsGranted).
 func NewAuthorizationMiddleware(accessTokenService authentication.AccessTokenValidator, policy *Policy) func(http.Handler) http.Handler {
@@ -20,9 +28,17 @@ func NewAuthorizationMiddleware(accessTokenService authentication.AccessTokenVal
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
-			// Restore the body after reading so the JSON-RPC codec can read it again.
+			// Cap the body before reading it all into memory, then restore it so the
+			// JSON-RPC codec can read it again.
+			r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
+				var maxErr *http.MaxBytesError
+				if errors.As(err, &maxErr) {
+					log.Ctx(ctx).Warn().Int64("limit", maxErr.Limit).Msg("authorization: request body too large")
+					jsonrpc.WriteError(w, nil, jsonrpc.CodeInvalidParams, "request body too large", "body_too_large")
+					return
+				}
 				log.Ctx(ctx).Warn().Err(err).Msg("authorization: could not read request body")
 				jsonrpc.WriteError(w, nil, jsonrpc.CodeParseError, "could not read request body", "parse")
 				return

@@ -21,12 +21,18 @@ import (
 )
 
 // defaultPostgresDSN mirrors cmd/app's default so bootstrap works out of the box
-// against the docker-compose container.
+// against the docker-compose container. Used only in the local environment.
 const defaultPostgresDSN = "postgres://loyalty:loyalty@localhost:5432/loyalty_points?sslmode=disable"
 
 const systemUserEmail = "system@mail.com"
 
-const systemUserPassword = "admin-user-123"
+// envLocal is the default environment. Outside local, bootstrap refuses to run
+// with the baked dev credentials and requires them via env vars (fail closed).
+const envLocal = "local"
+
+// devSystemUserPassword is the well-known admin password used ONLY in the local
+// environment. Any other environment must supply BOOTSTRAP_ADMIN_PASSWORD.
+const devSystemUserPassword = "admin-user-123"
 
 // schema_migrations is deliberately excluded so the schema (and applied-migration
 // record) is preserved across a wipe.
@@ -44,9 +50,30 @@ func main() {
 }
 
 func run(ctx context.Context) error {
+	env := os.Getenv("APP_ENV")
+	if env == "" {
+		env = envLocal
+	}
+
 	dsn := os.Getenv("POSTGRES_DSN")
-	if dsn == "" {
-		dsn = defaultPostgresDSN
+	password := os.Getenv("BOOTSTRAP_ADMIN_PASSWORD")
+
+	// Local gets the baked dev defaults; any real environment must supply its own
+	// DSN and admin password or bootstrap refuses to run.
+	if env == envLocal {
+		if dsn == "" {
+			dsn = defaultPostgresDSN
+		}
+		if password == "" {
+			password = devSystemUserPassword
+		}
+	} else {
+		if dsn == "" {
+			return fmt.Errorf("POSTGRES_DSN is required outside the local environment")
+		}
+		if password == "" {
+			return fmt.Errorf("BOOTSTRAP_ADMIN_PASSWORD is required outside the local environment")
+		}
 	}
 
 	db, err := postgres.NewClient(ctx, dsn)
@@ -66,7 +93,7 @@ func run(ctx context.Context) error {
 	}
 	log.Info().Strs("tables", dataTables).Msg("wiped all data tables")
 
-	if err := createSystemUser(ctx, db); err != nil {
+	if err := createSystemUser(ctx, db, password); err != nil {
 		return fmt.Errorf("could not create system user: %w", err)
 	}
 	// Password is a fixed well-known constant, so it is deliberately not logged.
@@ -90,8 +117,8 @@ func wipeTables(ctx context.Context, db *sql.DB) error {
 // createSystemUser writes the row with direct SQL rather than the user
 // repository so it bypasses ownership-scoping and validation: bootstrap is
 // operator tooling that owns the database.
-func createSystemUser(ctx context.Context, db *sql.DB) error {
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(systemUserPassword), bcrypt.DefaultCost)
+func createSystemUser(ctx context.Context, db *sql.DB, password string) error {
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return fmt.Errorf("could not hash password: %w", err)
 	}

@@ -215,6 +215,12 @@ func (a *WalletServiceJSONRPCAdaptor) ProcessTransactionBatch(r *http.Request, p
 	resp, err := a.walletService.ProcessTransactionBatch(ctx, batch)
 	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Msg("wallet: process transaction batch failed")
+		// A bad batch shape (empty/oversize) is a client error: surface it as the
+		// invalid-argument mapping with its reasons rather than masking it as
+		// internal, consistent with the single-transaction path above.
+		if errors.Is(err, errs.ErrInvalidArgument) {
+			return err
+		}
 		return errs.WithMessage(errs.ErrInternal, "could not process transaction batch")
 	}
 

@@ -5,12 +5,20 @@ import (
 	"github.com/spf13/viper"
 )
 
+// EnvLocal is the default environment. It is the only environment in which the
+// baked dev defaults (DSN + JWT signing key) are permitted; every other value
+// is treated as a real deployment that must supply its own secrets via env vars
+// or startup fails.
+const EnvLocal = "local"
+
 func init() {
+	viper.MustBindEnv("Environment", "APP_ENV")
 	viper.MustBindEnv("JWTPrivateKeyPEM", "JWT_PRIVATE_KEY_PEM")
 	viper.MustBindEnv("PostgresDSN", "POSTGRES_DSN")
 }
 
 type Config struct {
+	Environment string
 	PostgresDSN string
 }
 
@@ -21,8 +29,23 @@ type SecureConfig struct {
 }
 
 func GetConfig(configFileName string) (*Config, *SecureConfig) {
-	viper.SetDefault("PostgresDSN", "postgres://loyalty:loyalty@localhost:5432/loyalty_points?sslmode=disable")
-	viper.SetDefault("JWTPrivateKeyPEM", `-----BEGIN PRIVATE KEY-----
+	viper.SetDefault("Environment", EnvLocal)
+
+	if configFileName != "" {
+		viper.SetConfigFile(configFileName)
+		if err := viper.ReadInConfig(); err != nil {
+			log.Warn().Err(err).Msg("could not read configuration file")
+		}
+	}
+
+	// Baked defaults are scoped to the local environment only. Outside local we
+	// deliberately leave secrets unset so the fail-closed check below catches a
+	// missing key/DSN rather than silently signing tokens with a key from source
+	// control.
+	env := viper.GetString("Environment")
+	if env == EnvLocal {
+		viper.SetDefault("PostgresDSN", "postgres://loyalty:loyalty@localhost:5432/loyalty_points?sslmode=disable")
+		viper.SetDefault("JWTPrivateKeyPEM", `-----BEGIN PRIVATE KEY-----
 MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQCsTXWAE1NG6IVw
 8Q/QkUbSGsNaHAgmtAXHvR79BTXziNMWU7iKBDdpXNZN6zmKsWxcoAu4y5DVKk5p
 ws3fN6CBlRcDkoQJdMsOZUDcpgwlpCibzH6DfoGIa1/uhtnToNAkGVQdmlxTlVlW
@@ -50,12 +73,6 @@ cytJWpzYT+v3bEKgFQfNUSGANqcL3TS+vPztXhlatZw2+CSUPhpXThcW7QYMvWIo
 jRvMpx1lmh8Ygs1z15swWknJVUy1twdYKV/lyvjIn4VGdN8awBB5LhzPgDHiS0Q0
 BaJssnoLm4Izls0Q87EHQ93fFw==
 -----END PRIVATE KEY-----`)
-
-	if configFileName != "" {
-		viper.SetConfigFile(configFileName)
-		if err := viper.ReadInConfig(); err != nil {
-			log.Warn().Err(err).Msg("could not read configuration file")
-		}
 	}
 
 	// parse configuration
@@ -68,6 +85,18 @@ BaJssnoLm4Izls0Q87EHQ93fFw==
 	if err := viper.Unmarshal(secureConf); err != nil {
 		log.Fatal().Err(err).Msg("could not unmarshal secure configuration")
 	}
+
+	// Fail closed outside local: a real deployment must provide its own secrets.
+	if env != EnvLocal {
+		if secureConf.JWTPrivateKeyPEM == "" {
+			log.Fatal().Str("env", env).Msg("JWT_PRIVATE_KEY_PEM is required outside the local environment")
+		}
+		if conf.PostgresDSN == "" {
+			log.Fatal().Str("env", env).Msg("POSTGRES_DSN is required outside the local environment")
+		}
+	}
+
+	log.Info().Str("env", env).Msg("configuration loaded")
 
 	return conf, secureConf
 }

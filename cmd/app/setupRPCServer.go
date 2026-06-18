@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -21,7 +22,7 @@ import (
 	"github.com/Thatooine/loyalty-points-app/pkg/wallets"
 )
 
-func setupRPCServer(providers ServiceProviders) {
+func setupRPCServer(providers ServiceProviders) *http.Server {
 	port := 8080
 
 	router := mux.NewRouter()
@@ -44,24 +45,32 @@ func setupRPCServer(providers ServiceProviders) {
 	// start the http server
 	addr := fmt.Sprintf("0.0.0.0:%d", port)
 	log.Info().Msg(fmt.Sprintf("Starting JSON-RPC server on: %s", addr))
+
+	server := &http.Server{
+		Handler:           router,
+		Addr:              addr,
+		WriteTimeout:      150 * time.Second,
+		ReadTimeout:       150 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	// Bind the listener up front so "ready to serve" is logged only once the
+	// port is actually accepting connections (a bind failure logs and exits).
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatal().Err(err).Msg("error starting json rpc server")
+	}
+	log.Info().Msg(fmt.Sprintf("JSON-RPC server ready to serve on: %s", addr))
+
 	go func() {
-		server := &http.Server{
-			Handler:      router,
-			Addr:         addr,
-			WriteTimeout: 150 * time.Second,
-			ReadTimeout:  150 * time.Second,
-		}
-		// Bind the listener up front so "ready to serve" is logged only once the
-		// port is actually accepting connections (a bind failure logs and exits).
-		listener, err := net.Listen("tcp", addr)
-		if err != nil {
-			log.Fatal().Err(err).Msg("error starting json rpc server")
-		}
-		log.Info().Msg(fmt.Sprintf("JSON-RPC server ready to serve on: %s", addr))
-		if err := server.Serve(listener); err != nil {
-			log.Fatal().Err(err).Msg("error starting json rpc server")
+		// ErrServerClosed is the expected signal from a graceful Shutdown, not a
+		// failure, so it must not trigger Fatal.
+		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatal().Err(err).Msg("error serving json rpc server")
 		}
 	}()
+
+	return server
 }
 
 func newJSONRPCServer(services []jsonrpc.Service) *rpc.Server {
