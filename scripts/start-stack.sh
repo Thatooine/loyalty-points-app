@@ -31,6 +31,11 @@ for cmd in docker go; do
   fi
 done
 
+log "Starting the stack (existing data is preserved)"
+echo "First time running the stack? The database has no admin user yet — run"
+echo "./scripts/reset-stack.sh instead, which seeds system@mail.com before starting."
+sleep 2
+
 log "Starting PostgreSQL + Redis (docker compose up -d)"
 docker compose up -d
 
