@@ -52,6 +52,7 @@ environment was brought fully up first.
 | C-2 | No spend may drive balance below zero | Constraints | `tests/TestSpendOverdraftRejected` | ✅ |
 | C-3 | Overlapping requests on one account stay correct | Constraints | `tests/TestConcurrentEarnsNoLostUpdates` (20 concurrent earns → no lost updates), `tests/TestConcurrentSpendsRespectOverdraftFloor` (over-demand spends never breach the floor); both pass under `-race`. Design: single guarded `UPDATE ... WHERE balance + delta >= 0`. | ✅ |
 | C-4 | Data durable across process restarts | Constraints | **No restart test.** Design: Postgres-backed; schema in `pkg/postgres/migrations`, applied on startup. | ⚠️ |
+| C-5 | Request body size is bounded (DoS guard) | Hardening (not in brief) | `tests/TestRequestBodyTooLargeRejected` — body over the 4 MiB cap rejected as `-32602` during the read, before auth/dispatch. Design: `http.MaxBytesReader` in `pkg/authorization/authorizationMiddleware.go`. | ✅ |
 
 ## Task 2 — Access control
 
@@ -78,6 +79,7 @@ environment was brought fully up first.
 | B-2 | Apply safely even on close-together rows or a reprocessed file | Task 3 | Idempotency reused from C-1; ordering `tests/TestProcessTransactionBatchServerOrders`; concurrency safety shares C-3's `TestConcurrentSpendsRespectOverdraftFloor` | ✅ |
 | B-3 | Produce a summary: processed, accepted, rejected, duplicates | Task 3 | `cmd/cli/pkg/ingest/TestSummarize`, `TestSummarize_WholeBatchError`, `TestSummary_FormatDryRun` | ✅ |
 | B-4 | Audit trail per attempt with reason + timestamp | Task 3 | `tests/TestListAuditByTransactionRefEndpoint`; `internal/pkg/audit/TestServiceFetchTransactionAuditTrail_HappyPath` | ✅ |
+| B-5 | Batch size is bounded so one request can't enqueue unbounded work | Hardening (not in brief) | `tests/TestProcessTransactionBatchExceedsMaxRejected` — a batch past `maxBatchSize` (1000) rejected wholesale as `-32602`, balance untouched. Design: `ProcessTransactionBatchRequest.Validate()` in `pkg/wallets`. | ✅ |
 
 ## Deliverables
 

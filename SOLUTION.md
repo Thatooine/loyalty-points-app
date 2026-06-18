@@ -280,6 +280,36 @@ the same change. So `CLAUDE.md` carries architecture and gotchas, `.claude/skill
 encode per-layer mechanics, and `SPEC.md` is the acceptance contract — together
 keeping changes structurally consistent and provably conformant.
 
+### Test-driven, conformance-checked
+
+The workflow treats a behavior as unfinished until a test exercises it *and is
+observed to run* — not merely written. Two conventions, both encoded in the test
+skills, make that real:
+
+- **Happy-path AND every error branch.** `go-unit-tests` requires the success case
+  plus each failure mode (table-driven validations, mock-first service logic). The
+  `endpoint-integration-test` skill adds a **dual assertion** — wire response *and*
+  persisted rows — and a set of **mandatory negative cases** (unauthenticated,
+  foreign/ownership-scoped, overdraft, privilege gate). A method isn't "covered"
+  until those exist.
+- **A skipped test proves nothing.** DB and endpoint tests skip cleanly when no
+  server/DB is reachable, so a green `go test ./...` can be *all skips*. The
+  conformance pass therefore brings the stack fully up and confirms tests actually
+  **RAN** with zero skips (recorded in `SPEC.md`'s header). This gotcha is in
+  `CLAUDE.md` precisely because the failure is silent.
+
+This loop also **catches defects the model would otherwise hide.** The recent
+resource-bound hardening is the clearest example: I added a 4 MiB body cap and a
+1000-row batch cap, then drove each with a live integration test
+(`TestRequestBodyTooLargeRejected`, `TestProcessTransactionBatchExceedsMaxRejected`,
+now mapped as spec rows C-5/B-5). Running them against a real server surfaced that
+the batch adaptor was collapsing *every* service error — including the new
+validation error — into a generic `-32603 internal`, masking the very guard under
+test. The fix (surface `ErrInvalidArgument` directly, like the single-transaction
+path) only became visible *because* the test asserted the precise wire code rather
+than "some error". Asserting the exact error contract, not just failure, is what
+turned the test into a bug detector.
+
 ### How I steered the rest
 
 I accepted the model's scaffolding, SQL boilerplate, and test stubs readily. I owned
