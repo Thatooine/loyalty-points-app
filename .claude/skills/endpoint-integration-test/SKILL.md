@@ -7,7 +7,7 @@ description: Write a black-box HTTP/JSON-RPC integration test in the tests/ pack
 
 These are black-box tests that POST real JSON-RPC to a running server (default `http://localhost:8080/api`) and, when a DB DSN is reachable, assert the persisted rows too. They **skip cleanly** when the server is unreachable so `go test ./...` stays green without a stack.
 
-**Spec linkage.** The product spec in `docs/specs/` (e.g. `loyalty-wallet.md`) maps each requirement to the integration test that proves it. When the test you're writing proves a spec acceptance criterion, name that test in the spec's requirement→test mapping (and add the row if the requirement isn't yet covered). A spec row with no passing test proves nothing — close that gap here.
+**Spec linkage.** The product spec in `SPEC.md` maps each requirement to the integration test that proves it. When the test you're writing proves a spec acceptance criterion, name that test in the spec's requirement→test mapping (and add the row if the requirement isn't yet covered). A spec row with no passing test proves nothing — close that gap here.
 
 Add new tests to the existing files — `tests/wallet_flow_test.go` for wallet methods, `tests/account_flow_test.go` for account methods. Reuse the shared harness; don't re-declare it.
 

@@ -28,7 +28,7 @@ take-home* (`scratch/Sanlam … Assignment.pdf`).
 
 ## Spec (authoritative)
 
-The product spec lives in `docs/specs/` (currently `docs/specs/loyalty-wallet.md`). It restates the
+The product spec lives at `SPEC.md` (project root). It restates the
 brief as testable acceptance criteria and maps each to the test that proves it, with a recorded
 conformance verdict (✅ test-proven / ⚠️ by-design / 📄 doc deliverable).
 
@@ -95,7 +95,7 @@ pkg/                — PORTS: interfaces, DTOs, Validate(), JSON-RPC adaptors
   postgres/         — driver, migrations (embedded), SQLSTATE helpers
   time/             — RFC3339Nano UTC TEXT format
 tests/              — black-box HTTP/JSON-RPC integration tests (need running server)
-docs/specs/         — authoritative spec + conformance verdicts
+SPEC.md             — authoritative spec + conformance verdicts (project root)
 ```
 
 When adding a repository/service method you touch **both** sides: interface + DTO + `Validate()` in

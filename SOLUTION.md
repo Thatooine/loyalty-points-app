@@ -470,7 +470,7 @@ lockstep.
 
 ### Spec as the conformance contract
 
-The brief is restated as a testable spec in `docs/specs/loyalty-wallet.md`: each
+The brief is restated as a testable spec in `SPEC.md`: each
 row turns one requirement into an acceptance criterion, cites its origin in the
 brief, names the test that proves it, and records a verdict (✅ test-proven /
 ⚠️ by-design / 📄 doc deliverable). It is the bridge between "what the assignment
@@ -486,7 +486,7 @@ ledger rule, an error semantic — an agent is instructed to read the relevant
 spec row and conform to it, and if a change alters documented behavior, to update
 the spec and its test mapping *in the same change*. So `CLAUDE.md` carries the
 architecture and gotchas an agent needs to work safely, the `.claude/skills/`
-encode the per-layer mechanics, and `docs/specs/` is the acceptance contract the
+encode the per-layer mechanics, and `SPEC.md` is the acceptance contract the
 result is checked against — the three together keep generated changes both
 structurally consistent and provably conformant.
 

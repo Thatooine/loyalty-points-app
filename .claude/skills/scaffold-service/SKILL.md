@@ -7,7 +7,7 @@ description: Given a domain SERVICE or CAPABILITY interface (anything whose name
 
 A **service** (a.k.a. capability) is not a repository. A repository persists one entity (SQL, `ExecutorFromContext`, ownership scoping in the query). A service orchestrates the **domain policy the repository deliberately omits** — defaulting fields, pinning the owner to the caller, composing several repository calls inside one unit of work — over the `pkg` repository *interfaces*. It writes **no SQL**.
 
-**Spec first.** The domain policy a service encodes is exactly what the product spec in `docs/specs/` (e.g. `loyalty-wallet.md`) governs. Read the relevant acceptance criteria before scaffolding, make the orchestration conform, and update the spec and its test mapping if the service adds or changes spec-described behavior.
+**Spec first.** The domain policy a service encodes is exactly what the product spec in `SPEC.md` governs. Read the relevant acceptance criteria before scaffolding, make the orchestration conform, and update the spec and its test mapping if the service adds or changes spec-described behavior.
 
 Trigger this skill when the target interface's name ends in `Service`, reads as a capability (`AccountOpener`, `UserRegistration`, `PointsExpirer`, `RewardRedeemer`…), or the user explicitly says "service" / "capability". For plain entity CRUD persistence use `scaffold-crud-repository` instead.
 
