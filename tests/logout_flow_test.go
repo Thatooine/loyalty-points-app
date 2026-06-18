@@ -30,11 +30,54 @@ func TestLogoutRevokesToken(t *testing.T) {
 
 	out := c.call(t, logoutMethod, map[string]any{}, member.Token)
 	requireNoError(t, "Logout", out)
+	var logout struct {
+		OK bool `json:"ok"`
+	}
+	mustUnmarshal(t, out.Result, &logout)
+	if !logout.OK {
+		t.Errorf("Logout: ok = %v, want true", logout.OK)
+	}
 
 	after := c.call(t, getBalanceMethod, map[string]any{"account_id": member.AccountID}, member.Token)
 	if after.Error == nil {
 		t.Fatal("GetAccountBalance after logout: expected unauthorized error, got none")
 	}
+
+	if c.db == nil {
+		t.Log("LOYALTY_DB_DSN not set; skipping token_version assertion")
+		return
+	}
+	var version int
+	row := c.db.QueryRow("SELECT token_version FROM users WHERE id = $1", member.UserID)
+	if err := row.Scan(&version); err != nil {
+		t.Fatalf("query token_version: %v", err)
+	}
+	if version < 1 {
+		t.Errorf("token_version = %d after logout, want >= 1 (the bump that revokes outstanding tokens)", version)
+	}
+}
+
+// Logout revokes outstanding tokens but does not lock the account: the user can
+// log in again and the fresh token is accepted. (This is why the Postman/Requestly
+// collection clears {{token}} on logout and tells you to re-run Login.)
+func TestLoginWorksAfterLogout(t *testing.T) {
+	c := setup(t)
+	member := registerMember(t, c)
+
+	out := c.call(t, logoutMethod, map[string]any{}, member.Token)
+	requireNoError(t, "Logout", out)
+
+	if revoked := c.call(t, getBalanceMethod, map[string]any{"account_id": member.AccountID}, member.Token); revoked.Error == nil {
+		t.Fatal("old token after logout: expected unauthorized error, got none")
+	}
+
+	fresh := loginToken(t, c, member.Email)
+	if fresh == member.Token {
+		t.Fatal("fresh login returned the same (revoked) token")
+	}
+
+	resp := c.call(t, getBalanceMethod, map[string]any{"account_id": member.AccountID}, fresh)
+	requireNoError(t, "GetAccountBalance with fresh token after re-login", resp)
 }
 
 // A single logout revokes all of a user's sessions, because token_version is

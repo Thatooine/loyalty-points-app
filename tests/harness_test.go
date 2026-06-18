@@ -1,6 +1,7 @@
 // Package tests holds black-box JSON-RPC integration tests run over HTTP against
-// an already-running server, configured via LOYALTY_API_URL and LOYALTY_DB_DSN.
-// If the server is unreachable the tests skip rather than fail.
+// an already-running server. The server URL is taken from LOYALTY_API_URL
+// (default http://localhost:8080/api); the database is opened at the hardcoded
+// testDBDSN. If the server is unreachable the tests skip rather than fail.
 package tests
 
 import (
@@ -26,7 +27,7 @@ const testDBDSN = "postgres://loyalty:loyalty@localhost:5432/loyalty_points?sslm
 
 type apiClient struct {
 	baseURL string
-	db      *sql.DB // non-nil only when LOYALTY_DB_DSN is set
+	db      *sql.DB // opened by setup at testDBDSN; the c.db == nil checks are defensive
 }
 
 // setup skips the test when the server is unreachable.
