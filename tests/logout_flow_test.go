@@ -44,7 +44,7 @@ func TestLogoutRevokesToken(t *testing.T) {
 	}
 
 	if c.db == nil {
-		t.Log("LOYALTY_DB_DSN not set; skipping token_version assertion")
+		t.Log("database unavailable; skipping token_version assertion")
 		return
 	}
 	var version int

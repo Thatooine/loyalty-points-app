@@ -135,7 +135,7 @@ func (r *UserRepositoryImpl) GetByEmail(ctx context.Context, request pkgUsers.Ge
 
 	// Ownership scoping on the id column, mirroring GetByID. The login flow has
 	// no claim yet, so IsGranted returns false and the scope branch is entered;
-	// it passes SystemUserID, which is exempt so the lookup still resolves any
+	// it passes RootUserID, which is exempt so the lookup still resolves any
 	// email. A caller holding user:read:all is likewise unscoped; everyone else
 	// is restricted to their own record.
 	query := `SELECT id, email, password_hash, role, created_at, token_version

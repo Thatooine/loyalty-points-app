@@ -50,7 +50,7 @@ func registerAdmin(t *testing.T, c *apiClient) (registerResult, string) {
 	t.Helper()
 	admin := registerMember(t, c)
 	if c.db == nil {
-		t.Skip("LOYALTY_DB_DSN not set; admin promotion requires direct DB access")
+		t.Skip("database unavailable; admin promotion requires direct DB access")
 	}
 	if _, err := c.db.Exec("UPDATE users SET role = 'admin' WHERE id = $1", admin.UserID); err != nil {
 		t.Fatalf("promote user to admin: %v", err)

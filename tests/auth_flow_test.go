@@ -74,7 +74,7 @@ func TestRegisterThenLogin(t *testing.T) {
 	}
 
 	if c.db == nil {
-		t.Log("LOYALTY_DB_DSN not set; skipping direct DB assertions")
+		t.Log("database unavailable; skipping direct DB assertions")
 		return
 	}
 

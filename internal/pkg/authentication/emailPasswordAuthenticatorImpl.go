@@ -43,12 +43,14 @@ func (s *EmailPasswordAuthenticatorImpl) Authenticate(ctx context.Context, reque
 	}
 
 	// Login runs before any claim exists, so it acts as the system principal: the
-	// user repository exempts SystemUserID from ownership scoping, letting the
+	// user repository exempts RootUserID from ownership scoping, letting the
 	// lookup resolve any email.
-	userResp, err := s.userRepository.GetByEmail(ctx, pkgUsers.GetUserByEmailRequest{
-		Email:  request.Email,
-		UserID: pkgUsers.RootUserID,
-	})
+	userResp, err := s.userRepository.GetByEmail(
+		ctx,
+		pkgUsers.GetUserByEmailRequest{
+			Email:  request.Email,
+			UserID: pkgUsers.RootUserID,
+		})
 	if err != nil {
 		if errors.Is(err, errs.ErrNotFound) {
 			log.Ctx(ctx).Warn().Str("email", request.Email).Msg("authentication failed: no user for email")

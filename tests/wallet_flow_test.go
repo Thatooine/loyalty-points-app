@@ -68,7 +68,7 @@ func uniqueRef(t *testing.T) string {
 func TestBalanceDurableAcrossReconnect(t *testing.T) {
 	c := setup(t)
 	if c.db == nil {
-		t.Skip("LOYALTY_DB_DSN not set; durability check needs direct DB access")
+		t.Skip("database unavailable; durability check needs direct DB access")
 	}
 	member := registerMember(t, c)
 	_, adminToken := registerAdmin(t, c)
@@ -168,7 +168,7 @@ func TestEarnPointsEndpoint(t *testing.T) {
 
 	// owner_id is the account owner (member); created_by is the acting admin.
 	if c.db == nil {
-		t.Log("LOYALTY_DB_DSN not set; skipping direct DB assertions")
+		t.Log("database unavailable; skipping direct DB assertions")
 		return
 	}
 	var (
@@ -233,7 +233,7 @@ func TestSpendPointsEndpoint(t *testing.T) {
 	}
 
 	if c.db == nil {
-		t.Log("LOYALTY_DB_DSN not set; skipping direct DB assertions")
+		t.Log("database unavailable; skipping direct DB assertions")
 		return
 	}
 	// Invariant: the materialised balance equals the sum of the ledger.
@@ -269,7 +269,7 @@ func TestSpendOverdraftRejected(t *testing.T) {
 	}
 
 	if c.db == nil {
-		t.Log("LOYALTY_DB_DSN not set; skipping direct DB assertions")
+		t.Log("database unavailable; skipping direct DB assertions")
 		return
 	}
 	var n int
@@ -322,7 +322,7 @@ func TestProcessTransactionDuplicateRef(t *testing.T) {
 	}
 
 	if c.db == nil {
-		t.Log("LOYALTY_DB_DSN not set; skipping direct DB assertions")
+		t.Log("database unavailable; skipping direct DB assertions")
 		return
 	}
 	var n int
