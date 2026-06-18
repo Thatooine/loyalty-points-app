@@ -30,9 +30,11 @@ const (
 	PermUserReadOwn = "user:read:own"
 	PermUserReadAll = "user:read:all"
 
-	// PermWalletTransactOwn does NOT authorize crediting: ProcessTransaction and
-	// EarnPoints are operator-only, so the only transact method it unlocks is
-	// SpendPoints. A member must not be able to mint points into their own account.
+	// PermWalletTransactOwn authorizes a member to earn and spend on their OWN
+	// account (EarnPoints / SpendPoints); the data layer scopes the account to the
+	// caller, so the action can only land on accounts they own. The generic
+	// ProcessTransaction and batch ingestion stay operator-only — they require
+	// PermWalletTransactAll / PermWalletBatchAll.
 	PermWalletTransactOwn = "wallet:transact:own"
 	PermWalletTransactAll = "wallet:transact:all"
 

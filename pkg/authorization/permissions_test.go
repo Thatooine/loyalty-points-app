@@ -41,6 +41,24 @@ func TestPolicy_Authorize(t *testing.T) {
 			wantScope: scope.All,
 		},
 		{
+			name:   "member can earn on own account",
+			perms:  []string{PermWalletTransactOwn},
+			method: earnPointsMethod,
+			wantOK: true,
+		},
+		{
+			name:   "member can spend on own account",
+			perms:  []string{PermWalletTransactOwn},
+			method: spendPointsMethod,
+			wantOK: true,
+		},
+		{
+			name:   "member cannot use the generic ProcessTransaction",
+			perms:  []string{PermWalletTransactOwn},
+			method: processTransactionMethod,
+			wantOK: false,
+		},
+		{
 			name:   "member cannot run batch ingestion",
 			perms:  []string{PermWalletTransactOwn, PermAccountReadOwn},
 			method: processTransactionBatchMethod,

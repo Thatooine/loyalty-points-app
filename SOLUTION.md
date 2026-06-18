@@ -13,8 +13,8 @@ A loyalty-points ledger exposed as a JSON-RPC 2.0 API over PostgreSQL:
 - **Earn / spend** — recorded against an account with a running balance.
 - **Idempotency** — the same transaction `ref` never counts twice.
 - **Overdraft floor** — a spend can never drive a balance below zero.
-- **Access control** — `member` / `admin` roles in two layers; only operators
-  credit points, members may only spend from their own account.
+- **Access control** — `member` / `admin` roles in two layers; members earn and
+  spend on their own account, while generic and bulk crediting stay operator-only.
 - **Sessions** — 1h JWTs with server-side revocation (logout invalidates every
   token a user holds).
 - **Batch ingestion** — a CLI loads a CSV safely, reports a summary, and audits
@@ -137,11 +137,12 @@ Breadth is enforced in the data layer: a repository calls
 `authorization.IsGranted(ctx, Perm…All)`; without `:all` the SQL is scoped to
 `owner_id = $UserID`, so a non-owner gets `ErrNotFound` — no existence leak.
 Permissions are `resource:action:scope` strings; roles map to a fixed, no-wildcard
-set in `permissions.go`. Crediting is operator-only: `EarnPoints` and
-`ProcessTransaction` need `wallet:transact:all` (admins only); a member's
-`wallet:transact:own` unlocks `SpendPoints` against their own account — they cannot
-mint points. The acting `UserID` always comes from the verified claim, never the
-client payload.
+set in `permissions.go`. A member's `wallet:transact:own` unlocks both `EarnPoints`
+and `SpendPoints`, and the data-layer scoping confines them to accounts they own.
+The generic `ProcessTransaction` (arbitrary `kind`) and batch ingestion need the
+all-scoped `wallet:transact:all` / `wallet:batch:all`, so bulk and arbitrary
+crediting stay operator-only. The acting `UserID` always comes from the verified
+claim, never the client payload.
 
 ### Becoming an admin
 
@@ -248,7 +249,7 @@ isn't repeated:
   Layer 1 — §4);
 - "never check-then-insert for idempotency" and "rejected audit rows go on the plain
   context" (the two invariants that look right but quietly break — §3);
-- "members cannot earn" (the deliberate deviation, A-2 — §4).
+- "members transact their own account; generic/bulk crediting is operator-only" (A-2 — §4).
 
 A **Recent History** table also tracks notable commits so an agent grasps direction
 without spelunking the log.
@@ -286,8 +287,8 @@ half-doing a neighbouring layer. This was the biggest lever on consistency.
 The brief is restated as a testable spec in `SPEC.md`: each row turns a requirement
 into an acceptance criterion, cites its origin, names the proving test, and records
 a verdict (✅ test-proven / ⚠️ by-design / 📄 doc deliverable) — including honest gaps
-(C-4 durability is ⚠️) and the deliberate deviation (A-2: members spend but can't
-earn). `CLAUDE.md` makes it **authoritative**: before changing wallet behavior an
+(C-4 durability is ⚠️) and design notes (A-2: members earn/spend their own account,
+generic/bulk crediting stays operator-only). `CLAUDE.md` makes it **authoritative**: before changing wallet behavior an
 agent reads the relevant row and conforms, updating the spec and its test mapping in
 the same change. So `CLAUDE.md` carries architecture and gotchas, `.claude/skills/`
 encode per-layer mechanics, and `SPEC.md` is the acceptance contract — together

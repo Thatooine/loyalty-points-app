@@ -17,10 +17,10 @@ export TEST_POSTGRES_DSN='postgres://loyalty:loyalty@localhost:5432/loyalty_poin
 export LOYALTY_API_URL='http://localhost:8080/api'
 export LOYALTY_DB_DSN='postgres://loyalty:loyalty@localhost:5432/loyalty_points?sslmode=disable'
 go test ./... -count=1                     # every package
-go test ./tests/ -v -count=1               # per-test verdicts (39 integration tests, 0 skips)
+go test ./tests/ -v -count=1               # per-test verdicts (40 integration tests, 0 skips)
 ```
 
-Result: **all packages `ok`; all 39 integration tests RAN and PASSED, zero skips.**
+Result: **all packages `ok`; all 40 integration tests RAN and PASSED, zero skips.**
 The zero-skip part matters — a skipped DB/endpoint test proves nothing, so the
 environment was brought fully up first.
 
@@ -61,17 +61,17 @@ environment was brought fully up first.
 | ID | Criterion (from brief) | Source | Test (evidence) | Verdict |
 |----|------------------------|--------|-----------------|---------|
 | A-1 | At least two roles: member and admin | Task 2 | `pkg/authorization/TestPermissionsForRole`, `TestRolePermissions_AdminIsAllScopedOnly`; roles in `permissions.go` | ✅ |
-| A-2 | Members read their own balance and submit their own earn/spend | Task 2 | `tests/TestSpendForeignAccountRejected`, `TestUpdateAccountNameForeignRejected`, `TestListAuditByTransactionRefForeignMemberScopedOut` | ✅ **with deliberate deviation** — see note ▼ |
+| A-2 | Members read their own balance and submit their own earn/spend | Task 2 | `tests/TestEarnPointsMemberOwnAccount` (member earns own), `tests/TestSpendPointsEndpoint` (member spends own), `tests/TestEarnForeignAccountRejected`, `tests/TestSpendForeignAccountRejected`, `tests/TestUpdateAccountNameForeignRejected` | ✅ — see note ▼ |
 | A-3 | Admins view any account and apply adjustments | Task 2 | `tests/TestUpdateAccountBalanceAdminEndpoint`, `tests/TestUpdateAccountBalanceMemberForbidden` | ✅ |
 | A-4 | Token/credential shape, storage, validation, and role enforcement documented | Task 2 | `SOLUTION.md` + JWT login claim; `pkg/authorization` middleware tests (`TestAuthorizationMiddleware_*`) | 📄 + ✅ |
 
-> **A-2 deviation (intentional).** The brief says members "submit their own
-> earn/spend." This implementation lets a member **spend** their own points but
-> **not earn** them: `PermWalletTransactOwn` unlocks `SpendPoints` only —
-> `EarnPoints`/`ProcessTransaction` credit paths are operator-only, so a member
-> cannot mint points into their own account (`pkg/authorization/permissions.go`).
-> Enforced by `tests/TestEarnPointsMemberForbidden`, `TestProcessTransactionMemberForbidden`.
-> This is a security-motivated divergence worth calling out in SOLUTION.md / the demo.
+> **A-2 note.** Members earn **and** spend on their **own** account:
+> `PermWalletTransactOwn` unlocks both `EarnPoints` and `SpendPoints`, and the data
+> layer scopes the account to the caller, so the action can only land on an account
+> they own (`pkg/authorization/policy.go`, `permissions.go`). The generic
+> `ProcessTransaction` (arbitrary `kind`) and `ProcessTransactionBatch` remain
+> operator-only — bulk and arbitrary crediting stay an admin action, enforced by
+> `tests/TestProcessTransactionMemberForbidden`.
 
 ## Task 3 — Batch ingestion and concurrency safety
 

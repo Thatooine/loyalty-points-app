@@ -60,8 +60,9 @@ can be overridden by environment variable:
 
 ### Get an admin token
 
-New registrations are always members, and crediting points / batch ingestion are
-admin-only. For local development, bootstrap a well-known **admin** system user:
+New registrations are always members. Members earn and spend on their own account,
+but the generic `ProcessTransaction` and batch ingestion are admin-only. For local
+development, bootstrap a well-known **admin** system user:
 
 ```bash
 go run ./cmd/bootstrap   # resets the DB and (re)creates system@mail.com / admin-user-123 as an admin
@@ -147,8 +148,8 @@ Validation failures (`-32602`) additionally carry the offending fields:
 
 ### Roles in one line
 
-- **member** — read their own account and **spend** from it (default for every new registration). Members cannot credit points.
-- **admin** — read/adjust *any* account, **credit** points (earn / process), and run batch ingestion.
+- **member** — read their own account and **earn / spend** on it (default for every new registration). Members cannot touch other accounts, run the generic `ProcessTransaction`, or batch-ingest.
+- **admin** — read/adjust *any* account, use the generic `ProcessTransaction`, and run batch ingestion.
 
 See [SOLUTION.md](./SOLUTION.md#access-control) for how a user becomes an admin.
 
@@ -169,7 +170,7 @@ The full method surface at a glance (detail follows):
 | `AccountService.UpdateAccountName`     | member (own) / admin (any)   | Rename an account                           |
 | `AccountService.UpdateAccountBalance`  | admin only                   | Raw signed-delta correction (off-ledger)    |
 | `Wallet.SpendPoints`            | member (own) / admin (any)   | Debit points                                |
-| `Wallet.EarnPoints`             | admin only                   | Credit points                               |
+| `Wallet.EarnPoints`             | member (own) / admin (any)   | Credit points                               |
 | `Wallet.ProcessTransaction`     | admin only                   | Generic earn/spend (caller picks `kind`)    |
 | `Wallet.ProcessTransactionBatch`| admin only                   | Apply an ordered batch                      |
 | `AuditService.FetchTransactionAuditTrail`    | member (own) / admin (any)   | List processing attempts for a `ref`        |
@@ -259,13 +260,15 @@ curl -s http://localhost:8080/api \
 { "jsonrpc": "2.0", "result": { "ok": true }, "id": 1 }
 ```
 
-### `Wallet.EarnPoints` — admin only
+### `Wallet.EarnPoints` — member (own) / admin (any)
 
-Credits points. Crediting is an operator action — a member token is rejected, so
-a member cannot mint points into their own account. `ref` is the idempotency
-key — re-submitting the same `ref` returns the original outcome with
-`"duplicate": true` and applies no new effect. `occurred_at` is optional; the
-server stamps it when omitted.
+Credits points. A member may earn on their **own** account; the account is scoped
+to the caller, so an attempt against another account reads as not-found. An admin
+may earn on any account (the resulting ledger row's `owner_id` is the account
+owner, `created_by` the acting admin). `ref` is the idempotency key —
+re-submitting the same `ref` returns the original outcome with `"duplicate": true`
+and applies no new effect. `occurred_at` is optional; the server stamps it when
+omitted.
 
 **Request**
 
@@ -336,8 +339,9 @@ curl -s http://localhost:8080/api \
 ### `Wallet.ProcessTransaction` — admin only
 
 The general earn/spend method; `kind` is `"earn"` or `"spend"`. `EarnPoints` and
-`SpendPoints` are thin wrappers that fix `kind` for you. Because it can credit,
-it is operator-only — members spend via `Wallet.SpendPoints`. Same
+`SpendPoints` are thin wrappers that fix `kind` for you. This generic,
+arbitrary-`kind` entry point is operator-only — members use the dedicated
+`Wallet.EarnPoints` / `Wallet.SpendPoints` on their own account instead. Same
 request/response shape as above plus a `"kind"` field in params.
 
 ### `AccountService.GetAccountByID` — member (own) / admin (any)

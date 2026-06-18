@@ -33,15 +33,17 @@ func NewPolicy(byMethod map[string][]string, public map[string]bool) *Policy {
 	return &Policy{byMethod: byMethod, public: public}
 }
 
-// DefaultPolicy is the policy wired into the server. Crediting is operator-only:
-// ProcessTransaction and EarnPoints require the all-scoped transact permission
-// (admins only) so a member cannot mint points into their own account; only
-// SpendPoints is reachable with the own-scoped transact permission.
+// DefaultPolicy is the policy wired into the server. Members transact on their
+// OWN account: EarnPoints and SpendPoints are both reachable with the own-scoped
+// transact permission, and the data layer scopes the account to the caller, so a
+// member can only earn/spend against accounts they own. The generic
+// ProcessTransaction (arbitrary kind) and batch ingestion stay operator-only
+// (all-scoped) — bulk and generic crediting remain an admin action.
 func DefaultPolicy() *Policy {
 	return NewPolicy(
 		map[string][]string{
 			processTransactionMethod:      {PermWalletTransactAll},
-			earnPointsMethod:              {PermWalletTransactAll},
+			earnPointsMethod:              {PermWalletTransactOwn, PermWalletTransactAll},
 			spendPointsMethod:             {PermWalletTransactOwn, PermWalletTransactAll},
 			processTransactionBatchMethod: {PermWalletBatchAll},
 			fetchMyAccountsMethod:         {PermAccountReadOwn, PermAccountReadAll},

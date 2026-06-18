@@ -474,7 +474,9 @@ func TestRequestBodyTooLargeRejected(t *testing.T) {
 	}
 }
 
-func TestEarnPointsMemberForbidden(t *testing.T) {
+// A member may earn on their OWN account (A-2). They are both the owner and the
+// author of the resulting ledger row.
+func TestEarnPointsMemberOwnAccount(t *testing.T) {
 	c := setup(t)
 	member := registerMember(t, c)
 	ref := uniqueRef(t)
@@ -482,14 +484,58 @@ func TestEarnPointsMemberForbidden(t *testing.T) {
 	resp := c.call(t, earnPointsMethod, map[string]any{
 		"ref":        ref,
 		"account_id": member.AccountID,
-		"points":     1_000_000,
+		"points":     150,
 	}, member.Token)
-	if resp.Error == nil {
-		t.Fatal("EarnPoints as member: expected a forbidden error, got none")
+	requireNoError(t, "EarnPoints", resp)
+
+	var earn walletResult
+	mustUnmarshal(t, resp.Result, &earn)
+	if earn.Kind != "earn" {
+		t.Errorf("EarnPoints: kind = %q, want \"earn\"", earn.Kind)
+	}
+	if earn.Balance != 150 {
+		t.Errorf("EarnPoints: balance = %d, want 150", earn.Balance)
 	}
 
-	if got := remoteBalance(t, c, member.Token, member.AccountID); got != 0 {
-		t.Errorf("balance after forbidden earn = %d, want 0", got)
+	if got := remoteBalance(t, c, member.Token, member.AccountID); got != 150 {
+		t.Errorf("GetAccountBalance after self-earn = %d, want 150", got)
+	}
+
+	if c.db == nil {
+		return
+	}
+	var owner, author string
+	if err := c.db.QueryRow("SELECT owner_id, created_by FROM transactions WHERE ref = $1", ref).Scan(&owner, &author); err != nil {
+		t.Fatalf("query transaction row: %v", err)
+	}
+	if owner != member.UserID {
+		t.Errorf("owner_id = %q, want %q", owner, member.UserID)
+	}
+	if author != member.UserID {
+		t.Errorf("created_by = %q, want %q (the acting member)", author, member.UserID)
+	}
+}
+
+// Ownership still binds: a member cannot earn into someone else's account. The
+// scoped account lookup reads as not-found, so the attempt is rejected and the
+// owner's balance is untouched (no existence leak, no ledger row).
+func TestEarnForeignAccountRejected(t *testing.T) {
+	c := setup(t)
+	owner := registerMember(t, c)
+	intruder := registerMember(t, c)
+	ref := uniqueRef(t)
+
+	resp := c.call(t, earnPointsMethod, map[string]any{
+		"ref":        ref,
+		"account_id": owner.AccountID,
+		"points":     1_000_000,
+	}, intruder.Token)
+	if resp.Error == nil {
+		t.Fatal("EarnPoints into a foreign account: expected an error, got none")
+	}
+
+	if got := remoteBalance(t, c, owner.Token, owner.AccountID); got != 0 {
+		t.Errorf("owner balance after foreign earn = %d, want 0", got)
 	}
 
 	if c.db == nil {
@@ -500,7 +546,7 @@ func TestEarnPointsMemberForbidden(t *testing.T) {
 		t.Fatalf("count transaction rows: %v", err)
 	}
 	if n != 0 {
-		t.Errorf("ledger rows for forbidden earn = %d, want 0", n)
+		t.Errorf("ledger rows for foreign earn = %d, want 0", n)
 	}
 }
 

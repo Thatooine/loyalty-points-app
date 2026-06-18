@@ -210,10 +210,11 @@ logger**, so the request id rides along.
    check-then-insert reintroduces a race the design specifically eliminates.
 4. **Rejected audit rows go on the plain context, not the tx** — otherwise they vanish when the unit
    of work rolls back, and the trail loses every rejection.
-5. **Members cannot earn.** `PermWalletTransactOwn` unlocks `SpendPoints` only; `EarnPoints` /
-   `ProcessTransaction` credit paths are operator-only so a member can't mint points into their own
-   account (commit `8eb7c2b`). This is a deliberate divergence from a literal reading of the brief —
-   see spec row A-2.
+5. **Members earn AND spend their OWN account; generic/bulk crediting stays operator-only.**
+   `PermWalletTransactOwn` unlocks both `EarnPoints` and `SpendPoints`, and the data layer scopes the
+   account to the caller so the action can only land on an account they own. The generic
+   `ProcessTransaction` (arbitrary `kind`) and `ProcessTransactionBatch` require the all-scoped
+   permissions, so bulk/arbitrary crediting remains an admin action — see spec row A-2.
 6. **Timestamps are RFC3339Nano UTC TEXT** (`pkg/time`), not native timestamps. Ordering and keyset
    pagination depend on lexical sortability — do not switch column types or store local-tz values.
 7. **The `tests/` server is persistent across runs**, and `ref`/`email` carry UNIQUE constraints.
@@ -256,7 +257,7 @@ No version tags; this summarizes notable commits (newest first) so an agent gras
 | `2330d13` | Migrate audit logging to the `audit_entries` schema |
 | `f151505` | Centralize JSON-RPC error handling; improve validation error reporting |
 | `0abf305` / `51aa264` | Logout + token-versioning for session revocation |
-| `8eb7c2b` | **Restrict point crediting to operator-only** (members can spend, not earn — see Gotcha #5) |
+| `8eb7c2b` | Restrict point crediting to operator-only (**later revised — members may now earn on their own account; see Gotcha #5**) |
 | `02baee1` | Replace `SystemUserID` with `RootUserID` |
 
 ---
