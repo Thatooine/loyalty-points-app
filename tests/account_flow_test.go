@@ -8,6 +8,7 @@ import (
 // ledger-bypassing write path).
 const (
 	getAccountMethod           = "AccountService.GetAccountByID"
+	fetchMyAccountsMethod      = "AccountService.FetchMyAccounts"
 	updateAccountNameMethod    = "AccountService.UpdateAccountName"
 	updateAccountBalanceMethod = "AccountService.UpdateAccountBalance"
 	openAccountMethod          = "AccountOpener.OpenAccount"
@@ -18,6 +19,10 @@ type accountResult struct {
 	UserID  string `json:"user_id"`
 	Name    string `json:"name"`
 	Balance int64  `json:"balance"`
+}
+
+type accountsResult struct {
+	Accounts []accountResult `json:"accounts"`
 }
 
 type openAccountResult struct {
@@ -125,6 +130,73 @@ func TestAccountGetAccountBalanceEndpoint(t *testing.T) {
 	foreign := c.call(t, getBalanceMethod, map[string]any{"account_id": member.AccountID}, intruder.Token)
 	if foreign.Error == nil {
 		t.Error("GetAccountBalance on a foreign account: expected an error, got none")
+	}
+}
+
+func TestFetchMyAccountsEndpoint(t *testing.T) {
+	c := setup(t)
+	member := registerMember(t, c)
+	const secondName = "Holiday Wallet"
+
+	opened := c.call(t, openAccountMethod, map[string]any{"name": secondName}, member.Token)
+	requireNoError(t, "OpenAccount", opened)
+	var second openAccountResult
+	mustUnmarshal(t, opened.Result, &second)
+
+	resp := c.call(t, fetchMyAccountsMethod, map[string]any{}, member.Token)
+	requireNoError(t, "FetchMyAccounts", resp)
+
+	var got accountsResult
+	mustUnmarshal(t, resp.Result, &got)
+	if len(got.Accounts) != 2 {
+		t.Fatalf("FetchMyAccounts: got %d accounts, want 2", len(got.Accounts))
+	}
+
+	byID := make(map[string]accountResult, len(got.Accounts))
+	for _, acc := range got.Accounts {
+		if acc.UserID != member.UserID {
+			t.Errorf("FetchMyAccounts: account %q owned by %q, want caller %q", acc.ID, acc.UserID, member.UserID)
+		}
+		byID[acc.ID] = acc
+	}
+	if _, ok := byID[member.AccountID]; !ok {
+		t.Errorf("FetchMyAccounts: registration wallet %q missing from listing", member.AccountID)
+	}
+	if acc, ok := byID[second.AccountID]; !ok {
+		t.Errorf("FetchMyAccounts: opened account %q missing from listing", second.AccountID)
+	} else if acc.Name != secondName {
+		t.Errorf("FetchMyAccounts: opened account name = %q, want %q", acc.Name, secondName)
+	}
+}
+
+// FetchMyAccounts lists only the caller's own accounts: a second member sees
+// just their registration wallet, never the first member's accounts.
+func TestFetchMyAccountsScopedToOwner(t *testing.T) {
+	c := setup(t)
+	owner := registerMember(t, c)
+	intruder := registerMember(t, c)
+
+	resp := c.call(t, fetchMyAccountsMethod, map[string]any{}, intruder.Token)
+	requireNoError(t, "FetchMyAccounts", resp)
+
+	var got accountsResult
+	mustUnmarshal(t, resp.Result, &got)
+	for _, acc := range got.Accounts {
+		if acc.ID == owner.AccountID {
+			t.Errorf("FetchMyAccounts leaked owner account %q to a foreign member", owner.AccountID)
+		}
+		if acc.UserID != intruder.UserID {
+			t.Errorf("FetchMyAccounts returned account owned by %q, want caller %q", acc.UserID, intruder.UserID)
+		}
+	}
+}
+
+func TestFetchMyAccountsUnauthenticated(t *testing.T) {
+	c := setup(t)
+
+	resp := c.call(t, fetchMyAccountsMethod, map[string]any{}, "")
+	if resp.Error == nil {
+		t.Fatal("FetchMyAccounts without a token: expected an error, got none")
 	}
 }
 

@@ -37,7 +37,7 @@ environment was brought fully up first.
 
 | ID | Criterion (from brief) | Source | Test (evidence) | Verdict |
 |----|------------------------|--------|-----------------|---------|
-| T1-1 | Create and manage member accounts | Task 1 | `tests/TestOpenAccountEndpoint`, `TestUpdateAccountNameEndpoint`, `TestAccountGetAccountByIDEndpoint`; `internal/pkg/accounts` service tests | ✅ |
+| T1-1 | Create and manage member accounts | Task 1 | `tests/TestOpenAccountEndpoint`, `TestUpdateAccountNameEndpoint`, `TestAccountGetAccountByIDEndpoint`, `TestFetchMyAccountsEndpoint` (lists every account the caller owns), `TestFetchMyAccountsScopedToOwner`; `internal/pkg/accounts` service tests | ✅ |
 | T1-2 | Record earn and spend operations against an account | Task 1 | `tests/TestEarnPointsEndpoint`, `tests/TestSpendPointsEndpoint` | ✅ |
 | T1-3 | Track current balance per account | Task 1 | `tests/TestAccountGetAccountBalanceEndpoint` | ✅ |
 | T1-4 | Prevent double-counting when the same `ref` is submitted again | Task 1 + Constraints | `tests/TestProcessTransactionDuplicateRef` (asserts balance unchanged, `Duplicate=true`, single ledger row) | ✅ |
