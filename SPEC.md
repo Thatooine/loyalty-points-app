@@ -1,7 +1,7 @@
 # Spec: Loyalty Points Wallet
 
 **Status:** conformance pass run 2026-06-18
-**Brief (source of truth):** `Sanlam _ Senior Software Engineer Assignment.pdf`
+**Brief (source of truth):**
 **System under test:** this repository, full suite green against live server + Postgres + Redis
 
 This spec is *derived from* the brief. Each row restates one requirement as a
