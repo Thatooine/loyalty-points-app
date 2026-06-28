@@ -169,5 +169,3 @@ and queryable via `AuditService.FetchTransactionAuditTrail`.
 | `tests/`                  | Black-box HTTP/JSON-RPC integration tests                         |
 | `api/`                    | Postman collection                                                |
 | `scripts/`                | `start-stack.sh` (keeps data) / `reset-stack.sh` (wipes data)     |
-
-See [SOLUTION.md](./SOLUTION.md) for the architecture and reasoning.
