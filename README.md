@@ -4,9 +4,6 @@ A Go backend for a loyalty-points wallet — member accounts, earn/spend, role-b
 access, batch CSV ingestion, and an audit trail. Exposed as a **JSON-RPC 2.0** API
 over HTTP, backed by **PostgreSQL**, with **Redis**-backed rate limiting.
 
-Architecture and trade-offs: [SOLUTION.md](./SOLUTION.md). This file is the
-operator's guide.
-
 ## Requirements
 
 - Go 1.25+
