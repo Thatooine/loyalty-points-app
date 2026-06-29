@@ -26,13 +26,13 @@ func main() {
 
 	config, secureConfig := GetConfig("")
 
-	serviceProviders, err := NewServiceProviders(ctx, config, secureConfig)
+	deps, err := NewDependencies(ctx, config, secureConfig)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to create service providers")
+		log.Fatal().Err(err).Msg("failed to create dependencies")
 	}
 
 	// setup the server communications here
-	server := setupRPCServer(*serviceProviders)
+	server := setupRPCServer(*deps)
 
 	// shut down signal
 	signals := make(chan os.Signal, 1)
@@ -49,7 +49,7 @@ func main() {
 		log.Error().Err(err).Msg("failed to gracefully shut down server")
 	}
 
-	if err := serviceProviders.Close(); err != nil {
-		log.Error().Err(err).Msg("failed to close service providers")
+	if err := deps.Close(); err != nil {
+		log.Error().Err(err).Msg("failed to close dependencies")
 	}
 }

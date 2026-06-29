@@ -44,19 +44,19 @@ var publicAuthMethods = map[string]bool{
 	"UserRegistrationService.Register": true,
 }
 
-func setupRPCServer(providers ServiceProviders) *http.Server {
+func setupRPCServer(deps Dependencies) *http.Server {
 	port := 8080
 
 	router := mux.NewRouter()
 
 	services := []jsonrpc.Service{
-		authentication.NewEmailPasswordAuthenticatorJSONRPCAdaptor(providers.EmailPasswordAuthenticator),
-		authentication.NewLogoutServiceJSONRPCAdaptor(providers.LogoutService),
-		users.NewUserRegistrationServiceJSONRPCAdaptor(providers.UserRegistrationService),
-		wallets.NewWalletServiceJSONRPCAdaptor(providers.WalletService),
-		accounts.NewAccountServiceJSONRPCAdaptor(providers.AccountService),
-		accounts.NewAccountOpenerJSONRPCAdaptor(providers.AccountOpener),
-		audits.NewAuditServiceJSONRPCAdaptor(providers.AuditService),
+		authentication.NewEmailPasswordAuthenticatorJSONRPCAdaptor(deps.EmailPasswordAuthenticator),
+		authentication.NewLogoutServiceJSONRPCAdaptor(deps.LogoutService),
+		users.NewUserRegistrationServiceJSONRPCAdaptor(deps.UserRegistrationService),
+		wallets.NewWalletServiceJSONRPCAdaptor(deps.WalletService),
+		accounts.NewAccountServiceJSONRPCAdaptor(deps.AccountService),
+		accounts.NewAccountOpenerJSONRPCAdaptor(deps.AccountOpener),
+		audits.NewAuditServiceJSONRPCAdaptor(deps.AuditService),
 	}
 
 	apiRouter := router.PathPrefix("/api").Subrouter()
@@ -65,18 +65,18 @@ func setupRPCServer(providers ServiceProviders) *http.Server {
 	// IP limiter runs before auth so a flood of login/register attempts is shed
 	// cheaply, before any JWT work. Skipped entirely when no rate limiter is
 	// wired (local without Redis).
-	if providers.RateLimiter != nil {
+	if deps.RateLimiter != nil {
 		apiRouter.Use(rateLimiting.NewIPRateLimiterMiddleware(
-			providers.RateLimiter, publicAuthMethods, authRateCapacity, authRateRefill))
+			deps.RateLimiter, publicAuthMethods, authRateCapacity, authRateRefill))
 	}
 
-	apiRouter.Use(authorization.NewAuthorizationMiddleware(providers.AccessTokenValidator, authorization.DefaultPolicy()))
+	apiRouter.Use(authorization.NewAuthorizationMiddleware(deps.AccessTokenValidator, authorization.DefaultPolicy()))
 
 	// User limiter runs after auth: it keys on the login claim the authorization
 	// middleware puts on the context.
-	if providers.RateLimiter != nil {
+	if deps.RateLimiter != nil {
 		apiRouter.Use(rateLimiting.NewUserRateLimiterMiddleware(
-			providers.RateLimiter, userRateCapacity, userRateRefill))
+			deps.RateLimiter, userRateCapacity, userRateRefill))
 	}
 
 	apiRouter.Handle("", newJSONRPCServer(services))

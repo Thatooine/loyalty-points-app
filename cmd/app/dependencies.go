@@ -29,7 +29,7 @@ import (
 	pkgWallet "github.com/Thatooine/loyalty-points-app/pkg/wallets"
 )
 
-type ServiceProviders struct {
+type Dependencies struct {
 	DB                         *sql.DB
 	RedisClient                *redis.Client
 	RateLimiter                pkgRateLimiting.RedisTokenBucketRateLimiter
@@ -49,7 +49,7 @@ type ServiceProviders struct {
 	LogoutService              pkgAuth.LogoutService
 }
 
-func (s *ServiceProviders) Close() error {
+func (s *Dependencies) Close() error {
 	if s.RedisClient != nil {
 		if err := s.RedisClient.Close(); err != nil {
 			log.Error().Err(err).Msg("failed to close redis client")
@@ -58,7 +58,7 @@ func (s *ServiceProviders) Close() error {
 	return s.DB.Close()
 }
 
-func NewServiceProviders(ctx context.Context, config *Config, secureConfig *SecureConfig) (*ServiceProviders, error) {
+func NewDependencies(ctx context.Context, config *Config, secureConfig *SecureConfig) (*Dependencies, error) {
 	db, err := postgres.NewClient(ctx, config.PostgresDSN)
 	if err != nil {
 		return nil, fmt.Errorf("could not create postgres client: %w", err)
@@ -135,7 +135,7 @@ func NewServiceProviders(ctx context.Context, config *Config, secureConfig *Secu
 		accessTokenService,
 	)
 
-	return &ServiceProviders{
+	return &Dependencies{
 		DB:                         db,
 		RedisClient:                redisClient,
 		RateLimiter:                rateLimiter,
